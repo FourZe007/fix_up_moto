@@ -1,0 +1,100 @@
+name: fix_up_moto
+description: "Motorcycle repair and service booking application."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # ── State Management ──────────────────────────────────────────────────────
+  # flutter_bloc: BlocProvider, BlocBuilder, BlocListener widget helpers
+  flutter_bloc: ^8.1.6
+  # bloc: core Bloc/Cubit classes (flutter_bloc depends on this)
+  bloc: ^8.1.4
+
+  # ── Dependency Injection ──────────────────────────────────────────────────
+  # get_it: service locator — register once, resolve anywhere via sl<Type>()
+  get_it: ^8.0.2
+
+  # ── Value Equality ────────────────────────────────────────────────────────
+  # equatable: overrides == and hashCode via props list — used in entities,
+  # states, and events so BLoC only rebuilds on genuine state changes
+  equatable: ^2.0.5
+
+  # ── HTTP Networking ───────────────────────────────────────────────────────
+  # dio: feature-rich HTTP client with interceptor support for auth tokens
+  dio: ^5.7.0
+
+  # ── Navigation ────────────────────────────────────────────────────────────
+  # go_router: Flutter-team-endorsed declarative router with deep linking
+  # and ShellRoute for persistent bottom navigation bar
+  go_router: ^14.6.2
+
+  # ── Local Storage ─────────────────────────────────────────────────────────
+  # shared_preferences: key-value store for non-sensitive settings
+  shared_preferences: ^2.3.3
+  # flutter_secure_storage: OS keychain/keystore for auth tokens
+  flutter_secure_storage: ^9.2.2
+
+  # ── Functional Error Handling ─────────────────────────────────────────────
+  # dartz: provides Either<Failure, T> — forces callers to handle both
+  # error and success paths without leaking exceptions across layers
+  dartz: ^0.10.1
+
+  # ── Code Generation Annotations ──────────────────────────────────────────
+  # freezed_annotation: @freezed decorator for immutable data classes/unions
+  freezed_annotation: ^2.4.4
+  # json_annotation: @JsonSerializable for fromJson/toJson code generation
+  json_annotation: ^4.9.0
+
+  # ── Utilities ─────────────────────────────────────────────────────────────
+  # intl: date formatting ("Mon, 10 Mar 2026"), number/currency formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # ── Code Generators ───────────────────────────────────────────────────────
+  # build_runner: runs code generation; execute with:
+  #   dart run build_runner build --delete-conflicting-outputs
+  build_runner: ^2.4.13
+  # freezed: generates copyWith, ==, toString, pattern-matching for @freezed classes
+  freezed: ^2.5.7
+  # json_serializable: generates _$ClassFromJson / _$ClassToJson functions
+  json_serializable: ^6.8.0
+
+  # ── Testing ───────────────────────────────────────────────────────────────
+  # bloc_test: whenListen, blocTest helpers for BLoC unit tests
+  bloc_test: ^9.1.7
+  # mocktail: null-safe mock generation without code generation
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Drop images (PNG/JPG/SVG) here — referenced via AssetConstants.imagePath
+    - assets/images/
+    # App-specific icons (SVG/PNG) separate from Material icon font
+    - assets/icons/
+    # Lottie JSON animation files
+    - assets/animations/
+
+  fonts:
+    # Poppins — primary typeface; weights map to TextStyle fontWeight values
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf          # w400 — body text
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500                                        # w500 — labels
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600                                        # w600 — subheadings
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700                                        # w700 — headings
