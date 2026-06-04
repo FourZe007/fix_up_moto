@@ -48,15 +48,20 @@ final sl = GetIt.instance;
 /// Registration order matters — dependencies must be registered before the
 /// classes that consume them.
 Future<void> initDependencies() async {
+  // Guard against stale or corrupt keychain state that causes EXC_BAD_ACCESS
+  // on ARM64e devices (iPhone 15 / A16) after extended idle periods. A failed
+  // read means the keychain entry is invalid; wipe all stored items so the app
+  // starts clean rather than crashing in a DartWorker thread.
+  try {
+    await const FlutterSecureStorage().read(key: 'auth_token');
+  } catch (_) {
+    await const FlutterSecureStorage().deleteAll();
+  }
+
   // ── External / Third-party ───────────────────────────────────────────────
 
-  // Singleton: FlutterSecureStorage has no internal mutable state
   sl.registerLazySingleton(() => const FlutterSecureStorage());
-
-  // AuthInterceptor needs SecureStorage to read/write the token
   sl.registerLazySingleton(() => AuthInterceptor(sl<FlutterSecureStorage>()));
-
-  // DioClient wraps Dio with base URL, timeout, and both interceptors
   sl.registerLazySingleton(
     () => DioClient(authInterceptor: sl<AuthInterceptor>()),
   );
@@ -66,7 +71,6 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<NetworkInfo>(() => NetworkInfoImpl());
 
   // ── Auth Feature ─────────────────────────────────────────────────────────
-  // Order: DataSources → Repository → UseCases → BLoC
 
   sl.registerLazySingleton<AuthRemoteDataSource>(
     () => AuthRemoteDataSourceImpl(sl<DioClient>().dio),
@@ -103,15 +107,10 @@ Future<void> initDependencies() async {
     () => HomeRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<HomeRepository>(
-    () => HomeRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => HomeRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetDashboardStatsUseCase(sl<HomeRepository>()));
-  sl.registerFactory(
-    () => HomeBloc(getDashboardStats: sl()),
-  );
+  sl.registerFactory(() => HomeBloc(getDashboardStats: sl()));
 
   // ── Services Feature ──────────────────────────────────────────────────────
 
@@ -119,20 +118,14 @@ Future<void> initDependencies() async {
     () => ServicesRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<ServicesRepository>(
-    () => ServicesRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => ServicesRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetServicesUseCase(sl<ServicesRepository>()));
   sl.registerLazySingleton(
     () => GetServiceDetailUseCase(sl<ServicesRepository>()),
   );
   sl.registerFactory(
-    () => ServicesBloc(
-      getServices: sl(),
-      getServiceDetail: sl(),
-    ),
+    () => ServicesBloc(getServices: sl(), getServiceDetail: sl()),
   );
 
   // ── Bookings Feature ──────────────────────────────────────────────────────
@@ -141,10 +134,7 @@ Future<void> initDependencies() async {
     () => BookingsRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<BookingsRepository>(
-    () => BookingsRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => BookingsRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetBookingsUseCase(sl<BookingsRepository>()));
   sl.registerLazySingleton(
@@ -167,19 +157,13 @@ Future<void> initDependencies() async {
     () => ProfileRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<ProfileRepository>(
-    () => ProfileRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => ProfileRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetProfileUseCase(sl<ProfileRepository>()));
   sl.registerLazySingleton(
     () => UpdateProfileUseCase(sl<ProfileRepository>()),
   );
   sl.registerFactory(
-    () => ProfileBloc(
-      getProfile: sl(),
-      updateProfile: sl(),
-    ),
+    () => ProfileBloc(getProfile: sl(), updateProfile: sl()),
   );
 }
