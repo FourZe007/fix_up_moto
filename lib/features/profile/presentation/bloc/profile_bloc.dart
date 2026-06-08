@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fix_up_moto/domain/usecases/get_profile_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/update_profile_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/get_profile_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/update_profile_usecase.dart';
 import 'profile_event.dart';
 import 'profile_state.dart';
 

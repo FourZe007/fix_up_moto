@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:fix_up_moto/domain/entities/motorcycle_entity.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/motorcycle_entity.dart';
 
 part 'motorcycle_model.g.dart';
 

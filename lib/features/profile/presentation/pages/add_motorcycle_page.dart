@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
-import 'package:fix_up_moto/presentation/blocs/profile_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/profile_event.dart';
-import 'package:fix_up_moto/presentation/blocs/profile_state.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/profile_event.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dart';
 
 /// Form for registering a new motorcycle to the user's profile.
 class AddMotorcyclePage extends StatefulWidget {

@@ -3,9 +3,9 @@ import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
-import 'package:fix_up_moto/domain/entities/motorcycle_entity.dart';
-import 'package:fix_up_moto/domain/repositories/profile_repository.dart';
-import 'package:fix_up_moto/data/datasources/profile_remote_data_source.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/motorcycle_entity.dart';
+import 'package:fix_up_moto/features/profile/domain/repositories/profile_repository.dart';
+import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
   final ProfileRemoteDataSource remoteDataSource;
