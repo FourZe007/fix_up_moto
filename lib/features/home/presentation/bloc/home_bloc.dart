@@ -1,5 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fix_up_moto/domain/usecases/get_dashboard_stats_usecase.dart';
+import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 

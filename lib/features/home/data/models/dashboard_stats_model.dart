@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:fix_up_moto/domain/entities/dashboard_stats_entity.dart';
+import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 
 part 'dashboard_stats_model.g.dart';
 

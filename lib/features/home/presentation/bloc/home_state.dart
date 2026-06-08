@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:fix_up_moto/domain/entities/dashboard_stats_entity.dart';
+import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 
 sealed class HomeState extends Equatable {
   const HomeState();

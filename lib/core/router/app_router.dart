@@ -8,7 +8,7 @@ import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/presentation/screens/bookings_page.dart';
 import 'package:fix_up_moto/presentation/screens/create_booking_page.dart';
-import 'package:fix_up_moto/presentation/screens/home_page.dart';
+import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_motorcycle_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 import 'package:fix_up_moto/presentation/screens/service_detail_page.dart';

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
-import 'package:fix_up_moto/domain/entities/dashboard_stats_entity.dart';
-import 'package:fix_up_moto/presentation/blocs/home_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/home_event.dart';
-import 'package:fix_up_moto/presentation/blocs/home_state.dart';
-import 'package:fix_up_moto/presentation/widgets/stats_card.dart';
+import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/home/presentation/widgets/stats_card.dart';
 
 /// Home / dashboard screen — the default tab after login.
 ///
