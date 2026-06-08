@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:fix_up_moto/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 
 // Tells build_runner to generate _$UserModelFromJson / _$UserModelToJson.
 // Run: dart run build_runner build --delete-conflicting-outputs

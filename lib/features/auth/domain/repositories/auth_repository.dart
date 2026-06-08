@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
-import 'package:fix_up_moto/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 
 /// Abstract contract for authentication operations.
 ///

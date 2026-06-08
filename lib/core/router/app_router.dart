@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:fix_up_moto/presentation/blocs/auth_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_state.dart';
-import 'package:fix_up_moto/presentation/screens/login_page.dart';
-import 'package:fix_up_moto/presentation/screens/register_page.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
+import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/presentation/screens/bookings_page.dart';
 import 'package:fix_up_moto/presentation/screens/create_booking_page.dart';
 import 'package:fix_up_moto/presentation/screens/home_page.dart';

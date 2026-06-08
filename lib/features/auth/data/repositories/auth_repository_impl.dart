@@ -2,10 +2,10 @@ import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
-import 'package:fix_up_moto/domain/entities/user_entity.dart';
-import 'package:fix_up_moto/domain/repositories/auth_repository.dart';
-import 'package:fix_up_moto/data/datasources/auth_local_data_source.dart';
-import 'package:fix_up_moto/data/datasources/auth_remote_data_source.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
+import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:fix_up_moto/features/auth/data/datasources/auth_remote_data_source.dart';
 
 /// Concrete implementation of [AuthRepository].
 ///

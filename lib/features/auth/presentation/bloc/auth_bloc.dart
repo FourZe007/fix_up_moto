@@ -1,9 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/usecases/usecase.dart';
-import 'package:fix_up_moto/domain/usecases/get_current_user_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/login_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/logout_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/register_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/get_current_user_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/login_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/register_usecase.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 

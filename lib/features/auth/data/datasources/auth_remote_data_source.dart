@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
-import 'package:fix_up_moto/data/models/user_model.dart';
+import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
 
 /// Contract for all authentication HTTP calls.
 /// Having an abstract interface makes it trivially mockable in unit tests.

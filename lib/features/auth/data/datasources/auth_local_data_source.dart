@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
-import 'package:fix_up_moto/data/models/user_model.dart';
+import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
 
 /// Contract for reading/writing auth data in local storage.
 abstract class AuthLocalDataSource {

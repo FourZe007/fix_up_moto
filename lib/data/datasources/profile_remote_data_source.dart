@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
-import 'package:fix_up_moto/data/models/user_model.dart';
+import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
 import 'package:fix_up_moto/data/models/motorcycle_model.dart';
 
 abstract class ProfileRemoteDataSource {

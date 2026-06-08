@@ -5,14 +5,14 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/usecases/usecase.dart';
-import 'package:fix_up_moto/domain/entities/user_entity.dart';
-import 'package:fix_up_moto/domain/usecases/get_current_user_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/login_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/logout_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/register_usecase.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_event.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_state.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/get_current_user_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/login_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/register_usecase.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // One mock per use case — mocktail generates in-memory implementations at

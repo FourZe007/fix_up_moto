@@ -3,10 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_event.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_state.dart';
-import 'package:fix_up_moto/presentation/widgets/auth_text_field.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
 
 /// Login screen — the first page unauthenticated users see.
 ///

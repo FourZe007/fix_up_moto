@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:fix_up_moto/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 
 /// States represent **what the UI should render** at a given moment.
 /// The BLoC emits a new state in response to each event.
