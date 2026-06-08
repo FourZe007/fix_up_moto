@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
-import 'package:fix_up_moto/routes.dart';
-import 'package:fix_up_moto/presentation/themes/app_theme.dart';
+import 'package:fix_up_moto/core/router/app_router.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/presentation/blocs/auth_bloc.dart';
 import 'package:fix_up_moto/presentation/blocs/auth_event.dart';
 

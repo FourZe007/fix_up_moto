@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:fix_up_moto/core/error/failures.dart';
-import 'package:fix_up_moto/domain/usecases/usecase.dart';
+import 'package:fix_up_moto/core/usecases/usecase.dart';
 import 'package:fix_up_moto/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/domain/usecases/get_current_user_usecase.dart';
 import 'package:fix_up_moto/domain/usecases/login_usecase.dart';

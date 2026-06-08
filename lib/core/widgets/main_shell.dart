@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fix_up_moto/route_names.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 
 /// Persistent bottom navigation bar shell shared by the four main tabs.
 ///

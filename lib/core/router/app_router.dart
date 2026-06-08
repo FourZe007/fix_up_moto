@@ -13,8 +13,8 @@ import 'package:fix_up_moto/presentation/screens/add_motorcycle_page.dart';
 import 'package:fix_up_moto/presentation/screens/profile_page.dart';
 import 'package:fix_up_moto/presentation/screens/service_detail_page.dart';
 import 'package:fix_up_moto/presentation/screens/services_page.dart';
-import 'package:fix_up_moto/presentation/widgets/main_shell.dart';
-import 'route_names.dart';
+import 'package:fix_up_moto/core/widgets/main_shell.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 
 /// Centralised GoRouter configuration for the entire app.
 ///

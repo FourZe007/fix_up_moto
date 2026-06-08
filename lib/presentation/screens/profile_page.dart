@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
-import 'package:fix_up_moto/route_names.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/presentation/blocs/profile_bloc.dart';
 import 'package:fix_up_moto/presentation/blocs/profile_event.dart';
 import 'package:fix_up_moto/presentation/blocs/profile_state.dart';
