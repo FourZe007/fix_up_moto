@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fix_up_moto/domain/entities/service_entity.dart';
+import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
 /// Displays a single service in the services list.
 class ServiceCard extends StatelessWidget {

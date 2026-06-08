@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:fix_up_moto/domain/entities/service_entity.dart';
+import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
 sealed class ServicesState extends Equatable {
   const ServicesState();

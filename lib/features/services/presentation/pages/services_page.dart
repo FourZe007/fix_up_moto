@@ -3,10 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
-import 'package:fix_up_moto/presentation/blocs/services_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/services_event.dart';
-import 'package:fix_up_moto/presentation/blocs/services_state.dart';
-import 'package:fix_up_moto/presentation/widgets/service_card.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_state.dart';
+import 'package:fix_up_moto/features/services/presentation/widgets/service_card.dart';
 
 /// Lists all available repair services with optional category filtering.
 class ServicesPage extends StatelessWidget {

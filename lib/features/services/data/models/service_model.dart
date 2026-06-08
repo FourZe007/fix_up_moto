@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:fix_up_moto/domain/entities/service_entity.dart';
+import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
 part 'service_model.g.dart';
 

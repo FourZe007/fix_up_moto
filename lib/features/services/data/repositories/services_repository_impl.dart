@@ -2,9 +2,9 @@ import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
-import 'package:fix_up_moto/domain/entities/service_entity.dart';
-import 'package:fix_up_moto/domain/repositories/services_repository.dart';
-import 'package:fix_up_moto/data/datasources/services_remote_data_source.dart';
+import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
+import 'package:fix_up_moto/features/services/domain/repositories/services_repository.dart';
+import 'package:fix_up_moto/features/services/data/datasources/services_remote_data_source.dart';
 
 class ServicesRepositoryImpl implements ServicesRepository {
   final ServicesRemoteDataSource remoteDataSource;

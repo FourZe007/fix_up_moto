@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
-import 'package:fix_up_moto/data/models/service_model.dart';
+import 'package:fix_up_moto/features/services/data/models/service_model.dart';
 
 abstract class ServicesRemoteDataSource {
   Future<List<ServiceModel>> getServices({String? categoryId});

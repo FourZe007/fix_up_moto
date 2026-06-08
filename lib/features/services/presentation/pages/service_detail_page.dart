@@ -3,9 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
-import 'package:fix_up_moto/presentation/blocs/services_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/services_event.dart';
-import 'package:fix_up_moto/presentation/blocs/services_state.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_state.dart';
 
 /// Displays full details for a single service and provides a "Book Now" button.
 class ServiceDetailPage extends StatelessWidget {

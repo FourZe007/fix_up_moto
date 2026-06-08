@@ -11,8 +11,8 @@ import 'package:fix_up_moto/presentation/screens/create_booking_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_motorcycle_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
-import 'package:fix_up_moto/presentation/screens/service_detail_page.dart';
-import 'package:fix_up_moto/presentation/screens/services_page.dart';
+import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
+import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 

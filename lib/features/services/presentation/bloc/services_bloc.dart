@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fix_up_moto/domain/usecases/get_service_detail_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/get_services_usecase.dart';
+import 'package:fix_up_moto/features/services/domain/usecases/get_service_detail_usecase.dart';
+import 'package:fix_up_moto/features/services/domain/usecases/get_services_usecase.dart';
 import 'services_event.dart';
 import 'services_state.dart';
 
