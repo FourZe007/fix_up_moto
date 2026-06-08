@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
-import 'package:fix_up_moto/domain/entities/booking_entity.dart';
+import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 
 abstract class BookingsRepository {
   /// Returns all bookings for the authenticated user, newest first.

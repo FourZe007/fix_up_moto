@@ -2,9 +2,9 @@ import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
-import 'package:fix_up_moto/domain/entities/booking_entity.dart';
-import 'package:fix_up_moto/domain/repositories/bookings_repository.dart';
-import 'package:fix_up_moto/data/datasources/bookings_remote_data_source.dart';
+import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
+import 'package:fix_up_moto/features/bookings/domain/repositories/bookings_repository.dart';
+import 'package:fix_up_moto/features/bookings/data/datasources/bookings_remote_data_source.dart';
 
 class BookingsRepositoryImpl implements BookingsRepository {
   final BookingsRemoteDataSource remoteDataSource;

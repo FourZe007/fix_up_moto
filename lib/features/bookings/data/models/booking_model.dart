@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:fix_up_moto/domain/entities/booking_entity.dart';
+import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 
 part 'booking_model.g.dart';
 

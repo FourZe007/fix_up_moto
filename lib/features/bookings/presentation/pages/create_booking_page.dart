@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/bookings_bloc.dart';
-import 'package:fix_up_moto/presentation/blocs/bookings_event.dart';
-import 'package:fix_up_moto/presentation/blocs/bookings_state.dart';
+import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
+import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
+import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
 
 /// Form page for creating a new service booking.
 ///

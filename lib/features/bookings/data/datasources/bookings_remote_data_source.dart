@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
-import 'package:fix_up_moto/data/models/booking_model.dart';
+import 'package:fix_up_moto/features/bookings/data/models/booking_model.dart';
 
 abstract class BookingsRemoteDataSource {
   Future<List<BookingModel>> getBookings();

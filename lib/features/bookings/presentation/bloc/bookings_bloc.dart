@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fix_up_moto/domain/usecases/cancel_booking_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/create_booking_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/get_bookings_usecase.dart';
+import 'package:fix_up_moto/features/bookings/domain/usecases/cancel_booking_usecase.dart';
+import 'package:fix_up_moto/features/bookings/domain/usecases/create_booking_usecase.dart';
+import 'package:fix_up_moto/features/bookings/domain/usecases/get_bookings_usecase.dart';
 import 'bookings_event.dart';
 import 'bookings_state.dart';
 

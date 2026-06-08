@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:fix_up_moto/domain/entities/booking_entity.dart';
+import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 
 sealed class BookingsState extends Equatable {
   const BookingsState();
