@@ -1,39 +1,39 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 
-import 'package:fix_up_moto/data/datasources/auth_local_data_source.dart';
-import 'package:fix_up_moto/data/datasources/auth_remote_data_source.dart';
-import 'package:fix_up_moto/data/repositories/auth_repository_impl.dart';
-import 'package:fix_up_moto/domain/repositories/auth_repository.dart';
-import 'package:fix_up_moto/domain/usecases/get_current_user_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/login_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/logout_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/register_usecase.dart';
-import 'package:fix_up_moto/presentation/blocs/auth_bloc.dart';
-import 'package:fix_up_moto/data/datasources/bookings_remote_data_source.dart';
-import 'package:fix_up_moto/data/repositories/bookings_repository_impl.dart';
-import 'package:fix_up_moto/domain/repositories/bookings_repository.dart';
-import 'package:fix_up_moto/domain/usecases/cancel_booking_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/create_booking_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/get_bookings_usecase.dart';
-import 'package:fix_up_moto/presentation/blocs/bookings_bloc.dart';
-import 'package:fix_up_moto/data/datasources/home_remote_data_source.dart';
-import 'package:fix_up_moto/data/repositories/home_repository_impl.dart';
-import 'package:fix_up_moto/domain/repositories/home_repository.dart';
-import 'package:fix_up_moto/domain/usecases/get_dashboard_stats_usecase.dart';
-import 'package:fix_up_moto/presentation/blocs/home_bloc.dart';
-import 'package:fix_up_moto/data/datasources/profile_remote_data_source.dart';
-import 'package:fix_up_moto/data/repositories/profile_repository_impl.dart';
-import 'package:fix_up_moto/domain/repositories/profile_repository.dart';
-import 'package:fix_up_moto/domain/usecases/get_profile_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/update_profile_usecase.dart';
-import 'package:fix_up_moto/presentation/blocs/profile_bloc.dart';
-import 'package:fix_up_moto/data/datasources/services_remote_data_source.dart';
-import 'package:fix_up_moto/data/repositories/services_repository_impl.dart';
-import 'package:fix_up_moto/domain/repositories/services_repository.dart';
-import 'package:fix_up_moto/domain/usecases/get_service_detail_usecase.dart';
-import 'package:fix_up_moto/domain/usecases/get_services_usecase.dart';
-import 'package:fix_up_moto/presentation/blocs/services_bloc.dart';
+import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:fix_up_moto/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:fix_up_moto/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/get_current_user_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/login_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:fix_up_moto/features/auth/domain/usecases/register_usecase.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/bookings/data/datasources/bookings_remote_data_source.dart';
+import 'package:fix_up_moto/features/bookings/data/repositories/bookings_repository_impl.dart';
+import 'package:fix_up_moto/features/bookings/domain/repositories/bookings_repository.dart';
+import 'package:fix_up_moto/features/bookings/domain/usecases/cancel_booking_usecase.dart';
+import 'package:fix_up_moto/features/bookings/domain/usecases/create_booking_usecase.dart';
+import 'package:fix_up_moto/features/bookings/domain/usecases/get_bookings_usecase.dart';
+import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
+import 'package:fix_up_moto/features/home/data/datasources/home_remote_data_source.dart';
+import 'package:fix_up_moto/features/home/data/repositories/home_repository_impl.dart';
+import 'package:fix_up_moto/features/home/domain/repositories/home_repository.dart';
+import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
+import 'package:fix_up_moto/features/profile/data/repositories/profile_repository_impl.dart';
+import 'package:fix_up_moto/features/profile/domain/repositories/profile_repository.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/get_profile_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/update_profile_usecase.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
+import 'package:fix_up_moto/features/services/data/datasources/services_remote_data_source.dart';
+import 'package:fix_up_moto/features/services/data/repositories/services_repository_impl.dart';
+import 'package:fix_up_moto/features/services/domain/repositories/services_repository.dart';
+import 'package:fix_up_moto/features/services/domain/usecases/get_service_detail_usecase.dart';
+import 'package:fix_up_moto/features/services/domain/usecases/get_services_usecase.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/core/network/dio_client.dart';
 import 'package:fix_up_moto/core/network/interceptors/auth_interceptor.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
@@ -48,15 +48,20 @@ final sl = GetIt.instance;
 /// Registration order matters — dependencies must be registered before the
 /// classes that consume them.
 Future<void> initDependencies() async {
+  // Guard against stale or corrupt keychain state that causes EXC_BAD_ACCESS
+  // on ARM64e devices (iPhone 15 / A16) after extended idle periods. A failed
+  // read means the keychain entry is invalid; wipe all stored items so the app
+  // starts clean rather than crashing in a DartWorker thread.
+  try {
+    await const FlutterSecureStorage().read(key: 'auth_token');
+  } catch (_) {
+    await const FlutterSecureStorage().deleteAll();
+  }
+
   // ── External / Third-party ───────────────────────────────────────────────
 
-  // Singleton: FlutterSecureStorage has no internal mutable state
   sl.registerLazySingleton(() => const FlutterSecureStorage());
-
-  // AuthInterceptor needs SecureStorage to read/write the token
   sl.registerLazySingleton(() => AuthInterceptor(sl<FlutterSecureStorage>()));
-
-  // DioClient wraps Dio with base URL, timeout, and both interceptors
   sl.registerLazySingleton(
     () => DioClient(authInterceptor: sl<AuthInterceptor>()),
   );
@@ -66,7 +71,6 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<NetworkInfo>(() => NetworkInfoImpl());
 
   // ── Auth Feature ─────────────────────────────────────────────────────────
-  // Order: DataSources → Repository → UseCases → BLoC
 
   sl.registerLazySingleton<AuthRemoteDataSource>(
     () => AuthRemoteDataSourceImpl(sl<DioClient>().dio),
@@ -103,15 +107,10 @@ Future<void> initDependencies() async {
     () => HomeRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<HomeRepository>(
-    () => HomeRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => HomeRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetDashboardStatsUseCase(sl<HomeRepository>()));
-  sl.registerFactory(
-    () => HomeBloc(getDashboardStats: sl()),
-  );
+  sl.registerFactory(() => HomeBloc(getDashboardStats: sl()));
 
   // ── Services Feature ──────────────────────────────────────────────────────
 
@@ -119,20 +118,14 @@ Future<void> initDependencies() async {
     () => ServicesRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<ServicesRepository>(
-    () => ServicesRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => ServicesRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetServicesUseCase(sl<ServicesRepository>()));
   sl.registerLazySingleton(
     () => GetServiceDetailUseCase(sl<ServicesRepository>()),
   );
   sl.registerFactory(
-    () => ServicesBloc(
-      getServices: sl(),
-      getServiceDetail: sl(),
-    ),
+    () => ServicesBloc(getServices: sl(), getServiceDetail: sl()),
   );
 
   // ── Bookings Feature ──────────────────────────────────────────────────────
@@ -141,10 +134,7 @@ Future<void> initDependencies() async {
     () => BookingsRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<BookingsRepository>(
-    () => BookingsRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => BookingsRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetBookingsUseCase(sl<BookingsRepository>()));
   sl.registerLazySingleton(
@@ -167,19 +157,13 @@ Future<void> initDependencies() async {
     () => ProfileRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<ProfileRepository>(
-    () => ProfileRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => ProfileRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetProfileUseCase(sl<ProfileRepository>()));
   sl.registerLazySingleton(
     () => UpdateProfileUseCase(sl<ProfileRepository>()),
   );
   sl.registerFactory(
-    () => ProfileBloc(
-      getProfile: sl(),
-      updateProfile: sl(),
-    ),
+    () => ProfileBloc(getProfile: sl(), updateProfile: sl()),
   );
 }
