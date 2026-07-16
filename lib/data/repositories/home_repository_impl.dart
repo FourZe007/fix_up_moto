@@ -20,8 +20,16 @@ class HomeRepositoryImpl implements HomeRepository {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
+
     try {
-      final model = await remoteDataSource.getDashboardStats();
+      final model = await remoteDataSource.getMotorcycleStats(
+        '',
+        '',
+        '',
+        '',
+        '',
+      );
+
       return Right(model.toEntity());
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));

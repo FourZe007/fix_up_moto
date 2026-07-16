@@ -4,7 +4,14 @@ import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/data/models/dashboard_stats_model.dart';
 
 abstract class HomeRemoteDataSource {
-  Future<DashboardStatsModel> getDashboardStats();
+  Future<DashboardStatsModel> getMotorcycleStats(
+    String memberId,
+    String memberName,
+    String plateNo,
+    String phoneNo,
+    String status, {
+    String type = 'membership',
+  });
 }
 
 class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
@@ -13,9 +20,27 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
   HomeRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<DashboardStatsModel> getDashboardStats() async {
+  Future<DashboardStatsModel> getMotorcycleStats(
+    String memberId,
+    String memberName,
+    String plateNo,
+    String phoneNo,
+    String status, {
+    String type = 'membership',
+  }) async {
     try {
-      final response = await _dio.get(ApiConstants.dashboard);
+      final response = await _dio.post(
+        ApiConstants.motorcycles,
+        data: {
+          'Jenis': type.toUpperCase(),
+          'MemberID': memberId,
+          'MemberName': memberName,
+          'PlateNo': plateNo,
+          'PhoneNo': phoneNo,
+          'Status': status,
+        },
+      );
+
       return DashboardStatsModel.fromJson(
         response.data['data'] as Map<String, dynamic>,
       );
