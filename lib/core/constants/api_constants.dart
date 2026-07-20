@@ -8,7 +8,7 @@ class ApiConstants {
   // ── Base URL ──────────────────────────────────────────────────────────────
 
   /// Root of the backend API. All endpoint paths are appended to this.
-  static const String baseUrl = 'wsip.yamaha-jatim.co.id:2448';
+  static const String baseUrl = 'https://wsip.yamaha-jatim.co.id:2448';
 
   // ── Secure Storage Keys ───────────────────────────────────────────────────
   // Keys used with FlutterSecureStorage to persist auth tokens between sessions.

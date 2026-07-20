@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'interceptors/auth_interceptor.dart';
+import 'interceptors/json_response_interceptor.dart';
 import 'interceptors/logging_interceptor.dart';
 
 /// Configured [Dio] HTTP client used by all remote data sources.
@@ -38,6 +39,10 @@ class DioClient {
     )
       // AuthInterceptor runs first — injects Bearer token before logging
       ..interceptors.add(authInterceptor)
+      // JsonResponseInterceptor decodes String bodies into Map/List so data
+      // sources can subscript response.data safely (backend returns JSON with a
+      // non-JSON content-type). Runs before logging so logs show the decoded body.
+      ..interceptors.add(JsonResponseInterceptor())
       // LoggingInterceptor runs after — prints the fully-decorated request
       ..interceptors.add(LoggingInterceptor());
   }

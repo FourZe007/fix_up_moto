@@ -53,8 +53,10 @@ class ProfileRepositoryImpl implements ProfileRepository {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
+
     try {
-      final models = await remoteDataSource.getMotorcycles();
+      final models = await remoteDataSource.getMotorcycles('', '', '', '', '');
+
       return Right(models.map((m) => m.toEntity()).toList());
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));

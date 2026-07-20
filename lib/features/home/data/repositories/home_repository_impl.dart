@@ -24,7 +24,7 @@ class HomeRepositoryImpl implements HomeRepository {
     try {
       final model = await remoteDataSource.getMotorcycleStats(
         '',
-        '',
+        'joseph angelus',
         '',
         '',
         '',

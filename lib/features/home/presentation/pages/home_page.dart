@@ -71,17 +71,17 @@ class _StatsView extends StatelessWidget {
             children: [
               Expanded(
                 child: StatsCard(
-                  label: 'Total Bookings',
-                  value: '${stats.totalBookings}',
-                  icon: Icons.calendar_month,
+                  label: 'Loyalty Points',
+                  value: '${stats.point}',
+                  icon: Icons.star_outline,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: StatsCard(
-                  label: 'Upcoming',
-                  value: '${stats.upcomingBookings}',
-                  icon: Icons.schedule,
+                  label: 'Qty',
+                  value: '${stats.qty}',
+                  icon: Icons.confirmation_number_outlined,
                 ),
               ),
             ],
@@ -91,17 +91,17 @@ class _StatsView extends StatelessWidget {
             children: [
               Expanded(
                 child: StatsCard(
-                  label: 'Done This Month',
-                  value: '${stats.completedThisMonth}',
-                  icon: Icons.check_circle_outline,
+                  label: 'Point History',
+                  value: '${stats.detail.length}',
+                  icon: Icons.history,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: StatsCard(
-                  label: 'Loyalty Points',
-                  value: '${stats.loyaltyPoints}',
-                  icon: Icons.star_outline,
+                  label: 'Vouchers',
+                  value: '${stats.detail2.length}',
+                  icon: Icons.card_giftcard,
                 ),
               ),
             ],

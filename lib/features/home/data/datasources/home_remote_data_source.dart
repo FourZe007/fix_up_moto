@@ -41,12 +41,20 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
         },
       );
 
-      return DashboardStatsModel.fromJson(
-        response.data['data'] as Map<String, dynamic>,
-      );
+      // The API wraps the member record in a single-element array:
+      // { "Data": [ { ...member... } ] } — so unwrap the first element.
+      final data = response.data['Data'] as List<dynamic>;
+      if (data.isEmpty) {
+        throw ServerException(
+          message: 'No membership data found',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return DashboardStatsModel.fromJson(data.first as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
+        message: e.response?.data?['Msg'] as String? ?? 'Server error',
         statusCode: e.response?.statusCode,
       );
     }
