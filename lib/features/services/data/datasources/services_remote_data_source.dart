@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
-import 'package:fix_up_moto/core/error/exceptions.dart';
+import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/services/data/models/service_model.dart';
 
 abstract class ServicesRemoteDataSource {
@@ -15,36 +15,29 @@ class ServicesRemoteDataSourceImpl implements ServicesRemoteDataSource {
   @override
   Future<List<ServiceModel>> getServices({String? categoryId}) async {
     try {
-      final response = await _dio.get(
+      final response = await _dio.post(
         ApiConstants.services,
-        // Optional category filter passed as a query parameter: ?category_id=xyz
-        queryParameters: categoryId != null ? {'category_id': categoryId} : null,
+        // SAMP filters come through the body, not the query string.
+        // An empty CategoryID means "all categories".
+        data: {'CategoryID': categoryId ?? ''},
       );
-      final list = response.data['data'] as List<dynamic>;
-      return list
-          .map((e) => ServiceModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      return SampEnvelope.rows(response).map(ServiceModel.fromJson).toList();
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 
   @override
   Future<ServiceModel> getServiceDetail(String id) async {
     try {
-      final response = await _dio.get('${ApiConstants.serviceDetail}/$id');
-      return ServiceModel.fromJson(
-        response.data['data'] as Map<String, dynamic>,
+      final response = await _dio.post(
+        ApiConstants.serviceDetail,
+        data: {'ServiceID': id},
       );
+      return ServiceModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) throw NotFoundException();
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      // SampEnvelope.error maps 404 to NotFoundException for us.
+      SampEnvelope.error(e);
     }
   }
 }

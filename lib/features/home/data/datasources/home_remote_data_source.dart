@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
-import 'package:fix_up_moto/core/error/exceptions.dart';
+import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/home/data/models/dashboard_stats_model.dart';
 
 abstract class HomeRemoteDataSource {
@@ -30,7 +30,7 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
   }) async {
     try {
       final response = await _dio.post(
-        ApiConstants.motorcycles,
+        ApiConstants.browseTrans,
         data: {
           'Jenis': type.toUpperCase(),
           'MemberID': memberId,
@@ -42,21 +42,11 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
       );
 
       // The API wraps the member record in a single-element array:
-      // { "Data": [ { ...member... } ] } — so unwrap the first element.
-      final data = response.data['Data'] as List<dynamic>;
-      if (data.isEmpty) {
-        throw ServerException(
-          message: 'No membership data found',
-          statusCode: response.statusCode,
-        );
-      }
-
-      return DashboardStatsModel.fromJson(data.first as Map<String, dynamic>);
+      // { "Data": [ { ...member... } ] } — SampEnvelope.first unwraps it and
+      // raises the server's own Msg when the array comes back empty.
+      return DashboardStatsModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['Msg'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 }

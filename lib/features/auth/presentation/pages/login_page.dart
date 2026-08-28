@@ -22,13 +22,13 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
   void dispose() {
     // Always dispose controllers to prevent memory leaks
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -38,7 +38,9 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState?.validate() ?? false) {
       context.read<AuthBloc>().add(
             AuthLoginRequested(
-              email: _emailController.text.trim(),
+              // Sent as typed — PhoneNumber.toSubscriberNumber strips the
+              // leading zero at the data layer, where the backend rule lives.
+              phone: _phoneController.text.trim(),
               password: _passwordController.text,
             ),
           );
@@ -88,14 +90,17 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 40),
 
-                    // ── Email field ───────────────────────────────────────
+                    // ── Phone number field ────────────────────────────────
+                    // The phone number is the login credential, not an email.
+                    // Typing the leading 0 is fine — it is stripped before the
+                    // request is sent.
                     AuthTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      hint: 'you@example.com',
-                      prefixIcon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: Validators.email,
+                      controller: _phoneController,
+                      label: 'Phone number',
+                      hint: '081234567890',
+                      prefixIcon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                      validator: Validators.phone,
                     ),
                     const SizedBox(height: 16),
 

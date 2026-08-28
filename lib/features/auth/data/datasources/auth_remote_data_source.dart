@@ -1,15 +1,20 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
+import 'package:fix_up_moto/core/helpers/phone_number.dart';
+import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
 
 /// Contract for all authentication HTTP calls.
 /// Having an abstract interface makes it trivially mockable in unit tests.
 abstract class AuthRemoteDataSource {
   /// Sends login credentials to the API.
+  ///
+  /// [phone] is accepted as the member typed it and normalised here.
   /// Returns a [UserModel] parsed from the response on success.
-  /// Throws [UnauthorizedException] on 401, [ServerException] on other errors.
-  Future<UserModel> login(String email, String password);
+  /// Throws [UnauthorizedException] on 401, [AccountInactiveException] when the
+  /// membership is barred, [ServerException] on other errors.
+  Future<UserModel> login(String phone, String password);
 
   /// Registers a new account and returns the created [UserModel].
   Future<UserModel> register({
@@ -31,20 +36,35 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   AuthRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<UserModel> login(String email, String password) async {
+  Future<UserModel> login(String phone, String password) async {
     try {
       final response = await _dio.post(
         ApiConstants.login,
-        data: {'email': email, 'password': password},
+        data: {
+          // The backend wants the bare subscriber number — '081234567890' as
+          // typed becomes '81234567890'. Normalising at this boundary keeps the
+          // form forgiving without the rest of the app knowing the rule.
+          'PhoneNo': PhoneNumber.toSubscriberNumber(phone),
+          'DecryptedPassword': password,
+        },
       );
 
-      // The API wraps the user object inside a 'data' key: { data: { user: {...} } }
-      final userData = response.data['data']['user'] as Map<String, dynamic>;
-      return UserModel.fromJson(userData);
+      // SAMP returns the member record as the single element of `Data`.
+      final user = UserModel.fromJson(SampEnvelope.first(response));
+
+      // A parsed record is not yet a valid session. SAMP answers "successfully"
+      // with a member whose `Active` flag is false — the same shape as SIP
+      // Sales' `if (creds.flag == 1)` check. Doing it here rather than in the
+      // BLoC keeps it testable without building a widget tree.
+      if (!user.isActive) {
+        throw AccountInactiveException(message: user.status);
+      }
+
+      return user;
     } on DioException catch (e) {
-      // _throwTypedException has return type Never — it always throws,
+      // SampEnvelope.error has return type Never — it always throws,
       // so no rethrow is needed after it.
-      _throwTypedException(e);
+      SampEnvelope.error(e);
     }
   }
 
@@ -57,41 +77,25 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       final response = await _dio.post(
         ApiConstants.register,
-        data: {'name': name, 'email': email, 'password': password},
+        data: {'Name': name, 'Email': email, 'Password': password},
       );
-      final userData = response.data['data']['user'] as Map<String, dynamic>;
-      return UserModel.fromJson(userData);
+      return UserModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      _throwTypedException(e);
+      SampEnvelope.error(e);
     }
   }
 
   @override
   Future<void> logout() async {
     try {
-      await _dio.delete(ApiConstants.logout);
+      await _dio.post(ApiConstants.logout);
     } on DioException catch (e) {
       // Best-effort logout — if the server is unreachable, we still clear local storage.
       // Only rethrow on unexpected server errors, not network failures.
       if (e.type != DioExceptionType.connectionError &&
           e.type != DioExceptionType.receiveTimeout) {
-        _throwTypedException(e);
+        SampEnvelope.error(e);
       }
     }
-  }
-
-  /// Converts a [DioException] into a typed exception.
-  /// Never returns — always throws.
-  Never _throwTypedException(DioException e) {
-    final statusCode = e.response?.statusCode;
-    if (statusCode == 401) throw const UnauthorizedException();
-    if (statusCode == 403) throw ForbiddenException();
-    if (statusCode == 404) throw NotFoundException();
-    throw ServerException(
-      message: e.response?.data?['message'] as String? ??
-          e.message ??
-          'Unexpected server error',
-      statusCode: statusCode,
-    );
   }
 }

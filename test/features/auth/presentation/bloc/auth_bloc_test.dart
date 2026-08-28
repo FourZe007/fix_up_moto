@@ -19,8 +19,11 @@ import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 // runtime; no code generation step needed for test mocks.
 
 class MockLoginUseCase extends Mock implements LoginUseCase {}
+
 class MockRegisterUseCase extends Mock implements RegisterUseCase {}
+
 class MockLogoutUseCase extends Mock implements LogoutUseCase {}
+
 class MockGetCurrentUserUseCase extends Mock implements GetCurrentUserUseCase {}
 
 void main() {
@@ -31,14 +34,23 @@ void main() {
   late MockGetCurrentUserUseCase mockGetCurrentUser;
 
   // Shared test data.
-  const tUser = UserEntity(id: '1', name: 'Test User', email: 'test@example.com');
-  const tEmail = 'test@example.com';
+  const tUser = UserEntity(
+    id: '1',
+    name: 'Test User',
+    status: 'Active',
+    isActive: true,
+  );
+  // The login credential is the member's phone number, not their email.
+  // tUser.email above is the address on the member record — a different thing.
+  const tPhone = '081234567890';
   const tPassword = 'Password1';
 
   // Register fallback values so mocktail can match `any()` for Equatable params.
   setUpAll(() {
-    registerFallbackValue(const LoginParams(email: '', password: ''));
-    registerFallbackValue(const RegisterParams(name: '', email: '', password: ''));
+    registerFallbackValue(const LoginParams(phone: '', password: ''));
+    registerFallbackValue(
+      const RegisterParams(name: '', email: '', password: ''),
+    );
     registerFallbackValue(const NoParams());
   });
 
@@ -52,11 +64,11 @@ void main() {
 
   // Helper that builds the BLoC under test with all mocked dependencies.
   AuthBloc buildBloc() => AuthBloc(
-        loginUseCase: mockLogin,
-        registerUseCase: mockRegister,
-        logoutUseCase: mockLogout,
-        getCurrentUserUseCase: mockGetCurrentUser,
-      );
+    loginUseCase: mockLogin,
+    registerUseCase: mockRegister,
+    logoutUseCase: mockLogout,
+    getCurrentUserUseCase: mockGetCurrentUser,
+  );
 
   // ── Initial state ─────────────────────────────────────────────────────────
 
@@ -66,38 +78,43 @@ void main() {
 
   // ── AuthCheckStatusRequested ──────────────────────────────────────────────
 
+  // No AuthLoading is emitted during the session check, by design: the state
+  // stays AuthInitial until the answer arrives. AppRouter uses AuthInitial to
+  // mean "cold start, show splash" and AuthLoading to mean "an operation is in
+  // flight, leave the user alone" — so emitting loading here would bounce the
+  // user off the login form the moment they tap Sign In.
   group('AuthCheckStatusRequested', () {
     blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthAuthenticated] when cached user exists',
+      'emits [AuthAuthenticated] when cached user exists',
       // build: factory that creates the BLoC — bloc_test disposes it after.
       build: () {
-        when(() => mockGetCurrentUser()).thenAnswer(
-          (_) async => const Right(tUser),
-        );
+        when(
+          () => mockGetCurrentUser(),
+        ).thenAnswer((_) async => const Right(tUser));
         return buildBloc();
       },
       // act: the event(s) to fire after build completes.
       act: (bloc) => bloc.add(const AuthCheckStatusRequested()),
       // expect: the ordered list of states the BLoC should emit.
-      expect: () => [isA<AuthLoading>(), isA<AuthAuthenticated>()],
+      expect: () => [isA<AuthAuthenticated>()],
       // verify: extra assertions after all states have been emitted.
       verify: (_) => verify(() => mockGetCurrentUser()).called(1),
     );
 
     blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthUnauthenticated] when no cached user',
+      'emits [AuthUnauthenticated] when no cached user',
       build: () {
-        when(() => mockGetCurrentUser()).thenAnswer(
-          (_) async => const Right(null),
-        );
+        when(
+          () => mockGetCurrentUser(),
+        ).thenAnswer((_) async => const Right(null));
         return buildBloc();
       },
       act: (bloc) => bloc.add(const AuthCheckStatusRequested()),
-      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+      expect: () => [isA<AuthUnauthenticated>()],
     );
 
     blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthUnauthenticated] on cache failure',
+      'emits [AuthUnauthenticated] on cache failure',
       build: () {
         when(() => mockGetCurrentUser()).thenAnswer(
           (_) async => const Left(CacheFailure('Cache read failed')),
@@ -106,7 +123,19 @@ void main() {
       },
       act: (bloc) => bloc.add(const AuthCheckStatusRequested()),
       // Cache failures during session restore → treat as logged-out (not an error)
-      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+      expect: () => [isA<AuthUnauthenticated>()],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'never emits AuthLoading — the router relies on that distinction',
+      build: () {
+        when(
+          () => mockGetCurrentUser(),
+        ).thenAnswer((_) async => const Right(null));
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const AuthCheckStatusRequested()),
+      expect: () => isNot(contains(isA<AuthLoading>())),
     );
   });
 
@@ -116,13 +145,13 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthAuthenticated] on successful login',
       build: () {
-        when(() => mockLogin(any())).thenAnswer(
-          (_) async => const Right(tUser),
-        );
+        when(
+          () => mockLogin(any()),
+        ).thenAnswer((_) async => const Right(tUser));
         return buildBloc();
       },
       act: (bloc) => bloc.add(
-        const AuthLoginRequested(email: tEmail, password: tPassword),
+        const AuthLoginRequested(phone: tPhone, password: tPassword),
       ),
       expect: () => [
         isA<AuthLoading>(),
@@ -138,17 +167,19 @@ void main() {
       'emits [AuthLoading, AuthError] on AuthFailure',
       build: () {
         when(() => mockLogin(any())).thenAnswer(
-          (_) async => const Left(AuthFailure('Invalid email or password')),
+          (_) async =>
+              const Left(AuthFailure('Invalid phone number or password')),
         );
         return buildBloc();
       },
       act: (bloc) => bloc.add(
-        const AuthLoginRequested(email: tEmail, password: tPassword),
+        const AuthLoginRequested(phone: tPhone, password: tPassword),
       ),
       expect: () => [
         isA<AuthLoading>(),
         predicate<AuthState>(
-          (s) => s is AuthError && s.message == 'Invalid email or password',
+          (s) =>
+              s is AuthError && s.message == 'Invalid phone number or password',
           'AuthError with correct message',
         ),
       ],
@@ -163,7 +194,7 @@ void main() {
         return buildBloc();
       },
       act: (bloc) => bloc.add(
-        const AuthLoginRequested(email: tEmail, password: tPassword),
+        const AuthLoginRequested(phone: tPhone, password: tPassword),
       ),
       expect: () => [isA<AuthLoading>(), isA<AuthError>()],
     );
@@ -175,9 +206,9 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthUnauthenticated] on successful logout',
       build: () {
-        when(() => mockLogout(any())).thenAnswer(
-          (_) async => const Right(null),
-        );
+        when(
+          () => mockLogout(any()),
+        ).thenAnswer((_) async => const Right(null));
         return buildBloc();
       },
       act: (bloc) => bloc.add(const AuthLogoutRequested()),

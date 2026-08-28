@@ -48,7 +48,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoading());
 
     final result = await _loginUseCase(
-      LoginParams(email: event.email, password: event.password),
+      LoginParams(phone: event.phone, password: event.password),
     );
 
     // fold() handles both branches of Either without try/catch
@@ -97,12 +97,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   /// Runs on app cold start to restore a cached session.
   /// Fired in App.build: `sl<AuthBloc>()..add(const AuthCheckStatusRequested())`
+  ///
+  /// **Deliberately does not emit [AuthLoading].** The state stays [AuthInitial]
+  /// until the answer arrives, because the router distinguishes the two:
+  /// [AuthInitial] means "cold start, still checking" and shows the splash,
+  /// while [AuthLoading] means "an operation is in flight" and leaves the user
+  /// where they are. Emitting loading here would bounce the user from the login
+  /// form to the splash screen the moment they tap Sign In.
   Future<void> _onCheckStatusRequested(
     AuthCheckStatusRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(const AuthLoading());
-
     final result = await _getCurrentUserUseCase();
 
     result.fold(

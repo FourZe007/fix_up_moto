@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
-import 'package:fix_up_moto/core/error/exceptions.dart';
+import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
 import 'package:fix_up_moto/features/profile/data/models/motorcycle_model.dart';
 
@@ -30,13 +30,10 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   @override
   Future<UserModel> getProfile() async {
     try {
-      final response = await _dio.get(ApiConstants.profile);
-      return UserModel.fromJson(response.data['data'] as Map<String, dynamic>);
+      final response = await _dio.post(ApiConstants.profile);
+      return UserModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 
@@ -45,16 +42,14 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     try {
       // Build request body imperatively so optional `phone` can be omitted
       // cleanly without null-aware map literal syntax.
-      final body = <String, dynamic>{'name': name};
-      if (phone != null) body['phone'] = phone;
+      final body = <String, dynamic>{'Name': name};
+      if (phone != null) body['PhoneNo'] = phone;
 
-      final response = await _dio.patch(ApiConstants.profile, data: body);
-      return UserModel.fromJson(response.data['data'] as Map<String, dynamic>);
+      // SAMP has no PATCH — updates are a POST to their own endpoint.
+      final response = await _dio.post(ApiConstants.updateProfile, data: body);
+      return UserModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 
@@ -69,7 +64,7 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   }) async {
     try {
       final response = await _dio.post(
-        ApiConstants.motorcycles,
+        ApiConstants.browseTrans,
         data: {
           'Jenis': type.toUpperCase(),
           'MemberID': memberId,
@@ -80,15 +75,11 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
         },
       );
 
-      final list = response.data['data'] as List<dynamic>;
-      return list
-          .map((e) => MotorcycleModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      // Previously read response.data['data'] — lowercase — while the home
+      // dashboard read 'Data' from this same endpoint. SampEnvelope settles it.
+      return SampEnvelope.rows(response).map(MotorcycleModel.fromJson).toList();
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 
@@ -100,23 +91,20 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     required String plateNumber,
   }) async {
     try {
+      // Registering a unit is a write, so it does not go to browseTrans —
+      // the previous code posted an insert-shaped body to the browse endpoint.
       final response = await _dio.post(
-        ApiConstants.motorcycles,
+        ApiConstants.addMotorcycle,
         data: {
-          'brand': brand,
-          'model': model,
-          'year': year,
-          'plate_number': plateNumber,
+          'Brand': brand,
+          'Model': model,
+          'Year': year,
+          'PlateNo': plateNumber,
         },
       );
-      return MotorcycleModel.fromJson(
-        response.data['data'] as Map<String, dynamic>,
-      );
+      return MotorcycleModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 }

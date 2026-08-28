@@ -4,8 +4,9 @@ import 'package:flutter/foundation.dart';
 /// Dio interceptor that prints request and response details in debug mode.
 ///
 /// Disabled in release builds ([kReleaseMode]) so no sensitive data leaks
-/// into production logs. Registered in [DioClient] after [AuthInterceptor]
-/// so the logged headers already contain the Authorization value.
+/// into production logs. Registered in [DioClient] last, so it observes the
+/// request as it will actually be sent and the response body after
+/// [JsonResponseInterceptor] has decoded it.
 class LoggingInterceptor extends Interceptor {
   /// Logs outgoing request method, URL, headers, and body.
   @override

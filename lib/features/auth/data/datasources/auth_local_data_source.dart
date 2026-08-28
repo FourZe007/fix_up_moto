@@ -14,7 +14,7 @@ abstract class AuthLocalDataSource {
   /// Throws [CacheException] if the stored JSON is corrupted.
   Future<UserModel?> getCachedUser();
 
-  /// Deletes the cached user and auth tokens from secure storage.
+  /// Deletes the cached member record — the whole persisted session.
   Future<void> clearUser();
 }
 
@@ -66,12 +66,8 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   @override
   Future<void> clearUser() async {
     try {
-      // Delete both the user profile and the auth tokens in parallel
-      await Future.wait([
-        _storage.delete(key: ApiConstants.cachedUserKey),
-        _storage.delete(key: ApiConstants.tokenKey),
-        _storage.delete(key: ApiConstants.refreshTokenKey),
-      ]);
+      // The cached member record is the entire session — no tokens accompany it.
+      await _storage.delete(key: ApiConstants.cachedUserKey);
     } catch (e) {
       throw CacheException(message: 'Failed to clear user session: $e');
     }

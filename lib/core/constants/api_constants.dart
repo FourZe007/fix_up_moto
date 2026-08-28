@@ -2,6 +2,14 @@
 ///
 /// Centralising these here means a base URL change only touches one file,
 /// and typos in endpoint strings are caught at compile time.
+///
+/// ## Calling convention
+///
+/// Every `/apiSAMP/*` endpoint is a **POST** carrying a JSON body of
+/// PascalCase keys, and answers with the envelope
+/// `{ "Code": ..., "Msg": ..., "Data": [ ... ] }`.
+/// Unwrap responses with `SampEnvelope` (`core/network/samp_envelope.dart`) —
+/// never subscript `response.data` in a data source.
 class ApiConstants {
   ApiConstants._(); // static-only class — never instantiated
 
@@ -11,63 +19,93 @@ class ApiConstants {
   static const String baseUrl = 'https://wsip.yamaha-jatim.co.id:2448';
 
   // ── Secure Storage Keys ───────────────────────────────────────────────────
-  // Keys used with FlutterSecureStorage to persist auth tokens between sessions.
+  //
+  // There are no token keys here. The SAMP backend issues no access or refresh
+  // token — signing in returns a member record with an `Active` flag, and a
+  // caller identifies itself afterwards with `MemberID` in the request body.
+  // The session *is* the cached member record below.
 
-  /// Key for the short-lived JWT access token.
-  static const String tokenKey = 'auth_token';
-
-  /// Key for the long-lived refresh token used to obtain new access tokens.
-  static const String refreshTokenKey = 'refresh_token';
-
-  /// Key for the cached user JSON string (avoids an extra API call on launch).
+  /// Key for the cached member JSON string — the whole persisted session.
+  /// Present means signed in; absent means signed out.
   static const String cachedUserKey = 'cached_user';
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ENDPOINT PATHS
+  //
+  // VERIFIED — confirmed against the live backend.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// POST — the membership/transaction browse endpoint.
+  ///
+  /// Body: `{Jenis, MemberID, MemberName, PlateNo, PhoneNo, Status}`.
+  /// Backs both the home dashboard stats and the profile's motorcycle list;
+  /// `Jenis` selects which projection is returned.
+  static const String browseTrans = '/apiSAMP/BrowseTrans';
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // UNVERIFIED — the paths below follow the BrowseTrans naming convention but
+  // have NOT been confirmed against the backend, and their request bodies are
+  // best guesses at the real field names.
+  //
+  // Before shipping: check each against the real endpoint list and correct both
+  // the path and the body keys in the owning data source. The response models
+  // (`user_model.dart`, `service_model.dart`, `booking_model.dart`,
+  // `motorcycle_model.dart`) still carry scaffold field mappings and will need
+  // the same treatment — only `dashboard_stats_model.dart` reflects the real
+  // schema so far.
+  // ══════════════════════════════════════════════════════════════════════════
 
   // ── Auth Endpoints ────────────────────────────────────────────────────────
 
-  /// POST — body: {email, password} → response: {token, refresh_token, user}
-  static const String login = '/auth/login';
+  /// POST — body: `{EmailAddress, Password}` → envelope carrying the member
+  /// record, whose `Active` flag decides whether the sign-in is allowed.
+  static const String login = '/apiSAMP/Master/LoginMembership';
 
-  /// POST — body: {name, email, password} → response: {token, refresh_token, user}
-  static const String register = '/auth/register';
+  /// POST — body: `{Name, Email, Password}` → envelope carrying the new member.
+  static const String register = '/apiSAMP/Register';
 
-  /// POST — refreshes the access token using the stored refresh token
-  static const String refreshToken = '/auth/refresh';
-
-  /// DELETE — invalidates the server-side session
-  static const String logout = '/auth/logout';
+  /// POST — invalidates the server-side session.
+  static const String logout = '/apiSAMP/Logout';
 
   // ── Services Endpoints ────────────────────────────────────────────────────
 
-  /// GET — list all available repair services (supports ?category= filter)
-  static const String services = '/services';
+  /// POST — body: `{CategoryID}` (empty string for "all") → list of services.
+  static const String services = '/apiSAMP/BrowseService';
 
-  /// GET — single service detail; append /{id} when calling
-  static const String serviceDetail = '/services';
+  /// POST — body: `{ServiceID}` → single service record.
+  static const String serviceDetail = '/apiSAMP/BrowseServiceDetail';
 
   // ── Bookings Endpoints ────────────────────────────────────────────────────
 
-  /// GET  — list bookings for the authenticated user
-  /// POST — create a new booking; body: {service_id, date, time_slot_id, notes}
-  static const String bookings = '/bookings';
+  /// POST — list bookings for the authenticated member.
+  static const String bookings = '/apiSAMP/BrowseBooking';
 
-  /// DELETE — cancel a booking; append /{id} when calling
-  static const String cancelBooking = '/bookings';
+  /// POST — body: `{ServiceID, ScheduledAt, Notes}` → the created booking.
+  static const String createBooking = '/apiSAMP/InsertBooking';
 
-  /// GET — available time slots for a given date; ?date=YYYY-MM-DD&service_id=
-  static const String availableSlots = '/bookings/slots';
+  /// POST — body: `{BookingID}` → cancels the booking.
+  static const String cancelBooking = '/apiSAMP/CancelBooking';
+
+  /// POST — body: `{ServiceID, Date}` → bookable time slots for that date.
+  ///
+  /// Not called yet; the create-booking screen will need it.
+  static const String availableSlots = '/apiSAMP/BrowseSlot';
 
   // ── Profile Endpoints ─────────────────────────────────────────────────────
 
-  /// GET  — fetch authenticated user's profile
-  /// PATCH — update profile; body: {name, phone, avatarUrl}
-  static const String profile = '/profile';
+  /// POST — fetches the authenticated member's profile.
+  static const String profile = '/apiSAMP/BrowseMember';
 
-  /// GET  — list user's motorcycles
-  /// POST — add a motorcycle; body: {brand, model, year, plateNumber}
-  static const String motorcycles = '/apiSAMP/BrowseTrans';
+  /// POST — body: `{Name, PhoneNo}` → the updated member record.
+  static const String updateProfile = '/apiSAMP/UpdateMember';
 
-  // ── Dashboard Endpoints ───────────────────────────────────────────────────
+  /// POST — body: `{Brand, Model, Year, PlateNo}` → the created motorcycle.
+  ///
+  /// Registering a unit is a write, so it does not share [browseTrans]; the
+  /// previous code posted an insert-shaped body to the browse endpoint.
+  static const String addMotorcycle = '/apiSAMP/InsertUnit';
 
-  /// GET — summary stats for the home dashboard (upcoming bookings, counts)
-  static const String dashboard = '/dashboard';
+  // NOTE: there is no separate dashboard endpoint. The home dashboard reads
+  // membership stats from [browseTrans]; the former `/dashboard` constant was
+  // scaffold left-over and never called.
 }

@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
-import 'interceptors/auth_interceptor.dart';
 import 'interceptors/json_response_interceptor.dart';
 import 'interceptors/logging_interceptor.dart';
 
@@ -11,10 +10,15 @@ import 'interceptors/logging_interceptor.dart';
 /// shares one Dio instance with the same base URL, timeouts, and interceptors.
 /// Access the underlying [Dio] via the [dio] getter:
 ///   `sl<DioClient>().dio.get('/services')`
+///
+/// **No auth interceptor.** The SAMP backend issues no bearer token — a caller
+/// identifies itself with `MemberID` in the request *body* (see
+/// `ApiConstants.browseTrans`). There is nothing to put in an Authorization
+/// header, so there is no interceptor to add one.
 class DioClient {
   late final Dio _dio;
 
-  DioClient({required AuthInterceptor authInterceptor}) {
+  DioClient() {
     _dio = Dio(
       BaseOptions(
         // All request paths are relative to this URL (e.g. '/auth/login')
@@ -37,8 +41,6 @@ class DioClient {
         },
       ),
     )
-      // AuthInterceptor runs first — injects Bearer token before logging
-      ..interceptors.add(authInterceptor)
       // JsonResponseInterceptor decodes String bodies into Map/List so data
       // sources can subscript response.data safely (backend returns JSON with a
       // non-JSON content-type). Runs before logging so logs show the decoded body.

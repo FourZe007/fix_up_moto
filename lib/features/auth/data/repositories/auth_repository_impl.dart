@@ -28,7 +28,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<Either<Failure, UserEntity>> login(
-    String email,
+    String phone,
     String password,
   ) async {
     // Check connectivity first to give an immediate, friendly error instead
@@ -38,7 +38,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     try {
-      final userModel = await remoteDataSource.login(email, password);
+      final userModel = await remoteDataSource.login(phone, password);
 
       // Persist the user in secure storage so the next launch skips login
       await localDataSource.cacheUser(userModel);
@@ -46,8 +46,12 @@ class AuthRepositoryImpl implements AuthRepository {
       // Convert model → entity before returning to the Domain layer
       return Right(userModel.toEntity());
     } on UnauthorizedException {
-      // HTTP 401 — wrong email/password combination
-      return const Left(AuthFailure('Invalid email or password'));
+      // HTTP 401 — wrong phone/password combination
+      return const Left(AuthFailure('Invalid phone number or password'));
+    } on AccountInactiveException catch (e) {
+      // Credentials were correct but the membership is barred from signing in.
+      // Pass the server's own wording straight through — it knows why.
+      return Left(AuthFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     } on CacheException catch (e) {
@@ -85,18 +89,27 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<Either<Failure, void>> logout() async {
+    // The two halves are separated on purpose. Previously the local clear sat
+    // after the server call inside one try block, so anything the remote threw
+    // that wasn't a ServerException — a NotFoundException from a 404, say —
+    // escaped and left the session on disk. The user tapped Sign Out and stayed
+    // signed in.
     try {
-      // Best-effort server call (remote impl ignores network errors on logout)
       await remoteDataSource.logout();
+    } catch (_) {
+      // Best effort, and deliberately catching everything: 404, 500, offline,
+      // timeout all warrant the same response, which is to carry on. A member
+      // must always be able to sign out of their own device regardless of what
+      // the backend has to say about it.
+    }
 
-      // Always clear local storage regardless of server response
+    try {
+      // This is what actually ends the session — the cached member record IS
+      // the session, so clearing it is the whole of signing out.
       await localDataSource.clearUser();
-
       return const Right(null);
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
     }
   }
 

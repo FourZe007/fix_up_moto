@@ -34,8 +34,8 @@ import 'package:fix_up_moto/features/services/domain/repositories/services_repos
 import 'package:fix_up_moto/features/services/domain/usecases/get_service_detail_usecase.dart';
 import 'package:fix_up_moto/features/services/domain/usecases/get_services_usecase.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
+import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/network/dio_client.dart';
-import 'package:fix_up_moto/core/network/interceptors/auth_interceptor.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
 
 /// Global service locator instance.
@@ -53,7 +53,7 @@ Future<void> initDependencies() async {
   // read means the keychain entry is invalid; wipe all stored items so the app
   // starts clean rather than crashing in a DartWorker thread.
   try {
-    await const FlutterSecureStorage().read(key: 'auth_token');
+    await const FlutterSecureStorage().read(key: ApiConstants.cachedUserKey);
   } catch (_) {
     await const FlutterSecureStorage().deleteAll();
   }
@@ -61,10 +61,7 @@ Future<void> initDependencies() async {
   // ── External / Third-party ───────────────────────────────────────────────
 
   sl.registerLazySingleton(() => const FlutterSecureStorage());
-  sl.registerLazySingleton(() => AuthInterceptor(sl<FlutterSecureStorage>()));
-  sl.registerLazySingleton(
-    () => DioClient(authInterceptor: sl<AuthInterceptor>()),
-  );
+  sl.registerLazySingleton(() => DioClient());
 
   // ── Core ─────────────────────────────────────────────────────────────────
 
@@ -90,9 +87,15 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => LogoutUseCase(sl<AuthRepository>()));
   sl.registerLazySingleton(() => GetCurrentUserUseCase(sl<AuthRepository>()));
 
-  // Factory: BLoC must NOT be a singleton — each BlocProvider creates a fresh
-  // instance so state doesn't bleed between screen navigations.
-  sl.registerFactory(
+  // AuthBloc is the ONE exception to the factory rule below, because it is
+  // app-scoped rather than page-scoped: it is created once at the root in
+  // App.build and lives for the whole run, so the state-bleeding hazard that
+  // makes page BLoCs factories cannot arise. A single shared instance is also
+  // what lets AppRouter observe it via `refreshListenable`.
+  //
+  // Pair this with `BlocProvider.value` in app.dart — `create:` would close the
+  // singleton on dispose and leave sl<AuthBloc>() handing out a closed bloc.
+  sl.registerLazySingleton(
     () => AuthBloc(
       loginUseCase: sl(),
       registerUseCase: sl(),

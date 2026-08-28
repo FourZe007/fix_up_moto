@@ -5,7 +5,7 @@ import 'package:fix_up_moto/core/usecases/usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
 
-/// Authenticates a user with email and password.
+/// Authenticates a member with phone number and password.
 ///
 /// A use case encapsulates exactly one business action. It delegates to
 /// [AuthRepository] and may add cross-cutting logic (e.g. pre-validation,
@@ -21,7 +21,7 @@ class LoginUseCase extends UseCase<UserEntity, LoginParams> {
   @override
   Future<Either<Failure, UserEntity>> call(LoginParams params) {
     // Delegate entirely to the repository — no duplicated business logic
-    return repository.login(params.email, params.password);
+    return repository.login(params.phone, params.password);
   }
 }
 
@@ -31,11 +31,13 @@ class LoginUseCase extends UseCase<UserEntity, LoginParams> {
 /// - Equatable comparison in bloc_test assertions
 /// - Easy extension if new fields are added (e.g. deviceId for 2FA)
 class LoginParams extends Equatable {
-  final String email;
+  /// The member's phone number, exactly as typed. Normalisation to the
+  /// backend's expected form happens in the data layer.
+  final String phone;
   final String password;
 
-  const LoginParams({required this.email, required this.password});
+  const LoginParams({required this.phone, required this.password});
 
   @override
-  List<Object> get props => [email, password];
+  List<Object> get props => [phone, password];
 }

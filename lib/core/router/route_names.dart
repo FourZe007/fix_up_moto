@@ -9,6 +9,11 @@ class RouteNames {
 
   // ── Auth routes ───────────────────────────────────────────────────────────
 
+  /// Cold-start landing route. Shows a spinner while [AuthBloc] restores any
+  /// cached session, then the router redirects to [home] or [login].
+  /// Never navigated to manually.
+  static const String splash = '/';
+
   /// Unauthenticated users land here; [AppRouter] redirects here on 401.
   static const String login = '/login';
 

@@ -49,6 +49,22 @@ class UnauthorizedException implements Exception {
   String toString() => 'UnauthorizedException: session expired or invalid token';
 }
 
+/// Thrown when credentials were accepted but the membership is not permitted
+/// to sign in — expired, suspended, or pending verification.
+///
+/// Distinct from [UnauthorizedException]: the credentials were *correct*, so
+/// "wrong email or password" would be a misleading thing to tell the user.
+/// [message] carries the backend's own wording (the SAMP `Status` field) so the
+/// real reason reaches the screen instead of a guess.
+class AccountInactiveException implements Exception {
+  final String message;
+
+  const AccountInactiveException({required this.message});
+
+  @override
+  String toString() => 'AccountInactiveException: $message';
+}
+
 /// Thrown when the API returns HTTP 403 (authenticated but lacks permission).
 class ForbiddenException implements Exception {
   final String message;

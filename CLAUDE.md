@@ -56,12 +56,26 @@ GetIt is the service locator, accessed globally as `sl<Type>()`.
 
 All registrations live in `lib/core/di/injection_container.dart` → `initDependencies()`, called once in `main()` before `runApp()`.
 
-**Critical rule:** BLoCs are registered as **`registerFactory`** (new instance per `BlocProvider`), not singletons. Data sources, repositories, and use cases are `registerLazySingleton`.
+**Critical rule:** the split is *page-scoped vs app-scoped*, not *BLoC vs everything else*.
+
+- **Page-scoped BLoCs** (`HomeBloc`, `ServicesBloc`, `BookingsBloc`, `ProfileBloc`) are
+  **`registerFactory`** — a new instance per `BlocProvider`, so state cannot bleed between
+  screen navigations.
+- **`AuthBloc` is `registerLazySingleton`.** It is created once at the root in `App.build` and
+  lives for the whole run, so the bleeding hazard cannot arise — and `AppRouter` must observe
+  that exact instance through `refreshListenable`.
+- Data sources, repositories, and use cases are `registerLazySingleton`.
+
+`AuthBloc` must be provided with **`BlocProvider.value`**, never `create:`. `create:` transfers
+ownership, so `BlocProvider` would close the singleton on dispose and `sl<AuthBloc>()` would hand
+out a closed bloc for the rest of the process.
 
 ### Navigation
 
 `lib/core/router/app_router.dart` — GoRouter with:
-- **Auth guard**: `redirect` callback checks `AuthBloc` state before every navigation. Unauthenticated users go to `/login`; authenticated users are bounced away from auth routes.
+- **Auth guard**: `redirect` checks `AuthBloc` state. Unauthenticated users go to `/login`; authenticated users are bounced away from auth routes.
+- **`refreshListenable`**: `GoRouterRefreshStream(sl<AuthBloc>().stream)` — **required**. `redirect` is not reactive; it runs only on route resolution, navigation, or a listenable firing. Without it the guard is evaluated once at startup against an unresolved state and never again, so an unauthenticated launch stays on the dashboard and a successful login never navigates.
+- **Splash route** (`/`) is `initialLocation`. `AuthInitial` means "cold start, still checking" and holds the splash; `AuthLoading` means "an operation is in flight" and the router leaves the user where they are. `AuthBloc` deliberately does **not** emit `AuthLoading` during the session check — conflating the two would eject the user from the login form mid-request.
 - **ShellRoute** wraps the four main tabs (`/`, `/services`, `/bookings`, `/profile`) in `MainShell`, keeping the bottom nav bar persistent.
 - Nested routes (e.g. `/services/detail/:id`, `/bookings/create`) are children of their parent tab route.
 

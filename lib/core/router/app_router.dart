@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/router/go_router_refresh_stream.dart';
+import 'package:fix_up_moto/core/widgets/splash_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
@@ -31,41 +33,60 @@ class AppRouter {
   AppRouter._(); // static-only class — never instantiated
 
   static final GoRouter router = GoRouter(
-    // App opens on home; the redirect will push to login if unauthenticated
-    initialLocation: RouteNames.home,
+    // Opens on the splash route, which exists purely to hold the frame while
+    // AuthBloc restores any cached session. The redirect below moves off it.
+    initialLocation: RouteNames.splash,
+
+    // ── Re-evaluate the guard when auth state changes ───────────────────────
+    // Without this the redirect below runs exactly once at startup, against a
+    // state that has not resolved yet, and is never consulted again — which
+    // left an unauthenticated launch sitting on the dashboard.
+    refreshListenable: GoRouterRefreshStream(sl<AuthBloc>().stream),
 
     // ── Authentication Guard ────────────────────────────────────────────────
-    // Runs before every navigation. Returns a redirect path string, or null
-    // to proceed normally.
+    // Runs on every navigation AND every AuthBloc emission. Returns a redirect
+    // path string, or null to proceed.
     redirect: (BuildContext context, GoRouterState state) {
-      final authState = context.read<AuthBloc>().state;
-
-      // True only when the user has a confirmed, live session
-      final isAuthenticated = authState is AuthAuthenticated;
-
-      // True while session check is still in progress (app cold start)
-      final isLoading = authState is AuthLoading || authState is AuthInitial;
+      // Read the bloc from the service locator rather than the context:
+      // AuthBloc is a lazy singleton, so this cannot resolve a different
+      // instance than the UI, and it does not depend on where the router sits
+      // relative to the provider in the widget tree.
+      final authState = sl<AuthBloc>().state;
 
       final currentPath = state.matchedLocation;
-      final isOnAuthRoute =
+      final onSplash = currentPath == RouteNames.splash;
+      final onAuthRoute =
           currentPath == RouteNames.login ||
           currentPath == RouteNames.register;
 
-      // Don't redirect while we're still checking the cached session —
-      // prevents a flash-of-login-screen on every launch
-      if (isLoading) return null;
+      // Cold start, session check still running. AuthInitial means *only* this
+      // — AuthBloc deliberately does not emit AuthLoading during the check.
+      if (authState is AuthInitial) {
+        return onSplash ? null : RouteNames.splash;
+      }
 
-      // Unauthenticated user trying to access a protected route → login
-      if (!isAuthenticated && !isOnAuthRoute) return RouteNames.login;
+      // Live session — bounce off splash and the auth routes, allow the rest.
+      if (authState is AuthAuthenticated) {
+        return (onSplash || onAuthRoute) ? RouteNames.home : null;
+      }
 
-      // Authenticated user landing on login/register → push to home
-      if (isAuthenticated && isOnAuthRoute) return RouteNames.home;
+      // An operation is in flight (login / logout / register). Leave the user
+      // exactly where they are; moving them now would yank the login form out
+      // from under them mid-request. This arm must stay below the
+      // authenticated check so a completed login is handled above.
+      if (authState is AuthLoading) return null;
 
-      // No redirect needed — proceed to the requested route
-      return null;
+      // Unauthenticated — the only pages reachable are the auth ones.
+      return onAuthRoute ? null : RouteNames.login;
     },
 
     routes: [
+      // ── Splash ────────────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.splash,
+        builder: (_, _) => const SplashPage(),
+      ),
+
       // ── Public routes ─────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.login,

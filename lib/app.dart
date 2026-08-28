@@ -22,11 +22,18 @@ class App extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider<AuthBloc>(
-          // sl<AuthBloc>() calls registerFactory → always a fresh BLoC instance.
-          // ..add fires AuthCheckStatusRequested immediately so the router can
-          // evaluate the auth guard before the first frame is painted.
-          create: (_) => sl<AuthBloc>()..add(const AuthCheckStatusRequested()),
+        // AuthBloc is a lazy singleton, so this is the same instance AppRouter
+        // observes through its refreshListenable.
+        //
+        // `.value` rather than `create:` on purpose: `create:` transfers
+        // ownership, and BlocProvider would close the bloc when App is
+        // disposed — leaving sl<AuthBloc>() handing out a closed bloc for the
+        // rest of the process. `.value` shares without owning.
+        //
+        // ..add fires the session check immediately; the router shows the
+        // splash route until it resolves.
+        BlocProvider<AuthBloc>.value(
+          value: sl<AuthBloc>()..add(const AuthCheckStatusRequested()),
         ),
         // Register additional app-wide BLoCs here as the app grows.
         // Example: BlocProvider<ThemeBloc>(create: (_) => sl<ThemeBloc>()),

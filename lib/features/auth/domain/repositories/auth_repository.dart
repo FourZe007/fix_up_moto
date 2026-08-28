@@ -15,12 +15,15 @@ import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 /// - `Left(Failure)` — something went wrong; caller pattern-matches on type
 /// - `Right(T)`      — success; caller extracts the value
 abstract class AuthRepository {
-  /// Authenticates the user with [email] and [password].
+  /// Authenticates the member with [phone] and [password].
   ///
-  /// On success: caches the returned token locally and returns the [UserEntity].
-  /// On failure: returns [AuthFailure] for bad credentials, [ServerFailure]
-  /// for API errors, or [NetworkFailure] if offline.
-  Future<Either<Failure, UserEntity>> login(String email, String password);
+  /// [phone] is the number as the member typed it — the data layer normalises
+  /// it to the subscriber form the backend expects.
+  ///
+  /// On success: caches the member record locally and returns the [UserEntity].
+  /// On failure: returns [AuthFailure] for bad credentials or an inactive
+  /// membership, [ServerFailure] for API errors, or [NetworkFailure] if offline.
+  Future<Either<Failure, UserEntity>> login(String phone, String password);
 
   /// Creates a new account with [name], [email], and [password].
   ///

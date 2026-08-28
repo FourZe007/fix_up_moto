@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
-import 'package:fix_up_moto/core/error/exceptions.dart';
+import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/bookings/data/models/booking_model.dart';
 
 abstract class BookingsRemoteDataSource {
@@ -20,14 +20,10 @@ class BookingsRemoteDataSourceImpl implements BookingsRemoteDataSource {
   @override
   Future<List<BookingModel>> getBookings() async {
     try {
-      final response = await _dio.get(ApiConstants.bookings);
-      final list = response.data['data'] as List<dynamic>;
-      return list.map((e) => BookingModel.fromJson(e as Map<String, dynamic>)).toList();
+      final response = await _dio.post(ApiConstants.bookings);
+      return SampEnvelope.rows(response).map(BookingModel.fromJson).toList();
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 
@@ -41,36 +37,27 @@ class BookingsRemoteDataSourceImpl implements BookingsRemoteDataSource {
       // Build the request body as a mutable map so optional fields can be
       // added imperatively — avoids null-aware map literal syntax issues.
       final body = <String, dynamic>{
-        'service_id': serviceId,
+        'ServiceID': serviceId,
         // Send as ISO-8601 UTC string — server stores in UTC
-        'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+        'ScheduledAt': scheduledAt.toUtc().toIso8601String(),
       };
-      if (notes != null) body['notes'] = notes;
+      if (notes != null) body['Notes'] = notes;
 
-      final response = await _dio.post(
-        ApiConstants.bookings,
-        data: body,
-      );
-      return BookingModel.fromJson(
-        response.data['data'] as Map<String, dynamic>,
-      );
+      // Creating is a separate endpoint from browsing under the SAMP
+      // convention — both are POST, so the path is what distinguishes them.
+      final response = await _dio.post(ApiConstants.createBooking, data: body);
+      return BookingModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 
   @override
   Future<void> cancelBooking(String id) async {
     try {
-      await _dio.delete('${ApiConstants.cancelBooking}/$id');
+      await _dio.post(ApiConstants.cancelBooking, data: {'BookingID': id});
     } on DioException catch (e) {
-      throw ServerException(
-        message: e.response?.data?['message'] as String? ?? 'Server error',
-        statusCode: e.response?.statusCode,
-      );
+      SampEnvelope.error(e);
     }
   }
 }

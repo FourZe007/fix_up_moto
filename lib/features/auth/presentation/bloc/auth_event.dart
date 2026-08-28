@@ -15,14 +15,16 @@ sealed class AuthEvent extends Equatable {
 /// Dispatched when the user submits the login form.
 /// Carries the credentials entered in the text fields.
 final class AuthLoginRequested extends AuthEvent {
-  final String email;
+  /// The member's phone number as typed — normalised further down, in the
+  /// data layer, so the presentation layer holds no backend formatting rules.
+  final String phone;
   final String password;
 
-  const AuthLoginRequested({required this.email, required this.password});
+  const AuthLoginRequested({required this.phone, required this.password});
 
   /// Equatable needs props to compare events in bloc_test expectations.
   @override
-  List<Object> get props => [email, password];
+  List<Object> get props => [phone, password];
 }
 
 /// Dispatched when the user submits the registration form.
