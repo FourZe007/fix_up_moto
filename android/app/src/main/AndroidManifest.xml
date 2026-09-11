@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for every network call the app makes.
+         Flutter's generated debug/ and profile/ manifests declare this too, but
+         ONLY for those build types — so without this line a release APK builds
+         successfully and then fails every request with a SocketException.
+         Login cannot work in release without it. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="fix_up_moto"
+        android:label="Fix Up Moto"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

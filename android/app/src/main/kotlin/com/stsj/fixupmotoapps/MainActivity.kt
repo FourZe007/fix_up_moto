@@ -1,4 +1,4 @@
-package com.example.fix_up_moto
+package com.stsj.fixupmotoapps
 
 import io.flutter.embedding.android.FlutterActivity
 

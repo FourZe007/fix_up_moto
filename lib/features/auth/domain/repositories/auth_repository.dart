@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 
 /// Abstract contract for authentication operations.
@@ -25,12 +26,40 @@ abstract class AuthRepository {
   /// membership, [ServerFailure] for API errors, or [NetworkFailure] if offline.
   Future<Either<Failure, UserEntity>> login(String phone, String password);
 
-  /// Creates a new account with [name], [email], and [password].
+  /// Opens the Google account sheet and returns the chosen account's identity.
+  ///
+  /// Establishes nothing with the backend — see [submitGoogleAccount] for that.
+  /// Returns [AuthCancelledFailure] when the user dismisses the sheet —
+  /// callers must treat that as "nothing happened", not as an error to display.
+  Future<Either<Failure, GoogleAccountIdentity>> getGoogleIdentity();
+
+  /// Completes a Google sign-up: logs in if [phone] is already registered
+  /// (using a password derived from [name]), otherwise registers a new member
+  /// and logs in immediately after.
+  ///
+  /// On success: caches the member record and returns the [UserEntity].
+  Future<Either<Failure, UserEntity>> submitGoogleAccount({
+    required String name,
+    required String phone,
+    required String email,
+  });
+
+  /// Returns the phone number this device previously linked to the Google
+  /// account [email] via a successful [submitGoogleAccount], or
+  /// `Right(null)` if this Google account has never completed sign-up here.
+  ///
+  /// Lets a returning Google sign-in skip straight to a real login instead of
+  /// asking for the phone number again on the complete-profile form.
+  Future<Either<Failure, String?>> getRememberedGooglePhone(String email);
+
+  /// Creates a new account with [name], [phone], and [password] — [email] is
+  /// optional.
   ///
   /// On success: auto-logs in and returns the created [UserEntity].
   Future<Either<Failure, UserEntity>> register({
     required String name,
-    required String email,
+    required String phone,
+    String? email,
     required String password,
   });
 

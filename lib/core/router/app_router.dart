@@ -4,17 +4,21 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/go_router_refresh_stream.dart';
 import 'package:fix_up_moto/core/widgets/splash_page.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/auth/presentation/pages/complete_google_profile_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/bookings_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/create_booking_page.dart';
+import 'package:fix_up_moto/features/feeds/presentation/pages/feeds_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
+import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_motorcycle_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
-import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
+import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_page.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 
@@ -24,9 +28,10 @@ import 'package:fix_up_moto/core/router/route_names.dart';
 /// - **Auth guard**: the [redirect] callback inspects [AuthBloc] state before
 ///   every navigation event; unauthenticated users are sent to login,
 ///   authenticated users are prevented from re-entering the login screen.
-/// - **Shell route**: the four main tabs (home, services, bookings, profile)
-///   live inside a [ShellRoute] that renders [MainShell], keeping the bottom
-///   navigation bar persistent across tab switches.
+/// - **Shell route**: the five main tabs (home, bookings, membership, feeds,
+///   profile) live inside a [ShellRoute] that renders [MainShell], keeping
+///   the bottom navigation bar persistent across tab switches. Services has
+///   no tab of its own — browsing lives inside the Bookings tab instead.
 /// - **Nested routes**: service detail and create-booking screens are deep
 ///   children so they inherit the shell's scaffold.
 class AppRouter {
@@ -55,9 +60,29 @@ class AppRouter {
 
       final currentPath = state.matchedLocation;
       final onSplash = currentPath == RouteNames.splash;
+      final onCompleteGoogleProfile =
+          currentPath == RouteNames.completeGoogleProfile;
       final onAuthRoute =
           currentPath == RouteNames.login ||
-          currentPath == RouteNames.register;
+          currentPath == RouteNames.register ||
+          // No backend session exists while this page is on screen — it must
+          // be reachable while unauthenticated, same as login/register, or
+          // the guard would bounce the user straight back to /login the
+          // instant AuthGoogleIdentityObtained navigates them here.
+          onCompleteGoogleProfile;
+
+      // The complete-profile page needs a GoogleAccountIdentity passed
+      // through `extra`. `extra` is an in-memory-only value — it is never
+      // part of the URL and cannot survive a process restart, which Android
+      // can trigger by recreating the app's Activity while Google's account
+      // picker briefly takes the foreground. When that happens GoRouter tries
+      // to restore this same path with no `extra` at all, and the page's
+      // `state.extra as GoogleAccountIdentity` cast would crash with a
+      // TypeError. Catch it here instead and send the user back to sign in
+      // again rather than crash.
+      if (onCompleteGoogleProfile && state.extra is! GoogleAccountIdentity) {
+        return RouteNames.login;
+      }
 
       // Cold start, session check still running. AuthInitial means *only* this
       // — AuthBloc deliberately does not emit AuthLoading during the check.
@@ -82,10 +107,7 @@ class AppRouter {
 
     routes: [
       // ── Splash ────────────────────────────────────────────────────────────
-      GoRoute(
-        path: RouteNames.splash,
-        builder: (_, _) => const SplashPage(),
-      ),
+      GoRoute(path: RouteNames.splash, builder: (_, _) => const SplashPage()),
 
       // ── Public routes ─────────────────────────────────────────────────────
       GoRoute(
@@ -102,6 +124,25 @@ class AppRouter {
         path: RouteNames.register,
         builder: (_, _) => const RegisterPage(),
       ),
+      GoRoute(
+        path: RouteNames.completeGoogleProfile,
+        // The identity travels via `extra` rather than query parameters —
+        // it's a plain in-memory value from this same session, never a URL
+        // a user could type or a deep link that needs to survive a cold start.
+        builder: (_, state) {
+          // Belt-and-braces: the redirect guard above already sends the user
+          // to /login before this builder runs without a valid identity, so
+          // in normal operation `state.extra` is always a GoogleAccountIdentity
+          // here. `as?` (safe cast) with a fallback means that if this route
+          // is ever reached some other way — a widget test building it
+          // directly, or a future code path that bypasses the guard — it
+          // degrades to an empty identity instead of throwing a TypeError.
+          final identity =
+              state.extra as GoogleAccountIdentity? ??
+              const GoogleAccountIdentity(email: '');
+          return CompleteGoogleProfilePage(identity: identity);
+        },
+      ),
 
       // ── Shell route: main tabs with persistent bottom nav bar ──────────────
       ShellRoute(
@@ -111,18 +152,14 @@ class AppRouter {
           GoRoute(
             path: RouteNames.home,
             builder: (_, _) => const HomePage(),
-          ),
-          GoRoute(
-            path: RouteNames.services,
-            builder: (_, _) => const ServicesPage(),
             routes: [
-              // Detail screen is a child of /services so it sits above it in
-              // the back stack and still inside the shell scaffold
+              // Nested under Home rather than the shell's top level — the
+              // picker is reached only from Home, and this keeps it inside
+              // the shell scaffold the same way service detail sits under
+              // Bookings.
               GoRoute(
-                path: 'detail/:id', // full path: /services/detail/:id
-                builder: (_, state) => ServiceDetailPage(
-                  serviceId: state.pathParameters['id']!,
-                ),
+                path: 'workshops', // full path: /home/workshops
+                builder: (_, _) => const WorkshopListPage(),
               ),
             ],
           ),
@@ -134,8 +171,24 @@ class AppRouter {
                 path: 'create', // full path: /bookings/create
                 builder: (_, _) => const CreateBookingPage(),
               ),
+              // Service browsing has no tab of its own any more — browsing
+              // and booking are one journey inside this tab — but the detail
+              // screen still needs its own route to push to. Nested here
+              // (not under a standalone /services) so it sits above Bookings
+              // in the back stack and stays inside the shell scaffold.
+              GoRoute(
+                path:
+                    'services/detail/:id', // full path: /bookings/services/detail/:id
+                builder: (_, state) =>
+                    ServiceDetailPage(serviceId: state.pathParameters['id']!),
+              ),
             ],
           ),
+          GoRoute(
+            path: RouteNames.membership,
+            builder: (_, _) => const MembershipPage(),
+          ),
+          GoRoute(path: RouteNames.feeds, builder: (_, _) => const FeedsPage()),
           GoRoute(
             path: RouteNames.profile,
             builder: (_, _) => const ProfilePage(),

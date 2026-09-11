@@ -56,6 +56,25 @@ dependencies:
   # intl: date formatting ("Mon, 10 Mar 2026"), number/currency formatting
   intl: ^0.19.0
 
+  # ── Third-party Sign-In ───────────────────────────────────────────────────
+  # google_sign_in: Google account authentication.
+  # NOTE: 7.x rewrote the API — signIn() is now authenticate(), signInSilently()
+  # is attemptLightweightAuthentication(), currentUser is gone, and
+  # GoogleSignIn.instance is a singleton that must have initialize() awaited
+  # once before any other call. Any 6.x snippet found online will not compile.
+  google_sign_in: ^7.2.0
+  firebase_core: ^4.14.0
+
+  # ── Media ─────────────────────────────────────────────────────────────────
+  # video_player: official Flutter-team plugin (ExoPlayer/AVPlayer under the
+  # hood) — the playback engine every Reels/TikTok/Shorts-style feed is built
+  # on. The vertical swipe/autoplay behaviour around it is hand-built in
+  # features/feeds, following the common real-world pattern rather than a
+  # smaller, less-maintained wrapper package.
+  video_player: ^2.9.2
+  # url_launcher: opens a post's Instagram permalink in the browser/app.
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

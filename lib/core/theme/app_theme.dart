@@ -43,6 +43,18 @@ class AppTheme {
       ),
     ),
 
+    // Without this, a TabBar placed in AppBar.bottom (e.g. the Bookings tab's
+    // Browse/My Bookings segments) falls back to Material 3's default label
+    // colour, which is ColorScheme.primary — the same deep orange as the
+    // AppBar background behind it. Same colour on same colour: technically
+    // rendered, invisible to the eye. This matches it to the AppBar's own
+    // white foreground instead.
+    tabBarTheme: TabBarThemeData(
+      labelColor: AppColors.textOnPrimary,
+      unselectedLabelColor: AppColors.textOnPrimary.withValues(alpha: 0.7),
+      indicatorColor: AppColors.textOnPrimary,
+    ),
+
     // ── Elevated Button ─────────────────────────────────────────────────────
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -147,6 +159,14 @@ class AppTheme {
       titleTextStyle: AppTextStyles.headingMedium.copyWith(
         color: Colors.white,
       ),
+    ),
+    // Same reasoning as the light theme's tabBarTheme — without it, a TabBar
+    // in AppBar.bottom would default to ColorScheme.primary rather than
+    // matching this AppBar's own white foreground.
+    tabBarTheme: const TabBarThemeData(
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white70,
+      indicatorColor: Colors.white,
     ),
     cardTheme: CardThemeData(
       color: AppColors.surfaceDark,

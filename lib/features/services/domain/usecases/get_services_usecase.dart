@@ -5,21 +5,24 @@ import 'package:fix_up_moto/core/usecases/usecase.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 import 'package:fix_up_moto/features/services/domain/repositories/services_repository.dart';
 
-class GetServicesUseCase extends UseCase<List<ServiceEntity>, GetServicesParams> {
+class GetServicesUseCase
+    extends UseCase<List<ServiceEntity>, GetServicesParams> {
   final ServicesRepository repository;
   GetServicesUseCase(this.repository);
 
   @override
   Future<Either<Failure, List<ServiceEntity>>> call(GetServicesParams params) {
-    return repository.getServices(categoryId: params.categoryId);
+    return repository.getServices(serviceType: params.serviceType);
   }
 }
 
 class GetServicesParams extends Equatable {
   /// When null, all services are returned regardless of category.
-  final String? categoryId;
-  const GetServicesParams({this.categoryId});
+  final String serviceType;
+  final String? plateNo;
+
+  const GetServicesParams({this.serviceType = 'SERVICEHISTORY', this.plateNo});
 
   @override
-  List<Object?> get props => [categoryId];
+  List<Object?> get props => [serviceType, plateNo];
 }

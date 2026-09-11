@@ -5,7 +5,8 @@ import 'package:fix_up_moto/features/services/domain/entities/service_entity.dar
 abstract class ServicesRepository {
   /// Returns all available services, optionally filtered by [categoryId].
   Future<Either<Failure, List<ServiceEntity>>> getServices({
-    String? categoryId,
+    String serviceType = 'SERVICEHISTORY',
+    String? plateNo,
   });
 
   /// Returns full details for the service identified by [id].

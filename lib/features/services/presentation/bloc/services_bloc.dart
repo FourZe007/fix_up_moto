@@ -11,9 +11,9 @@ class ServicesBloc extends Bloc<ServicesEvent, ServicesState> {
   ServicesBloc({
     required GetServicesUseCase getServices,
     required GetServiceDetailUseCase getServiceDetail,
-  })  : _getServices = getServices,
-        _getServiceDetail = getServiceDetail,
-        super(const ServicesInitial()) {
+  }) : _getServices = getServices,
+       _getServiceDetail = getServiceDetail,
+       super(const ServicesInitial()) {
     on<ServicesListRequested>(_onListRequested);
     on<ServiceDetailRequested>(_onDetailRequested);
   }
@@ -24,7 +24,7 @@ class ServicesBloc extends Bloc<ServicesEvent, ServicesState> {
   ) async {
     emit(const ServicesLoading());
     final result = await _getServices(
-      GetServicesParams(categoryId: event.categoryId),
+      GetServicesParams(serviceType: event.serviceType, plateNo: event.plateNo),
     );
     result.fold(
       (f) => emit(ServicesError(f.message)),

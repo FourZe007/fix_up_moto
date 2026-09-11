@@ -82,6 +82,23 @@ class Validators {
     return null;
   }
 
+  /// Wraps [validator] so an empty value is always treated as valid.
+  ///
+  /// For a field that's optional but must still be well-formed when the user
+  /// *does* type something — e.g. an optional email should still reject
+  /// "not-an-email" rather than silently accepting it, but must not demand
+  /// the field be filled in at all.
+  ///
+  /// Usage: `validator: Validators.optional(Validators.email)`
+  static String? Function(String?) optional(
+    String? Function(String?) validator,
+  ) {
+    return (String? value) {
+      if (value == null || value.trim().isEmpty) return null;
+      return validator(value);
+    };
+  }
+
   /// Validates a vehicle plate number — alphanumeric, 4-8 characters.
   static String? plateNumber(String? value) {
     if (value == null || value.trim().isEmpty) {

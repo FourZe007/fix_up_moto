@@ -9,7 +9,7 @@ sealed class AuthEvent extends Equatable {
   const AuthEvent();
 
   @override
-  List<Object> get props => [];
+  List<Object?> get props => [];
 }
 
 /// Dispatched when the user submits the login form.
@@ -27,20 +27,52 @@ final class AuthLoginRequested extends AuthEvent {
   List<Object> get props => [phone, password];
 }
 
+/// Dispatched when the user taps "Continue with Google".
+///
+/// Carries no payload — the account is picked inside Google's own sheet.
+/// Only opens the Google picker; it does not sign the user into the backend.
+/// A successful result emits [AuthGoogleIdentityObtained], which the login
+/// page uses to navigate to the complete-profile form.
+final class AuthGoogleIdentityRequested extends AuthEvent {
+  const AuthGoogleIdentityRequested();
+}
+
+/// Dispatched when the complete-profile form is submitted after Google
+/// sign-in. This is the event that actually reaches the backend.
+final class AuthGoogleAccountSubmitted extends AuthEvent {
+  final String name;
+  final String phone;
+  final String email;
+
+  const AuthGoogleAccountSubmitted({
+    required this.name,
+    required this.phone,
+    required this.email,
+  });
+
+  @override
+  List<Object> get props => [name, phone, email];
+}
+
 /// Dispatched when the user submits the registration form.
+///
+/// [name], [phone], and [password] are mandatory on the form; [email] is
+/// optional and may be empty.
 final class AuthRegisterRequested extends AuthEvent {
   final String name;
-  final String email;
+  final String phone;
+  final String? email;
   final String password;
 
   const AuthRegisterRequested({
     required this.name,
-    required this.email,
+    required this.phone,
+    this.email,
     required this.password,
   });
 
   @override
-  List<Object> get props => [name, email, password];
+  List<Object?> get props => [name, phone, email, password];
 }
 
 /// Dispatched when the user taps the logout button.

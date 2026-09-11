@@ -1,7 +1,10 @@
+import 'dart:developer';
+
 import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
 import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
@@ -38,6 +41,10 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     try {
+      log(
+        'Auth Repo Impl: phone: $phone; password: $password',
+        name: 'AuthRepoImpl login',
+      );
       final userModel = await remoteDataSource.login(phone, password);
 
       // Persist the user in secure storage so the next launch skips login
@@ -63,9 +70,71 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, GoogleAccountIdentity>> getGoogleIdentity() async {
+    // No connectivity check — this only talks to Google, not the backend.
+    try {
+      final identity = await remoteDataSource.getGoogleIdentity();
+      return Right(identity);
+    } on GoogleSignInCancelledException {
+      // Deliberately its own arm: the BLoC checks for this type and stays
+      // silent rather than showing an error the user did not cause.
+      return const Left(AuthCancelledFailure());
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message, statusCode: e.statusCode));
+    }
+  }
+
+  @override
+  Future<Either<Failure, UserEntity>> submitGoogleAccount({
+    required String name,
+    required String phone,
+    required String email,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure('No internet connection'));
+    }
+
+    try {
+      final userModel = await remoteDataSource.submitGoogleAccount(
+        name: name,
+        phone: phone,
+        email: email,
+      );
+      await localDataSource.cacheUser(userModel);
+
+      // Remember this email→phone link regardless of which phase succeeded
+      // (existing login, or fresh registration) — either way, this Google
+      // account now has a working phone, and the next sign-in with it should
+      // skip the complete-profile form entirely.
+      await localDataSource.rememberGooglePhone(email: email, phone: phone);
+
+      return Right(userModel.toEntity());
+    } on AccountInactiveException catch (e) {
+      return Left(AuthFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message, statusCode: e.statusCode));
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, String?>> getRememberedGooglePhone(
+    String email,
+  ) async {
+    try {
+      final phone = await localDataSource.getRememberedGooglePhone(email);
+      return Right(phone);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
+  }
+
+  @override
   Future<Either<Failure, UserEntity>> register({
     required String name,
-    required String email,
+    required String phone,
+    String? email,
     required String password,
   }) async {
     if (!await networkInfo.isConnected) {
@@ -75,6 +144,7 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final userModel = await remoteDataSource.register(
         name: name,
+        phone: phone,
         email: email,
         password: password,
       );
@@ -89,23 +159,11 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<Either<Failure, void>> logout() async {
-    // The two halves are separated on purpose. Previously the local clear sat
-    // after the server call inside one try block, so anything the remote threw
-    // that wasn't a ServerException — a NotFoundException from a 404, say —
-    // escaped and left the session on disk. The user tapped Sign Out and stayed
-    // signed in.
+    // No remote call: there is no logout endpoint on this backend, and no
+    // server-side session to invalidate even if there were one — the cached
+    // member record IS the session, so clearing it locally is the whole of
+    // signing out.
     try {
-      await remoteDataSource.logout();
-    } catch (_) {
-      // Best effort, and deliberately catching everything: 404, 500, offline,
-      // timeout all warrant the same response, which is to carry on. A member
-      // must always be able to sign out of their own device regardless of what
-      // the backend has to say about it.
-    }
-
-    try {
-      // This is what actually ends the session — the cached member record IS
-      // the session, so clearing it is the whole of signing out.
       await localDataSource.clearUser();
       return const Right(null);
     } on CacheException catch (e) {

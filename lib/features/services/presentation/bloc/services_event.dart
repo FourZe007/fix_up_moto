@@ -8,11 +8,16 @@ sealed class ServicesEvent extends Equatable {
 
 /// Load (or reload) the service list, optionally filtered by category.
 final class ServicesListRequested extends ServicesEvent {
-  final String? categoryId;
-  const ServicesListRequested({this.categoryId});
+  final String serviceType;
+  final String? plateNo;
+
+  const ServicesListRequested({
+    this.serviceType = 'SERVICEHISTORY',
+    this.plateNo,
+  });
 
   @override
-  List<Object?> get props => [categoryId];
+  List<Object?> get props => [serviceType, plateNo];
 }
 
 /// Load full details for a single service by its ID.

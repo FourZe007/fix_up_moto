@@ -4,7 +4,10 @@ import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/services/data/models/service_model.dart';
 
 abstract class ServicesRemoteDataSource {
-  Future<List<ServiceModel>> getServices({String? categoryId});
+  Future<List<ServiceModel>> getServices({
+    String serviceType = 'SERVICEHISTORY',
+    String? plateNo,
+  });
   Future<ServiceModel> getServiceDetail(String id);
 }
 
@@ -13,13 +16,16 @@ class ServicesRemoteDataSourceImpl implements ServicesRemoteDataSource {
   ServicesRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<List<ServiceModel>> getServices({String? categoryId}) async {
+  Future<List<ServiceModel>> getServices({
+    String serviceType = 'SERVICEHISTORY',
+    String? plateNo,
+  }) async {
     try {
       final response = await _dio.post(
-        ApiConstants.services,
+        ApiConstants.browseTrans,
         // SAMP filters come through the body, not the query string.
         // An empty CategoryID means "all categories".
-        data: {'CategoryID': categoryId ?? ''},
+        data: {'Jenis': serviceType, 'PlateNo': plateNo ?? 'B 6342 KUI'},
       );
       return SampEnvelope.rows(response).map(ServiceModel.fromJson).toList();
     } on DioException catch (e) {

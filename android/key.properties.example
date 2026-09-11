@@ -1,0 +1,20 @@
+# Template for android/key.properties — copy this file to `key.properties`
+# in the same directory and fill in your real values.
+#
+#   cp android/key.properties.example android/key.properties
+#
+# key.properties itself is gitignored and must NEVER be committed: it holds the
+# keystore passwords in plain text. This .example file is safe to commit
+# because it contains no secrets.
+#
+# storeFile is resolved relative to android/app/, so a keystore sitting at
+# android/upload-keystore.jks is written as ../upload-keystore.jks.
+# An absolute path also works and is less error-prone:
+#   storeFile=C:/keys/fixupmoto-upload.jks
+# Use forward slashes even on Windows — a backslash is an escape character in
+# .properties files and will silently mangle the path.
+
+storeFile=../upload-keystore.jks
+storePassword=CHANGE_ME
+keyAlias=upload
+keyPassword=CHANGE_ME

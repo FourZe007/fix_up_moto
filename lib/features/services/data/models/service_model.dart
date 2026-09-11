@@ -3,35 +3,43 @@ import 'package:fix_up_moto/features/services/domain/entities/service_entity.dar
 
 part 'service_model.g.dart';
 
+/// JSON model for a single service transaction/history record, as returned
+/// by BrowseTrans (`serviceType: 'SERVICEHISTORY'`) in its `Data` array.
 @JsonSerializable()
 class ServiceModel {
-  final String id;
-  final String name;
-  final String description;
+  @JsonKey(name: 'BSName')
+  final String bsName;
 
-  @JsonKey(name: 'category_id')
-  final String categoryId;
+  @JsonKey(name: 'TransNo')
+  final String transNo;
 
-  final double price;
+  @JsonKey(name: 'TransDate')
+  final String transDate;
 
-  @JsonKey(name: 'duration_minutes')
-  final int durationMinutes;
+  @JsonKey(name: 'EName')
+  final String eName;
 
-  @JsonKey(name: 'image_url')
-  final String? imageUrl;
+  @JsonKey(name: 'AmountService')
+  final double amountService;
 
-  @JsonKey(name: 'is_available', defaultValue: true)
-  final bool isAvailable;
+  @JsonKey(name: 'AmountPart')
+  final double amountPart;
+
+  @JsonKey(name: 'Detail')
+  final List<ServiceLineDetailModel> detail;
+
+  @JsonKey(name: 'Detail2')
+  final List<ServicePartDetailModel> detail2;
 
   const ServiceModel({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.categoryId,
-    required this.price,
-    required this.durationMinutes,
-    this.imageUrl,
-    this.isAvailable = true,
+    required this.bsName,
+    required this.transNo,
+    required this.transDate,
+    required this.eName,
+    required this.amountService,
+    required this.amountPart,
+    required this.detail,
+    required this.detail2,
   });
 
   factory ServiceModel.fromJson(Map<String, dynamic> json) =>
@@ -40,13 +48,70 @@ class ServiceModel {
   Map<String, dynamic> toJson() => _$ServiceModelToJson(this);
 
   ServiceEntity toEntity() => ServiceEntity(
-        id: id,
-        name: name,
-        description: description,
-        categoryId: categoryId,
-        price: price,
-        durationMinutes: durationMinutes,
-        imageUrl: imageUrl,
-        isAvailable: isAvailable,
-      );
+    bsName: bsName,
+    transNo: transNo,
+    transDate: transDate,
+    eName: eName,
+    amountService: amountService,
+    amountPart: amountPart,
+    detail: detail.map((e) => e.toEntity()).toList(),
+    detail2: detail2.map((e) => e.toEntity()).toList(),
+  );
+}
+
+/// A single performed service line item, from the `Detail` list.
+@JsonSerializable()
+class ServiceLineDetailModel {
+  @JsonKey(name: 'ServiceID')
+  final String serviceId;
+
+  @JsonKey(name: 'ServiceName')
+  final String serviceName;
+
+  @JsonKey(name: 'ServiceNote')
+  final String serviceNote;
+
+  const ServiceLineDetailModel({
+    required this.serviceId,
+    required this.serviceName,
+    required this.serviceNote,
+  });
+
+  factory ServiceLineDetailModel.fromJson(Map<String, dynamic> json) =>
+      _$ServiceLineDetailModelFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ServiceLineDetailModelToJson(this);
+
+  ServiceLineDetailEntity toEntity() => ServiceLineDetailEntity(
+    serviceId: serviceId,
+    serviceName: serviceName,
+    serviceNote: serviceNote,
+  );
+}
+
+/// A single part/unit used in the service, from the `Detail2` list.
+@JsonSerializable()
+class ServicePartDetailModel {
+  @JsonKey(name: 'UnitID')
+  final String unitId;
+
+  @JsonKey(name: 'ItemName')
+  final String itemName;
+
+  @JsonKey(name: 'Qty')
+  final int qty;
+
+  const ServicePartDetailModel({
+    required this.unitId,
+    required this.itemName,
+    required this.qty,
+  });
+
+  factory ServicePartDetailModel.fromJson(Map<String, dynamic> json) =>
+      _$ServicePartDetailModelFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ServicePartDetailModelToJson(this);
+
+  ServicePartDetailEntity toEntity() =>
+      ServicePartDetailEntity(unitId: unitId, itemName: itemName, qty: qty);
 }

@@ -5,11 +5,11 @@ import 'package:fix_up_moto/features/home/data/models/dashboard_stats_model.dart
 
 abstract class HomeRemoteDataSource {
   Future<DashboardStatsModel> getMotorcycleStats(
-    String memberId,
-    String memberName,
-    String plateNo,
-    String phoneNo,
-    String status, {
+    String memberId, {
+    String memberName = '',
+    String plateNo = '',
+    String phoneNo = '',
+    String status = '',
     String type = 'membership',
   });
 }
@@ -21,11 +21,11 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
 
   @override
   Future<DashboardStatsModel> getMotorcycleStats(
-    String memberId,
-    String memberName,
-    String plateNo,
-    String phoneNo,
-    String status, {
+    String memberId, {
+    String memberName = '',
+    String plateNo = '',
+    String phoneNo = '',
+    String status = '',
     String type = 'membership',
   }) async {
     try {

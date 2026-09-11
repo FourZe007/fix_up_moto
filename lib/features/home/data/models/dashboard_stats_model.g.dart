@@ -14,8 +14,8 @@ DashboardStatsModel _$DashboardStatsModelFromJson(Map<String, dynamic> json) =>
       emailAddress: json['EmailAddress'] as String,
       phoneNo: json['PhoneNo'] as String,
       active: json['Active'] as bool,
-      qty: json['Qty'] as int,
-      point: json['Point'] as int,
+      qty: (json['Qty'] as num).toInt(),
+      point: (json['Point'] as num).toInt(),
       detail: (json['Detail'] as List<dynamic>)
           .map((e) => PointDetailModel.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -44,7 +44,7 @@ PointDetailModel _$PointDetailModelFromJson(Map<String, dynamic> json) =>
       transDate: json['TransDate'] as String,
       pointId: json['PointID'] as String,
       pointName: json['PointName'] as String,
-      pointQty: json['PointQty'] as int,
+      pointQty: (json['PointQty'] as num).toInt(),
     );
 
 Map<String, dynamic> _$PointDetailModelToJson(PointDetailModel instance) =>
@@ -60,11 +60,11 @@ VoucherDetailModel _$VoucherDetailModelFromJson(Map<String, dynamic> json) =>
       redeemDate: json['RedeemDate'] as String,
       expirationDate: json['ExpirationDate'] as String,
       voucherNo: json['VoucherNo'] as String,
-      statusVoucher: json['StatusVoucher'] as int,
+      statusVoucher: (json['StatusVoucher'] as num).toInt(),
       voucherId: json['VoucherID'] as String,
       voucherName: json['VoucherName'] as String,
       statusVoucherMemo: json['StatusVoucherMemo'] as String,
-      voucherAmount: json['VoucherAmount'] as double,
+      voucherAmount: (json['VoucherAmount'] as num).toDouble(),
     );
 
 Map<String, dynamic> _$VoucherDetailModelToJson(VoucherDetailModel instance) =>

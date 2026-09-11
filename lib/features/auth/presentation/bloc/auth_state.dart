@@ -46,6 +46,23 @@ final class AuthAuthenticated extends AuthState {
   List<Object> get props => [user];
 }
 
+/// Google identity obtained; the backend session has NOT been established yet.
+///
+/// A one-shot signal, not really "what the UI is in" the way the other states
+/// are — [LoginPage] reacts to it in a listener by navigating to the
+/// complete-profile form with [displayName]/[email] as the initial values,
+/// then the state moves on. There is deliberately no `AuthAuthenticated` here:
+/// nothing has touched the backend, so no session exists to represent.
+final class AuthGoogleIdentityObtained extends AuthState {
+  final String? displayName;
+  final String email;
+
+  const AuthGoogleIdentityObtained({this.displayName, required this.email});
+
+  @override
+  List<Object?> get props => [displayName, email];
+}
+
 /// No valid session exists — the user needs to log in.
 /// [AppRouter] redirects to the login page when it detects this state.
 final class AuthUnauthenticated extends AuthState {

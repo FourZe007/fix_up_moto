@@ -65,6 +65,19 @@ class AccountInactiveException implements Exception {
   String toString() => 'AccountInactiveException: $message';
 }
 
+/// Thrown when the user dismisses the Google account sheet.
+///
+/// **Not an error.** Backing out of a sign-in sheet is a normal choice, and the
+/// UI must stay silent about it — no SnackBar, no red banner. It exists as a
+/// distinct type purely so the repository can translate it into a failure the
+/// BLoC recognises as "say nothing".
+class GoogleSignInCancelledException implements Exception {
+  const GoogleSignInCancelledException();
+
+  @override
+  String toString() => 'GoogleSignInCancelledException: dismissed by user';
+}
+
 /// Thrown when the API returns HTTP 403 (authenticated but lacks permission).
 class ForbiddenException implements Exception {
   final String message;

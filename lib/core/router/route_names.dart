@@ -20,30 +20,49 @@ class RouteNames {
   /// Registration screen — reachable from the login page.
   static const String register = '/register';
 
+  /// Reached only after a successful Google identity pick, before any backend
+  /// session exists — collects name/phone (email is prefilled from Google).
+  /// Treated as an auth route by the redirect guard, the same as [login] and
+  /// [register], since the user is not authenticated while filling it in.
+  static const String completeGoogleProfile = '/complete-google-profile';
+
   // ── Main tab routes (inside ShellRoute) ───────────────────────────────────
   // These paths are wrapped by [MainShell] which provides the bottom nav bar.
+  // Five tabs: Home, Bookings, Membership, Feeds, Profile. Services has no tab
+  // of its own — browsing services is a segment inside the Bookings tab (see
+  // BookingsPage), since booking IS the action a service browse leads to.
 
-  /// Dashboard: upcoming bookings, quick stats, quick-action buttons.
+  /// Dashboard: greeting, workshop picker, promos, quick-action buttons.
   static const String home = '/home';
 
-  /// Browse all available repair services and categories.
-  static const String services = '/services';
-
-  /// View existing bookings and create new appointments.
+  /// Browse services and view/create bookings — two segments, one tab.
   static const String bookings = '/bookings';
+
+  /// Loyalty status: points, point history, vouchers. Reuses the same
+  /// [DashboardStatsEntity] Home's greeting header reads — see MembershipPage.
+  static const String membership = '/membership';
+
+  /// Short-form video feed (Meta Business API). Placeholder until real
+  /// credentials exist — see FeedsPage.
+  static const String feeds = '/feeds';
 
   /// User profile, account settings, and registered motorcycles.
   static const String profile = '/profile';
 
   // ── Detail / nested routes ────────────────────────────────────────────────
 
-  /// Service detail screen — append the service ID when navigating:
+  /// Service detail screen, nested under Bookings now that Services has no
+  /// tab of its own — append the service ID when navigating:
   ///   `context.go('${RouteNames.serviceDetail}/abc123')`
-  static const String serviceDetail = '/services/detail';
+  static const String serviceDetail = '/bookings/services/detail';
 
   /// Create a new booking — opened from the Services detail or Bookings tab.
   static const String createBooking = '/bookings/create';
 
   /// Add a motorcycle — opened from the Profile page.
   static const String addMotorcycle = '/profile/motorcycle/add';
+
+  /// Lists nearby/partner workshops so the member can pick one on Home.
+  /// **Placeholder — no confirmed backend endpoint yet.**
+  static const String workshops = '/home/workshops';
 }

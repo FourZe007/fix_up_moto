@@ -17,13 +17,17 @@ class ServicesRepositoryImpl implements ServicesRepository {
 
   @override
   Future<Either<Failure, List<ServiceEntity>>> getServices({
-    String? categoryId,
+    String serviceType = 'SERVICEHISTORY',
+    String? plateNo,
   }) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
     try {
-      final models = await remoteDataSource.getServices(categoryId: categoryId);
+      final models = await remoteDataSource.getServices(
+        serviceType: serviceType,
+        plateNo: plateNo,
+      );
       return Right(models.map((m) => m.toEntity()).toList());
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));

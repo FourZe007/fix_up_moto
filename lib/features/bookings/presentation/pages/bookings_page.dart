@@ -5,15 +5,33 @@ import 'package:fix_up_moto/core/helpers/date_formatter.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
+import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
+import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
 
-/// Lists all bookings for the authenticated user.
+/// The Bookings tab: browsing services and viewing/creating bookings, as two
+/// segments of one tab rather than two separate tabs.
+///
+/// Both [ServicesBloc] and [BookingsBloc] are provided here, each fetching
+/// independently the moment this page mounts — matching how every other tab
+/// in the app fetches its own data on mount, just two blocs instead of one
+/// since this tab now covers what used to be two tabs' worth of data.
 class BookingsPage extends StatelessWidget {
   const BookingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<BookingsBloc>()..add(const BookingsListRequested()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) =>
+              sl<ServicesBloc>()..add(const ServicesListRequested()),
+        ),
+        BlocProvider(
+          create: (_) =>
+              sl<BookingsBloc>()..add(const BookingsListRequested()),
+        ),
+      ],
       child: const _BookingsView(),
     );
   }
@@ -24,52 +42,73 @@ class _BookingsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Bookings')),
-      body: BlocConsumer<BookingsBloc, BookingsState>(
-        listener: (context, state) {
-          if (state is BookingActionSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
-          }
-        },
-        builder: (context, state) {
-          return switch (state) {
-            BookingsInitial() || BookingsLoading() =>
-              const Center(child: CircularProgressIndicator()),
-            BookingsError(:final message) => Center(child: Text(message)),
-            BookingActionSuccess() =>
-              const Center(child: CircularProgressIndicator()),
-            BookingsLoaded(:final bookings) => bookings.isEmpty
-                ? const Center(child: Text('No bookings yet'))
-                : RefreshIndicator(
-                    onRefresh: () async => context
-                        .read<BookingsBloc>()
-                        .add(const BookingsListRequested()),
-                    child: ListView.builder(
-                      itemCount: bookings.length,
-                      itemBuilder: (context, index) {
-                        final booking = bookings[index];
-                        return Card(
-                          child: ListTile(
-                            title: Text(booking.serviceName),
-                            subtitle: Text(
-                              // Uses DateFormatter to display "Mon, 10 Mar 2026 at 10:30 AM"
-                              DateFormatter.toFullDateTime(booking.scheduledAt),
-                            ),
-                            trailing: _StatusBadge(status: booking.status),
-                            // Show cancel option only for upcoming bookings
-                            onLongPress: booking.isUpcoming
-                                ? () => _confirmCancel(context, booking.id)
-                                : null,
-                          ),
-                        );
-                      },
-                    ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Bookings'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Browse'),
+              Tab(text: 'My Bookings'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            const ServicesBrowseView(),
+            BlocConsumer<BookingsBloc, BookingsState>(
+              listener: (context, state) {
+                if (state is BookingActionSuccess) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.message)));
+                }
+              },
+              builder: (context, state) {
+                return switch (state) {
+                  BookingsInitial() || BookingsLoading() => const Center(
+                    child: CircularProgressIndicator(),
                   ),
-          };
-        },
+                  BookingsError(:final message) => Center(child: Text(message)),
+                  BookingActionSuccess() => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  BookingsLoaded(:final bookings) => bookings.isEmpty
+                      ? const Center(child: Text('No bookings yet'))
+                      : RefreshIndicator(
+                          onRefresh: () async => context
+                              .read<BookingsBloc>()
+                              .add(const BookingsListRequested()),
+                          child: ListView.builder(
+                            itemCount: bookings.length,
+                            itemBuilder: (context, index) {
+                              final booking = bookings[index];
+                              return Card(
+                                child: ListTile(
+                                  title: Text(booking.serviceName),
+                                  subtitle: Text(
+                                    // "Mon, 10 Mar 2026 at 10:30 AM"
+                                    DateFormatter.toFullDateTime(
+                                      booking.scheduledAt,
+                                    ),
+                                  ),
+                                  trailing: _StatusBadge(status: booking.status),
+                                  // Show cancel option only for upcoming bookings
+                                  onLongPress: booking.isUpcoming
+                                      ? () =>
+                                          _confirmCancel(context, booking.id)
+                                      : null,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                };
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -109,12 +148,12 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     // Map status string to a colour — extend as needed for new statuses
     final color = switch (status) {
-      'confirmed'   => Colors.green,
-      'pending'     => Colors.orange,
-      'cancelled'   => Colors.red,
-      'completed'   => Colors.blue,
+      'confirmed' => Colors.green,
+      'pending' => Colors.orange,
+      'cancelled' => Colors.red,
+      'completed' => Colors.blue,
       'in_progress' => Colors.teal,
-      _             => Colors.grey,
+      _ => Colors.grey,
     };
 
     return Container(

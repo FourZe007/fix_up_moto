@@ -47,6 +47,16 @@ class AuthFailure extends Failure {
   const AuthFailure(super.message);
 }
 
+/// The user backed out of an authentication flow they started.
+///
+/// Carries a message only for logging — **the UI must not display it**. A user
+/// who dismisses the Google sheet has not hit an error and should simply be
+/// returned to the form. [AuthBloc] checks for this type and emits
+/// [AuthUnauthenticated] rather than [AuthError].
+class AuthCancelledFailure extends Failure {
+  const AuthCancelledFailure([super.message = 'Sign-in cancelled']);
+}
+
 /// Authenticated user does not have the required permission.
 /// Maps to [ForbiddenException] from the data layer.
 class PermissionFailure extends Failure {
