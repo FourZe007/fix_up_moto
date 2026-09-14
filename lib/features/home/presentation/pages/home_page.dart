@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,10 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/promos/domain/entities/promo_image_entity.dart';
+import 'package:fix_up_moto/features/promos/presentation/bloc/promos_bloc.dart';
+import 'package:fix_up_moto/features/promos/presentation/bloc/promos_event.dart';
+import 'package:fix_up_moto/features/promos/presentation/bloc/promos_state.dart';
 import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
 
 /// Home / dashboard screen — the default tab after login.
@@ -42,9 +48,8 @@ class _HomeView extends StatelessWidget {
         child: BlocBuilder<HomeBloc, HomeState>(
           builder: (context, state) {
             return switch (state) {
-              HomeInitial() || HomeLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
+              HomeInitial() ||
+              HomeLoading() => const Center(child: CircularProgressIndicator()),
               HomeError(:final message) => _ErrorView(
                 message: message,
                 onRetry: () =>
@@ -204,83 +209,108 @@ class _WorkshopPickerState extends State<_WorkshopPicker> {
 
 /// Promo/discount carousel.
 ///
-/// **Placeholder content.** There is no promotions endpoint or bundled promo
-/// artwork in this project yet, so these are gradient cards with copy rather
-/// than broken image references. Swapping in real banners later only means
-/// replacing [_promos] with a fetched list — the carousel mechanics
-/// (PageView + dot indicator) don't change.
-class _PromoCarousel extends StatefulWidget {
+/// Banners come from `Master` (`Jenis: "IMAGEFORAPPS"`) — each record is a
+/// `{Line, Base64Image}` pair, the image bytes embedded directly in the
+/// response rather than a URL. Provides its own [PromosBloc] since this is
+/// the only place the images are needed.
+class _PromoCarousel extends StatelessWidget {
   const _PromoCarousel();
 
   @override
-  State<_PromoCarousel> createState() => _PromoCarouselState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<PromosBloc>()..add(const PromoImagesRequested()),
+      child: const _PromoCarouselView(),
+    );
+  }
 }
 
-class _PromoCarouselState extends State<_PromoCarousel> {
-  static const _promos = [
-    (
-      title: 'Book without waiting',
-      subtitle: "Reserve your slot on FixUp Moto's fixed schedule",
-      colors: [AppColors.primary, AppColors.primaryDark],
-    ),
-    (
-      title: 'Earn points on every visit',
-      subtitle: 'Collect points and redeem them for vouchers',
-      colors: [AppColors.secondary, AppColors.secondaryDark],
-    ),
-  ];
+class _PromoCarouselView extends StatefulWidget {
+  const _PromoCarouselView();
+
+  @override
+  State<_PromoCarouselView> createState() => _PromoCarouselViewState();
+}
+
+class _PromoCarouselViewState extends State<_PromoCarouselView> {
+  static const _autoScrollInterval = Duration(seconds: 4);
 
   final _controller = PageController();
   int _page = 0;
+  Timer? _autoScrollTimer;
 
   @override
   void dispose() {
+    _autoScrollTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
+  /// (Re)starts the auto-scroll loop for the given image count. Called from
+  /// [BlocConsumer]'s listener rather than from build, since starting a
+  /// [Timer] is a side effect and build can re-run for unrelated reasons
+  /// (e.g. the surrounding [HomeBloc] refreshing).
+  void _restartAutoScroll(int itemCount) {
+    _autoScrollTimer?.cancel();
+    if (itemCount <= 1) return;
+
+    _autoScrollTimer = Timer.periodic(_autoScrollInterval, (_) {
+      if (!_controller.hasClients) return;
+      _controller.animateToPage(
+        (_page + 1) % itemCount,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<PromosBloc, PromosState>(
+      listener: (context, state) {
+        if (state is PromosLoaded && state.images.isNotEmpty) {
+          _restartAutoScroll(state.images.length);
+        } else {
+          _autoScrollTimer?.cancel();
+        }
+      },
+      builder: (context, state) {
+        return switch (state) {
+          PromosInitial() || PromosLoading() => const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          // No promotions endpoint content to show is not worth a banner of
+          // its own — the carousel just disappears rather than showing an
+          // error where a placeholder used to be.
+          PromosError() => const SizedBox.shrink(),
+          PromosLoaded(:final images) when images.isEmpty =>
+            const SizedBox.shrink(),
+          PromosLoaded(:final images) => _carousel(context, images),
+        };
+      },
+    );
+  }
+
+  Widget _carousel(BuildContext context, List<PromoImageEntity> images) {
     return Column(
       children: [
         SizedBox(
-          height: 140,
+          height: 200,
           child: PageView.builder(
             controller: _controller,
-            itemCount: _promos.length,
+            itemCount: images.length,
             onPageChanged: (index) => setState(() => _page = index),
             itemBuilder: (context, index) {
-              final promo = _promos[index];
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    colors: promo.colors,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: double.infinity,
+                  child: Image.memory(
+                    images[index].imageBytes,
+                    fit: BoxFit.cover,
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      promo.title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      promo.subtitle,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                    ),
-                  ],
                 ),
               );
             },
@@ -290,16 +320,14 @@ class _PromoCarouselState extends State<_PromoCarousel> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            _promos.length,
+            images.length,
             (index) => AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.symmetric(horizontal: 3),
               width: index == _page ? 20 : 6,
               height: 6,
               decoration: BoxDecoration(
-                color: index == _page
-                    ? AppColors.primary
-                    : AppColors.grey400,
+                color: index == _page ? AppColors.primary : AppColors.grey400,
                 borderRadius: BorderRadius.circular(3),
               ),
             ),

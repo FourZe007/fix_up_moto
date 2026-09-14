@@ -95,6 +95,12 @@ class ApiConstants {
   /// of master data gets its own constant here, not a rename of this one.
   static const String workshops = '/apiSAMP/Master';
 
+  /// POST `/apiSAMP/Master` — body: `{Jenis: "IMAGEFORAPPS"}` → the home
+  /// promo carousel banners, each record `{Line, Base64Image}` where
+  /// `Base64Image` is the raw image bytes base64-encoded directly in the
+  /// response (no image URL). See `PromosRemoteDataSource`.
+  static const String promoImages = '/apiSAMP/Master';
+
   // ══════════════════════════════════════════════════════════════════════════
   // UNVERIFIED — the paths below follow the BrowseTrans naming convention but
   // have NOT been confirmed against the backend, and their request bodies are

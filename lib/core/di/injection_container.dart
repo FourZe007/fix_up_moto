@@ -39,6 +39,11 @@ import 'package:fix_up_moto/features/profile/domain/repositories/profile_reposit
 import 'package:fix_up_moto/features/profile/domain/usecases/get_profile_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_profile_usecase.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
+import 'package:fix_up_moto/features/promos/data/datasources/promos_remote_data_source.dart';
+import 'package:fix_up_moto/features/promos/data/repositories/promos_repository_impl.dart';
+import 'package:fix_up_moto/features/promos/domain/repositories/promos_repository.dart';
+import 'package:fix_up_moto/features/promos/domain/usecases/get_promo_images_usecase.dart';
+import 'package:fix_up_moto/features/promos/presentation/bloc/promos_bloc.dart';
 import 'package:fix_up_moto/features/workshops/data/datasources/workshops_remote_data_source.dart';
 import 'package:fix_up_moto/features/workshops/data/repositories/workshops_repository_impl.dart';
 import 'package:fix_up_moto/features/workshops/domain/repositories/workshops_repository.dart';
@@ -245,4 +250,15 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton(() => GetWorkshopsUseCase(sl<WorkshopsRepository>()));
   sl.registerFactory(() => WorkshopsBloc(getWorkshops: sl()));
+
+  // ── Promos Feature ────────────────────────────────────────────────────────
+
+  sl.registerLazySingleton<PromosRemoteDataSource>(
+    () => PromosRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<PromosRepository>(
+    () => PromosRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+  );
+  sl.registerLazySingleton(() => GetPromoImagesUseCase(sl<PromosRepository>()));
+  sl.registerFactory(() => PromosBloc(getPromoImages: sl()));
 }
