@@ -36,6 +36,11 @@ class _FeedsView extends StatelessWidget {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Colors.transparent,
+        ),
         body: BlocBuilder<FeedsBloc, FeedsState>(
           builder: (context, state) {
             return switch (state) {
@@ -47,14 +52,15 @@ class _FeedsView extends StatelessWidget {
                 onRetry: () =>
                     context.read<FeedsBloc>().add(const FeedsRequested()),
               ),
-              FeedsLoaded(:final posts) => posts.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No posts yet',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    )
-                  : _ReelsFeed(posts: posts),
+              FeedsLoaded(:final posts) =>
+                posts.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No posts yet',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      )
+                    : _ReelsFeed(posts: posts),
             };
           },
         ),
@@ -129,7 +135,11 @@ class _EndOfFeedCard extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_circle_outline, size: 56, color: Colors.white70),
+              const Icon(
+                Icons.check_circle_outline,
+                size: 56,
+                color: Colors.white70,
+              ),
               const SizedBox(height: 16),
               const Text(
                 "You're all caught up",

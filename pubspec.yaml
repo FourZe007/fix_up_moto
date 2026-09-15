@@ -33,7 +33,7 @@ dependencies:
   # ── Navigation ────────────────────────────────────────────────────────────
   # go_router: Flutter-team-endorsed declarative router with deep linking
   # and ShellRoute for persistent bottom navigation bar
-  go_router: ^14.6.2
+  go_router: ^18.0.1
 
   # ── Local Storage ─────────────────────────────────────────────────────────
   # shared_preferences: key-value store for non-sensitive settings

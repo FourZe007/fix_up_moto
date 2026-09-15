@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
@@ -20,40 +22,58 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // child is the active tab content — rendered above the nav bar
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        // Determine which tab is active by matching the current route location
-        selectedIndex: _selectedIndex(context),
-        onDestinationSelected: (index) => _onTap(context, index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.play_circle_outline),
-            selectedIcon: Icon(Icons.play_circle),
-            label: 'Feed',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.card_membership_outlined),
-            selectedIcon: Icon(Icons.card_membership),
-            label: 'Member',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'Bookings',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+    final onHome = _selectedIndex(context) == 0;
+
+    // Every tab switch uses context.go(), which *replaces* the current
+    // location instead of pushing on top of it — so there is no back-stack
+    // entry for the system back button to land on. Without this, pressing
+    // back from any non-Home tab (including Home's own "Booking"/"Bikes
+    // List" quick actions, which also use go()) closes the app instead of
+    // returning to Home, which is the behaviour every bottom-nav app is
+    // expected to have.
+    return PopScope(
+      canPop: onHome,
+      onPopInvokedWithResult: (didPop, result) {
+        log('onPopInvokedWithResult');
+        if (didPop) return; // already on Home — let the OS handle it (exit)
+        log('back to home');
+        context.go(RouteNames.home);
+      },
+      child: Scaffold(
+        // child is the active tab content — rendered above the nav bar
+        body: child,
+        bottomNavigationBar: NavigationBar(
+          // Determine which tab is active by matching the current route location
+          selectedIndex: _selectedIndex(context),
+          onDestinationSelected: (index) => _onTap(context, index),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.play_circle_outline),
+              selectedIcon: Icon(Icons.play_circle),
+              label: 'Feed',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.card_membership_outlined),
+              selectedIcon: Icon(Icons.card_membership),
+              label: 'Member',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month),
+              label: 'Bookings',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }

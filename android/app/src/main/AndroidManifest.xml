@@ -9,7 +9,12 @@
     <application
         android:label="Fix Up Moto"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
+        <!-- Required for PopScope (main_shell.dart) to receive the back
+             button/gesture at all. Without this, Android's legacy back
+             dispatch handles the press itself before Flutter's widget tree
+             ever sees it — PopScope's callback silently never fires. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
