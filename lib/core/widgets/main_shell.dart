@@ -34,9 +34,8 @@ class MainShell extends StatelessWidget {
     return PopScope(
       canPop: onHome,
       onPopInvokedWithResult: (didPop, result) {
-        log('onPopInvokedWithResult');
         if (didPop) return; // already on Home — let the OS handle it (exit)
-        log('back to home');
+        log('Return to Home');
         context.go(RouteNames.home);
       },
       child: Scaffold(
