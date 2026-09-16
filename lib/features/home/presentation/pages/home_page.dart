@@ -15,6 +15,8 @@ import 'package:fix_up_moto/features/promos/presentation/bloc/promos_bloc.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_event.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_state.dart';
 import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
+import 'package:fix_up_moto/features/workshops/presentation/widgets/workshop_picker_tile.dart';
 
 /// Home / dashboard screen — the default tab after login.
 ///
@@ -139,69 +141,27 @@ class _GreetingHeader extends StatelessWidget {
   }
 }
 
-/// Tappable row leading to [WorkshopListPage]. Holds the chosen workshop
-/// locally — nothing downstream (booking creation) consumes it yet, so this
-/// is scoped to just remembering the pick for as long as Home stays mounted,
-/// not persisting it or feeding it into a booking.
-class _WorkshopPicker extends StatefulWidget {
+/// Tappable row leading to [WorkshopListPage]. Reads/writes
+/// [SelectedWorkshopCubit] — app-scoped shared state, not local — so a pick
+/// made here is the same pick Create Booking's own tile shows, and vice versa.
+class _WorkshopPicker extends StatelessWidget {
   const _WorkshopPicker();
 
-  @override
-  State<_WorkshopPicker> createState() => _WorkshopPickerState();
-}
-
-class _WorkshopPickerState extends State<_WorkshopPicker> {
-  WorkshopEntity? _selected;
-
-  Future<void> _pickWorkshop() async {
+  Future<void> _pickWorkshop(BuildContext context) async {
     // WorkshopListPage pops itself with the tapped WorkshopEntity — see its
     // _WorkshopCard._select. A null result means the user backed out.
     final picked = await context.push<WorkshopEntity>(RouteNames.workshops);
-    if (picked != null) setState(() => _selected = picked);
+    if (picked != null && context.mounted) {
+      context.read<SelectedWorkshopCubit>().select(picked);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final selected = _selected;
-
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: _pickWorkshop,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              const Icon(Icons.storefront_outlined, color: AppColors.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: selected == null
-                    ? const Text('Select workshop from the existing list')
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            selected.bsName,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            selected.bsAddress,
-                            style: Theme.of(context).textTheme.bodySmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-              ),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
-        ),
+    return BlocBuilder<SelectedWorkshopCubit, WorkshopEntity?>(
+      builder: (context, selected) => WorkshopPickerTile(
+        selected: selected,
+        onTap: () => _pickWorkshop(context),
       ),
     );
   }

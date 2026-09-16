@@ -49,6 +49,7 @@ import 'package:fix_up_moto/features/workshops/data/repositories/workshops_repos
 import 'package:fix_up_moto/features/workshops/domain/repositories/workshops_repository.dart';
 import 'package:fix_up_moto/features/workshops/domain/usecases/get_workshops_usecase.dart';
 import 'package:fix_up_moto/features/workshops/presentation/bloc/workshops_bloc.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 import 'package:fix_up_moto/features/services/data/datasources/services_remote_data_source.dart';
 import 'package:fix_up_moto/features/services/data/repositories/services_repository_impl.dart';
 import 'package:fix_up_moto/features/services/domain/repositories/services_repository.dart';
@@ -261,4 +262,9 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton(() => GetPromoImagesUseCase(sl<PromosRepository>()));
   sl.registerFactory(() => PromosBloc(getPromoImages: sl()));
+
+  // App-scoped, like AuthBloc — see SelectedWorkshopCubit's own doc comment
+  // for why this can't be a page-scoped factory. Pair with BlocProvider.value
+  // in app.dart for the same reason AuthBloc is paired that way.
+  sl.registerLazySingleton(() => SelectedWorkshopCubit());
 }

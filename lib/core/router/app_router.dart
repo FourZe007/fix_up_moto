@@ -31,9 +31,12 @@ import 'package:fix_up_moto/core/router/route_names.dart';
 /// - **Shell route**: the five main tabs (home, bookings, membership, feeds,
 ///   profile) live inside a [ShellRoute] that renders [MainShell], keeping
 ///   the bottom navigation bar persistent across tab switches. Services has
-///   no tab of its own — browsing lives inside the Bookings tab instead.
-/// - **Nested routes**: service detail and create-booking screens are deep
-///   children so they inherit the shell's scaffold.
+///   no tab of its own — its past-transaction history lives inside the
+///   Bookings tab instead.
+/// - **Nested routes**: service detail is a deep child so it inherits the
+///   shell's scaffold. Create-booking is the opposite on purpose — a
+///   top-level route outside the ShellRoute, so it renders full-screen
+///   without the bottom nav bar attached.
 class AppRouter {
   AppRouter._(); // static-only class — never instantiated
 
@@ -144,6 +147,28 @@ class AppRouter {
         },
       ),
 
+      // Deliberately top-level routes, not nested under any ShellRoute
+      // branch — both render full-screen with no bottom nav bar attached,
+      // unlike ServiceDetailPage which stays inside the shell on purpose.
+      // Still protected by the redirect guard above like any other non-auth
+      // route.
+      GoRoute(
+        path: RouteNames.createBooking,
+        builder: (_, _) => const CreateBookingPage(),
+      ),
+      // Reached from both Home's picker and Create Booking's — it used to be
+      // nested under /home on the assumption only Home would ever push it,
+      // which broke the moment Create Booking (a route outside the shell
+      // entirely) started pushing the same path: GoRouter had to rebuild
+      // Home's whole branch to resolve /home/workshops, colliding with the
+      // Home page instance already sitting in the Navigator and tripping a
+      // Flutter-internal key assertion. Top-level avoids that ancestry
+      // entirely, the same reasoning as createBooking above.
+      GoRoute(
+        path: RouteNames.workshops,
+        builder: (_, _) => const WorkshopListPage(),
+      ),
+
       // ── Shell route: main tabs with persistent bottom nav bar ──────────────
       ShellRoute(
         // MainShell wraps every tab page; receives the active tab as [child]
@@ -152,27 +177,13 @@ class AppRouter {
           GoRoute(
             path: RouteNames.home,
             builder: (_, _) => const HomePage(),
-            routes: [
-              // Nested under Home rather than the shell's top level — the
-              // picker is reached only from Home, and this keeps it inside
-              // the shell scaffold the same way service detail sits under
-              // Bookings.
-              GoRoute(
-                path: 'workshops', // full path: /home/workshops
-                builder: (_, _) => const WorkshopListPage(),
-              ),
-            ],
           ),
           GoRoute(
             path: RouteNames.bookings,
             builder: (_, _) => const BookingsPage(),
             routes: [
-              GoRoute(
-                path: 'create', // full path: /bookings/create
-                builder: (_, _) => const CreateBookingPage(),
-              ),
-              // Service browsing has no tab of its own any more — browsing
-              // and booking are one journey inside this tab — but the detail
+              // Services has no tab of its own — its history lives in the
+              // "History" segment of this tab instead — but the detail
               // screen still needs its own route to push to. Nested here
               // (not under a standalone /services) so it sits above Bookings
               // in the back stack and stays inside the shell scaffold.

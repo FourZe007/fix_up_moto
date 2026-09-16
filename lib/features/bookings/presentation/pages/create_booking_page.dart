@@ -1,20 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
+import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
+import 'package:fix_up_moto/features/workshops/presentation/widgets/workshop_picker_tile.dart';
 
 /// Form page for creating a new service booking.
 ///
-/// [BookingsBloc] is inherited from the parent [BookingsPage] via [BlocProvider].
-class CreateBookingPage extends StatefulWidget {
+/// Reached via `context.push(RouteNames.createBooking)` from the Bookings
+/// tab's FAB — GoRouter puts pushed routes on the Navigator as their own
+/// page, not nested inside BookingsPage's widget tree, so this needs its
+/// own [BookingsBloc] rather than relying on BookingsPage's provider (which
+/// a pushed page can never see).
+///
+/// A workshop must already be selected by the time this page is reached —
+/// [BookingsPage]'s FAB gates on that before ever pushing here, so this page
+/// only ever needs to display [SelectedWorkshopCubit]'s current value and let
+/// the user change it, never force-collect it itself.
+class CreateBookingPage extends StatelessWidget {
   const CreateBookingPage({super.key});
 
   @override
-  State<CreateBookingPage> createState() => _CreateBookingPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<BookingsBloc>(),
+      child: const _CreateBookingView(),
+    );
+  }
 }
 
-class _CreateBookingPageState extends State<CreateBookingPage> {
+class _CreateBookingView extends StatefulWidget {
+  const _CreateBookingView();
+
+  @override
+  State<_CreateBookingView> createState() => _CreateBookingViewState();
+}
+
+class _CreateBookingViewState extends State<_CreateBookingView> {
   final _notesController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -23,6 +50,15 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
   void dispose() {
     _notesController.dispose();
     super.dispose();
+  }
+
+  /// Re-pick from the tile — always optional, since [BookingsPage] already
+  /// guaranteed a selection exists before this page was ever reached.
+  Future<void> _changeWorkshop() async {
+    final picked = await context.push<WorkshopEntity>(RouteNames.workshops);
+    if (picked != null && mounted) {
+      context.read<SelectedWorkshopCubit>().select(picked);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -97,6 +133,13 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              BlocBuilder<SelectedWorkshopCubit, WorkshopEntity?>(
+                builder: (context, selected) => WorkshopPickerTile(
+                  selected: selected,
+                  onTap: _changeWorkshop,
+                ),
+              ),
+              const SizedBox(height: 16),
               // Date picker row
               ListTile(
                 leading: const Icon(Icons.calendar_today),

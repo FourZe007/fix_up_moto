@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_formatter.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
+import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 
-/// The Bookings tab: browsing services and viewing/creating bookings, as two
-/// segments of one tab rather than two separate tabs.
+/// The Bookings tab: past service history and current bookings, as two
+/// segments of one tab rather than two separate tabs — both are about the
+/// member's visits to FixUp Moto, one past and one upcoming.
 ///
-/// Both [ServicesBloc] and [BookingsBloc] are provided here, each fetching
-/// independently the moment this page mounts — matching how every other tab
-/// in the app fetches its own data on mount, just two blocs instead of one
-/// since this tab now covers what used to be two tabs' worth of data.
+/// [ServicesBloc] fetches immediately on mount, matching every other tab.
+/// [BookingsBloc] deliberately does **not** — its backend endpoint
+/// (`BrowseBooking`) is still unverified/not ready, so this tab stays on
+/// [BookingsInitial] (rendered as the empty state below) rather than firing a
+/// request at an endpoint that isn't there. Wire `BookingsListRequested()`
+/// back in here once that endpoint is confirmed.
 class BookingsPage extends StatelessWidget {
   const BookingsPage({super.key});
 
@@ -27,10 +34,7 @@ class BookingsPage extends StatelessWidget {
           create: (_) =>
               sl<ServicesBloc>()..add(const ServicesListRequested()),
         ),
-        BlocProvider(
-          create: (_) =>
-              sl<BookingsBloc>()..add(const BookingsListRequested()),
-        ),
+        BlocProvider(create: (_) => sl<BookingsBloc>()),
       ],
       child: const _BookingsView(),
     );
@@ -49,14 +53,13 @@ class _BookingsView extends StatelessWidget {
           title: const Text('Bookings'),
           bottom: const TabBar(
             tabs: [
-              Tab(text: 'Browse'),
               Tab(text: 'My Bookings'),
+              Tab(text: 'History'),
             ],
           ),
         ),
         body: TabBarView(
           children: [
-            const ServicesBrowseView(),
             BlocConsumer<BookingsBloc, BookingsState>(
               listener: (context, state) {
                 if (state is BookingActionSuccess) {
@@ -67,7 +70,13 @@ class _BookingsView extends StatelessWidget {
               },
               builder: (context, state) {
                 return switch (state) {
-                  BookingsInitial() || BookingsLoading() => const Center(
+                  // Initial is never followed by a fetch right now (see
+                  // BookingsPage's doc comment) — it's the default empty
+                  // state, not a momentary loading flicker.
+                  BookingsInitial() => const Center(
+                    child: Text('No bookings yet'),
+                  ),
+                  BookingsLoading() => const Center(
                     child: CircularProgressIndicator(),
                   ),
                   BookingsError(:final message) => Center(child: Text(message)),
@@ -107,10 +116,47 @@ class _BookingsView extends StatelessWidget {
                 };
               },
             ),
+            const ServicesHistoryView(),
           ],
+        ),
+        // Only shown on "My Bookings" (tab index 0) — History has no create
+        // action of its own. Builder gives a context below DefaultTabController
+        // so DefaultTabController.of(context) can actually find it; AnimatedBuilder
+        // rebuilds just this button when the active tab changes.
+        floatingActionButton: Builder(
+          builder: (context) {
+            final tabController = DefaultTabController.of(context);
+            return AnimatedBuilder(
+              animation: tabController,
+              builder: (context, _) => tabController.index == 0
+                  ? FloatingActionButton(
+                      onPressed: () => _openCreateBooking(context),
+                      child: const Icon(Icons.add),
+                    )
+                  : const SizedBox.shrink(),
+            );
+          },
         ),
       ),
     );
+  }
+
+  /// Gates entry to [CreateBookingPage] on a workshop already being selected
+  /// — checked and resolved *before* pushing that page at all, so it's never
+  /// visible mid-pick. (An earlier version instead asked CreateBookingPage to
+  /// check for itself right after mounting, which meant the form flashed on
+  /// screen for a frame before the picker slid on top of it.)
+  Future<void> _openCreateBooking(BuildContext context) async {
+    final cubit = context.read<SelectedWorkshopCubit>();
+
+    if (cubit.state == null) {
+      final picked = await context.push<WorkshopEntity>(RouteNames.workshops);
+      if (picked == null) return; // backed out — stay on Bookings, untouched
+      if (!context.mounted) return;
+      cubit.select(picked);
+    }
+
+    if (context.mounted) context.push(RouteNames.createBooking);
   }
 
   void _confirmCancel(BuildContext context, String bookingId) {

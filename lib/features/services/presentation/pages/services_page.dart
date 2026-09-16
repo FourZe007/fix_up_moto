@@ -7,16 +7,17 @@ import 'package:fix_up_moto/features/services/presentation/bloc/services_event.d
 import 'package:fix_up_moto/features/services/presentation/bloc/services_state.dart';
 import 'package:fix_up_moto/features/services/presentation/widgets/service_card.dart';
 
-/// The "Browse" segment of the merged Bookings tab.
+/// The "History" segment of the merged Bookings tab — past completed service
+/// transactions (`BrowseTrans`, `SERVICEHISTORY`), not a bookable catalog.
 ///
 /// **Not its own page or route** — Services has no bottom-nav tab of its own;
-/// browsing a service and booking it are one journey, not two, so this is
-/// embedded directly inside [BookingsPage] as one half of a [TabBarView].
-/// Provides its own [ServicesBloc] regardless, the same page-scoped-factory
-/// pattern every other tab uses, so this segment's data is independent of
-/// whatever the "My Bookings" segment is doing.
-class ServicesBrowseView extends StatelessWidget {
-  const ServicesBrowseView({super.key});
+/// past visits and upcoming bookings are both about the member's relationship
+/// with FixUp Moto, so this is embedded directly inside [BookingsPage] as one
+/// half of a [TabBarView]. Provides its own [ServicesBloc] regardless, the
+/// same page-scoped-factory pattern every other tab uses, so this segment's
+/// data is independent of whatever the "My Bookings" segment is doing.
+class ServicesHistoryView extends StatelessWidget {
+  const ServicesHistoryView({super.key});
 
   @override
   Widget build(BuildContext context) {

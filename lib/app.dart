@@ -6,6 +6,7 @@ import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 
 /// Root widget of the application.
 ///
@@ -34,6 +35,13 @@ class App extends StatelessWidget {
         // splash route until it resolves.
         BlocProvider<AuthBloc>.value(
           value: sl<AuthBloc>()..add(const AuthCheckStatusRequested()),
+        ),
+        // Same reasoning as AuthBloc above: app-scoped, and .value so this
+        // widget doesn't own (and therefore doesn't close) the singleton.
+        // Needed here rather than at Home/Bookings page level since Home's
+        // workshop picker and Create Booking's picker must see the same pick.
+        BlocProvider<SelectedWorkshopCubit>.value(
+          value: sl<SelectedWorkshopCubit>(),
         ),
         // Register additional app-wide BLoCs here as the app grows.
         // Example: BlocProvider<ThemeBloc>(create: (_) => sl<ThemeBloc>()),

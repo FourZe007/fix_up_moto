@@ -11,9 +11,10 @@ import 'package:fix_up_moto/core/router/route_names.dart';
 /// handles the actual routing — this widget only renders the chrome.
 ///
 /// Five tabs: Home, Feeds, Membership, Bookings, Profile. There is
-/// deliberately no Services tab — browsing services is a segment inside
-/// Bookings (see [BookingsPage]), since browsing a service and booking it are
-/// one user journey, not two.
+/// deliberately no Services tab — past service history is a segment inside
+/// Bookings (see [BookingsPage]) instead, alongside current bookings, since
+/// both are about the member's visits to FixUp Moto rather than separate
+/// concerns.
 class MainShell extends StatelessWidget {
   /// The active page widget supplied by [ShellRoute].
   final Widget child;

@@ -29,13 +29,13 @@ class RouteNames {
   // ── Main tab routes (inside ShellRoute) ───────────────────────────────────
   // These paths are wrapped by [MainShell] which provides the bottom nav bar.
   // Five tabs: Home, Bookings, Membership, Feeds, Profile. Services has no tab
-  // of its own — browsing services is a segment inside the Bookings tab (see
-  // BookingsPage), since booking IS the action a service browse leads to.
+  // of its own — its past-transaction history is a segment inside the
+  // Bookings tab (see BookingsPage), alongside the member's current bookings.
 
   /// Dashboard: greeting, workshop picker, promos, quick-action buttons.
   static const String home = '/home';
 
-  /// Browse services and view/create bookings — two segments, one tab.
+  /// View service history and manage bookings — two segments, one tab.
   static const String bookings = '/bookings';
 
   /// Loyalty status: points, point history, vouchers. Reuses the same
@@ -62,7 +62,8 @@ class RouteNames {
   /// Add a motorcycle — opened from the Profile page.
   static const String addMotorcycle = '/profile/motorcycle/add';
 
-  /// Lists nearby/partner workshops so the member can pick one on Home.
-  /// **Placeholder — no confirmed backend endpoint yet.**
-  static const String workshops = '/home/workshops';
+  /// Lists nearby/partner workshops so the member can pick one — reached
+  /// from both Home's picker and Create Booking's, so this is a top-level
+  /// route rather than nested under either one specifically.
+  static const String workshops = '/workshops';
 }
