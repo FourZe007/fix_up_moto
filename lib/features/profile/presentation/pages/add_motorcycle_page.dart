@@ -32,13 +32,13 @@ class _AddMotorcyclePageState extends State<AddMotorcyclePage> {
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
       context.read<ProfileBloc>().add(
-            MotorcycleAddRequested(
-              brand: _brandController.text.trim(),
-              model: _modelController.text.trim(),
-              year: int.parse(_yearController.text.trim()),
-              plateNumber: _plateController.text.trim().toUpperCase(),
-            ),
-          );
+        MotorcycleAddRequested(
+          brand: _brandController.text.trim(),
+          model: _modelController.text.trim(),
+          year: int.parse(_yearController.text.trim()),
+          plateNumber: _plateController.text.trim().toUpperCase(),
+        ),
+      );
     }
   }
 
@@ -46,61 +46,71 @@ class _AddMotorcyclePageState extends State<AddMotorcyclePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add Motorcycle')),
-      body: BlocListener<ProfileBloc, ProfileState>(
-        listener: (context, state) {
-          if (state is ProfileActionSuccess) {
-            Navigator.of(context).pop();
-          } else if (state is ProfileError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
-          }
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _brandController,
-                  decoration: const InputDecoration(labelText: 'Brand'),
-                  validator: Validators.required('Brand'),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _modelController,
-                  decoration: const InputDecoration(labelText: 'Model'),
-                  validator: Validators.required('Model'),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _yearController,
-                  decoration: const InputDecoration(labelText: 'Year'),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Year is required';
-                    final year = int.tryParse(v);
-                    if (year == null || year < 1900 || year > DateTime.now().year + 1) {
-                      return 'Enter a valid year';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _plateController,
-                  decoration: const InputDecoration(labelText: 'Plate Number'),
-                  textCapitalization: TextCapitalization.characters,
-                  validator: Validators.plateNumber,
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _submit,
-                  child: const Text('Add Motorcycle'),
-                ),
-              ],
+      // top: false — the AppBar already accounts for the status bar; this
+      // guards "Add Motorcycle" at the form's end from the gesture nav bar,
+      // since this page has no bottomNavigationBar to reserve that space.
+      body: SafeArea(
+        top: false,
+        child: BlocListener<ProfileBloc, ProfileState>(
+          listener: (context, state) {
+            if (state is ProfileActionSuccess) {
+              Navigator.of(context).pop();
+            } else if (state is ProfileError) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(state.message)));
+            }
+          },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _brandController,
+                    decoration: const InputDecoration(labelText: 'Brand'),
+                    validator: Validators.required('Brand'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _modelController,
+                    decoration: const InputDecoration(labelText: 'Model'),
+                    validator: Validators.required('Model'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _yearController,
+                    decoration: const InputDecoration(labelText: 'Year'),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Year is required';
+                      final year = int.tryParse(v);
+                      if (year == null ||
+                          year < 1900 ||
+                          year > DateTime.now().year + 1) {
+                        return 'Enter a valid year';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _plateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Plate Number',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    validator: Validators.plateNumber,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: _submit,
+                    child: const Text('Add Motorcycle'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

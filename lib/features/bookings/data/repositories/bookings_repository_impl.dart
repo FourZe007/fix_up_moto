@@ -23,6 +23,12 @@ class BookingsRepositoryImpl implements BookingsRepository {
     try {
       final models = await remoteDataSource.getBookings();
       return Right(models.map((m) => m.toEntity()).toList());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
@@ -44,6 +50,12 @@ class BookingsRepositoryImpl implements BookingsRepository {
         notes: notes,
       );
       return Right(model.toEntity());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
@@ -57,6 +69,12 @@ class BookingsRepositoryImpl implements BookingsRepository {
     try {
       await remoteDataSource.cancelBooking(id);
       return const Right(null);
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }

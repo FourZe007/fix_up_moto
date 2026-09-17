@@ -66,4 +66,8 @@ class RouteNames {
   /// from both Home's picker and Create Booking's, so this is a top-level
   /// route rather than nested under either one specifically.
   static const String workshops = '/workshops';
+
+  /// AI-powered virtual customer service chat — opened from Home's "Chat
+  /// with Mika" button. Currently an empty placeholder page.
+  static const String chatbot = '/chatbot';
 }

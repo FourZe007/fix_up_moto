@@ -12,6 +12,7 @@ import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/bookings_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/create_booking_page.dart';
+import 'package:fix_up_moto/features/chatbot/presentation/pages/chatbot_page.dart';
 import 'package:fix_up_moto/features/feeds/presentation/pages/feeds_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
@@ -167,6 +168,12 @@ class AppRouter {
       GoRoute(
         path: RouteNames.workshops,
         builder: (_, _) => const WorkshopListPage(),
+      ),
+      // Opened from Home's "Chat with Mika" button — a focused full-screen
+      // task like createBooking/workshops above, so it's top-level too.
+      GoRoute(
+        path: RouteNames.chatbot,
+        builder: (_, _) => const ChatbotPage(),
       ),
 
       // ── Shell route: main tabs with persistent bottom nav bar ──────────────

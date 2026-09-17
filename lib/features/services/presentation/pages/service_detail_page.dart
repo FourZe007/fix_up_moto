@@ -16,8 +16,7 @@ class ServiceDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<ServicesBloc>()
-        ..add(ServiceDetailRequested(serviceId)),
+      create: (_) => sl<ServicesBloc>()..add(ServiceDetailRequested(serviceId)),
       child: const _ServiceDetailView(),
     );
   }
@@ -30,13 +29,19 @@ class _ServiceDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Service Detail')),
-      body: BlocBuilder<ServicesBloc, ServicesState>(
-        builder: (context, state) {
-          return switch (state) {
-            ServicesInitial() || ServicesLoading() =>
-              const Center(child: CircularProgressIndicator()),
-            ServicesError(:final message) => Center(child: Text(message)),
-            ServiceDetailLoaded(:final service) => ListView(
+      // top: false — the AppBar already accounts for the status bar; this
+      // guards "Book Again" at the list's end from the gesture nav bar,
+      // since this page has no bottomNavigationBar to reserve that space.
+      body: SafeArea(
+        top: false,
+        child: BlocBuilder<ServicesBloc, ServicesState>(
+          builder: (context, state) {
+            return switch (state) {
+              ServicesInitial() || ServicesLoading() => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              ServicesError(:final message) => Center(child: Text(message)),
+              ServiceDetailLoaded(:final service) => ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   // Branch name
@@ -100,9 +105,10 @@ class _ServiceDetailView extends StatelessWidget {
                   ),
                 ],
               ),
-            _ => const SizedBox.shrink(),
-          };
-        },
+              _ => const SizedBox.shrink(),
+            };
+          },
+        ),
       ),
     );
   }

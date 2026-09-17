@@ -49,6 +49,14 @@ class HomeRepositoryImpl implements HomeRepository {
         try {
           final model = await remoteDataSource.getMotorcycleStats(user.id);
           return Right(model.toEntity());
+        } on UnauthorizedException {
+          return const Left(
+            AuthFailure('Session expired. Please sign in again.'),
+          );
+        } on ForbiddenException catch (e) {
+          return Left(PermissionFailure(e.message));
+        } on NotFoundException catch (e) {
+          return Left(NotFoundFailure(e.message));
         } on ServerException catch (e) {
           return Left(ServerFailure(e.message, statusCode: e.statusCode));
         }

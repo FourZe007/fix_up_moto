@@ -23,6 +23,12 @@ class PromosRepositoryImpl implements PromosRepository {
     try {
       final models = await remoteDataSource.getPromoImages();
       return Right(models.map((m) => m.toEntity()).toList());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }

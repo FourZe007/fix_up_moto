@@ -1,3 +1,4 @@
+import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -57,51 +58,71 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.primary,
       appBar: AppBar(title: const Text('Select Workshop')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _query = value),
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Search by workshop name or address',
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      ),
+      // top: false — the AppBar already accounts for the status bar; this
+      // guards the last workshop card from the gesture nav bar, since this
+      // page has no bottomNavigationBar to reserve that space.
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          // Top-only — the bottom already meets the screen edge, so rounding
+          // it wouldn't be visible against anything.
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    // Overrides inputDecorationTheme's default fillColor
+                    // (app_theme.dart) for this one field, to match the
+                    // workshop cards below it.
+                    filled: true,
+                    fillColor: AppColors.grey200,
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Search by workshop name or address',
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                  ),
+                ),
               ),
-            ),
+              Expanded(
+                child: BlocBuilder<WorkshopsBloc, WorkshopsState>(
+                  builder: (context, state) {
+                    return switch (state) {
+                      WorkshopsInitial() || WorkshopsLoading() => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      WorkshopsError(:final message) => _ErrorView(
+                        message: message,
+                        onRetry: () => context.read<WorkshopsBloc>().add(
+                          const WorkshopsRequested(),
+                        ),
+                      ),
+                      WorkshopsLoaded(:final workshops) => _buildList(
+                        context,
+                        workshops,
+                      ),
+                    };
+                  },
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: BlocBuilder<WorkshopsBloc, WorkshopsState>(
-              builder: (context, state) {
-                return switch (state) {
-                  WorkshopsInitial() || WorkshopsLoading() => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  WorkshopsError(:final message) => _ErrorView(
-                    message: message,
-                    onRetry: () => context.read<WorkshopsBloc>().add(
-                      const WorkshopsRequested(),
-                    ),
-                  ),
-                  WorkshopsLoaded(:final workshops) => _buildList(
-                    context,
-                    workshops,
-                  ),
-                };
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -169,6 +190,11 @@ class _WorkshopCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
+      // Overrides cardTheme's default color (app_theme.dart) to match the
+      // search bar above it.
+      color: AppColors.grey200,
+      elevation: 4,
+      shadowColor: Colors.black12,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         // A closed branch isn't somewhere to send a booking — the "Closed"

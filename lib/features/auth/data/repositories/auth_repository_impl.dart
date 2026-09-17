@@ -59,6 +59,10 @@ class AuthRepositoryImpl implements AuthRepository {
       // Credentials were correct but the membership is barred from signing in.
       // Pass the server's own wording straight through — it knows why.
       return Left(AuthFailure(e.message));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     } on CacheException catch (e) {
@@ -111,6 +115,12 @@ class AuthRepositoryImpl implements AuthRepository {
       return Right(userModel.toEntity());
     } on AccountInactiveException catch (e) {
       return Left(AuthFailure(e.message));
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     } on CacheException catch (e) {
@@ -150,6 +160,12 @@ class AuthRepositoryImpl implements AuthRepository {
       );
       await localDataSource.cacheUser(userModel);
       return Right(userModel.toEntity());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     } on CacheException catch (e) {

@@ -24,6 +24,12 @@ class ProfileRepositoryImpl implements ProfileRepository {
     try {
       final model = await remoteDataSource.getProfile();
       return Right(model.toEntity());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
@@ -43,6 +49,12 @@ class ProfileRepositoryImpl implements ProfileRepository {
         phone: phone,
       );
       return Right(model.toEntity());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
@@ -58,6 +70,12 @@ class ProfileRepositoryImpl implements ProfileRepository {
       final models = await remoteDataSource.getMotorcycles('', '', '', '', '');
 
       return Right(models.map((m) => m.toEntity()).toList());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
@@ -81,6 +99,12 @@ class ProfileRepositoryImpl implements ProfileRepository {
         plateNumber: plateNumber,
       );
       return Right(motoModel.toEntity());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }

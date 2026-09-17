@@ -85,6 +85,8 @@ class _HomeBody extends StatelessWidget {
           const _PromoCarousel(),
           const SizedBox(height: 24),
           const _MainFeatures(),
+          const SizedBox(height: 16),
+          const _ChatWithMikaButton(),
         ],
       ),
     );
@@ -196,6 +198,7 @@ class _PromoCarouselViewState extends State<_PromoCarouselView> {
   static const _autoScrollInterval = Duration(seconds: 4);
 
   final _controller = PageController();
+  final double promoHeight = 200;
   int _page = 0;
   Timer? _autoScrollTimer;
 
@@ -236,9 +239,13 @@ class _PromoCarouselViewState extends State<_PromoCarouselView> {
       },
       builder: (context, state) {
         return switch (state) {
-          PromosInitial() || PromosLoading() => const SizedBox(
-            height: 140,
-            child: Center(child: CircularProgressIndicator()),
+          PromosInitial() || PromosLoading() => SizedBox(
+            height: promoHeight,
+            child: Column(
+              spacing: 8,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [CircularProgressIndicator(), Text('Loading...')],
+            ),
           ),
           // No promotions endpoint content to show is not worth a banner of
           // its own — the carousel just disappears rather than showing an
@@ -256,7 +263,7 @@ class _PromoCarouselViewState extends State<_PromoCarouselView> {
     return Column(
       children: [
         SizedBox(
-          height: 200,
+          height: promoHeight,
           child: PageView.builder(
             controller: _controller,
             itemCount: images.length,
@@ -356,6 +363,45 @@ class _FeatureButton extends StatelessWidget {
               Icon(icon, color: AppColors.primary, size: 28),
               const SizedBox(height: 8),
               Text(label, style: Theme.of(context).textTheme.labelLarge),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width entry point to [ChatbotPage] — an AI-powered virtual customer
+/// service chat, currently an empty placeholder (see that page's own doc
+/// comment). Row layout (icon, label, chevron) rather than [_FeatureButton]'s
+/// square icon-over-label shape, since it reads as a single navigation
+/// action rather than one of a matched pair.
+class _ChatWithMikaButton extends StatelessWidget {
+  const _ChatWithMikaButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push(RouteNames.chatbot),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              const Icon(Icons.chat_bubble_outline, color: AppColors.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Chat with Mika',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right),
             ],
           ),
         ),

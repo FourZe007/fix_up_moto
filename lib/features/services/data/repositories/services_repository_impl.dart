@@ -29,6 +29,12 @@ class ServicesRepositoryImpl implements ServicesRepository {
         plateNo: plateNo,
       );
       return Right(models.map((m) => m.toEntity()).toList());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
@@ -42,6 +48,10 @@ class ServicesRepositoryImpl implements ServicesRepository {
     try {
       final model = await remoteDataSource.getServiceDetail(id);
       return Right(model.toEntity());
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
     } on NotFoundException {
       return const Left(NotFoundFailure('Service not found'));
     } on ServerException catch (e) {
