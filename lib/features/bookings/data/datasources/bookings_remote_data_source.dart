@@ -4,7 +4,7 @@ import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/bookings/data/models/booking_model.dart';
 
 abstract class BookingsRemoteDataSource {
-  Future<List<BookingModel>> getBookings();
+  Future<List<BookingModel>> getBookings(String memberId);
   Future<BookingModel> createBooking({
     required String serviceId,
     required DateTime scheduledAt,
@@ -18,9 +18,17 @@ class BookingsRemoteDataSourceImpl implements BookingsRemoteDataSource {
   BookingsRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<List<BookingModel>> getBookings() async {
+  Future<List<BookingModel>> getBookings(String memberId) async {
     try {
-      final response = await _dio.post(ApiConstants.bookings);
+      final response = await _dio.post(
+        ApiConstants.browseTrans,
+        data: {
+          'Jenis': 'SERVICEBOOKINGHISTORYBYMEMBER',
+          'MemberID': memberId,
+          'BeginDate': '',
+          'EndDate': '',
+        },
+      );
       return SampEnvelope.rows(response).map(BookingModel.fromJson).toList();
     } on DioException catch (e) {
       SampEnvelope.error(e);

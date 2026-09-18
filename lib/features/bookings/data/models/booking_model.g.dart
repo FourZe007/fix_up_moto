@@ -7,22 +7,26 @@ part of 'booking_model.dart';
 // **************************************************************************
 
 BookingModel _$BookingModelFromJson(Map<String, dynamic> json) => BookingModel(
-  id: json['id'] as String,
-  serviceId: json['service_id'] as String,
-  serviceName: json['service_name'] as String,
-  scheduledAt: _dateFromJson(json['scheduled_at'] as String),
-  status: json['status'] as String,
-  price: (json['price'] as num).toDouble(),
-  notes: json['notes'] as String?,
+  bookingId: json['BookingID'] as String,
+  bsName: json['BSName'] as String,
+  bsAddress: json['BSAddress'] as String,
+  bookDate: json['BookDate'] as String,
+  bookTime: json['BookTime'] as String,
+  plateNo: json['UPlateNo'] as String,
+  unitId: json['UnitID'] as String,
+  status: json['Status'] as String,
+  notes: json['Notes'] as String?,
 );
 
 Map<String, dynamic> _$BookingModelToJson(BookingModel instance) =>
     <String, dynamic>{
-      'id': instance.id,
-      'service_id': instance.serviceId,
-      'service_name': instance.serviceName,
-      'scheduled_at': _dateToJson(instance.scheduledAt),
-      'status': instance.status,
-      'notes': instance.notes,
-      'price': instance.price,
+      'BookingID': instance.bookingId,
+      'BSName': instance.bsName,
+      'BSAddress': instance.bsAddress,
+      'BookDate': instance.bookDate,
+      'BookTime': instance.bookTime,
+      'UPlateNo': instance.plateNo,
+      'UnitID': instance.unitId,
+      'Status': instance.status,
+      'Notes': instance.notes,
     };

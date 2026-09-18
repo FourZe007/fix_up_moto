@@ -49,9 +49,12 @@ class ApiConstants {
 
   /// POST — the membership/transaction browse endpoint.
   ///
-  /// Body: `{Jenis, MemberID, MemberName, PlateNo, PhoneNo, Status}`.
-  /// Backs both the home dashboard stats and the profile's motorcycle list;
-  /// `Jenis` selects which projection is returned.
+  /// Body varies by `Jenis`: `{Jenis, MemberID, MemberName, PlateNo, PhoneNo,
+  /// Status}` for the dashboard/motorcycle-list projections, or
+  /// `{Jenis: "SERVICEBOOKINGHISTORYBYMEMBER", MemberID, BeginDate, EndDate}`
+  /// for a member's booking history. Backs the home dashboard stats, the
+  /// profile's motorcycle list, and My Bookings; `Jenis` selects which
+  /// projection is returned.
   static const String browseTrans = '/apiSAMP/BrowseTrans';
 
   /// POST — body: `{PhoneNo, DecryptedPassword}` → envelope carrying
@@ -135,8 +138,10 @@ class ApiConstants {
 
   // ── Bookings Endpoints ────────────────────────────────────────────────────
 
-  /// POST — list bookings for the authenticated member.
-  static const String bookings = '/apiSAMP/BrowseBooking';
+  // No separate listing endpoint — confirmed to reuse [browseTrans] with
+  // `Jenis: "SERVICEBOOKINGHISTORYBYMEMBER"`, the same way Home and Profile
+  // each pick their own projection out of it. See
+  // BookingsRemoteDataSourceImpl.getBookings.
 
   /// POST — body: `{ServiceID, ScheduledAt, Notes}` → the created booking.
   static const String createBooking = '/apiSAMP/InsertBooking';

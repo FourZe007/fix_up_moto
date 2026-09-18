@@ -22,8 +22,10 @@ class DateFormatter {
   /// "10:30 AM" — time-slot labels and booking confirmation screens.
   static final DateFormat _time = DateFormat('h:mm a');
 
-  /// "Mon, 10 Mar 2026 at 10:30 AM" — full timestamp in confirmation dialogs.
-  static final DateFormat _fullDateTime = DateFormat("EEE, d MMM yyyy 'at' h:mm a");
+  /// "Mon, 10 Mar 2026 • 10:30 AM" — full timestamp in confirmation dialogs.
+  static final DateFormat _fullDateTime = DateFormat(
+    "EEE, d MMM yyyy '•' h:mm",
+  );
 
   /// "March 2026" — month header in calendar views.
   static final DateFormat _monthYear = DateFormat('MMMM yyyy');
@@ -49,7 +51,7 @@ class DateFormatter {
     return _time.format(dateTime);
   }
 
-  /// Formats [dateTime] as "Mon, 10 Mar 2026 at 10:30 AM".
+  /// Formats [dateTime] as "Mon, 10 Mar 2026 • 10:30 AM".
   static String toFullDateTime(DateTime? dateTime) {
     if (dateTime == null) return '';
     return _fullDateTime.format(dateTime);

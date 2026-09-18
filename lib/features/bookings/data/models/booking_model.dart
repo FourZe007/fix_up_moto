@@ -3,30 +3,50 @@ import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dar
 
 part 'booking_model.g.dart';
 
+/// JSON model for a single record from `BrowseTrans`
+/// (`Jenis: "SERVICEBOOKINGHISTORYBYMEMBER"`).
+///
+/// `BookDate` ("2026-08-31") and `BookTime` ("10:00") arrive as separate
+/// strings — kept separate here to match the wire format exactly, and
+/// combined into one [DateTime] only in [toEntity].
 @JsonSerializable()
 class BookingModel {
-  final String id;
+  @JsonKey(name: 'BookingID')
+  final String bookingId;
 
-  @JsonKey(name: 'service_id')
-  final String serviceId;
+  @JsonKey(name: 'BSName')
+  final String bsName;
 
-  @JsonKey(name: 'service_name')
-  final String serviceName;
+  @JsonKey(name: 'BSAddress')
+  final String bsAddress;
 
-  @JsonKey(name: 'scheduled_at', fromJson: _dateFromJson, toJson: _dateToJson)
-  final DateTime scheduledAt;
+  @JsonKey(name: 'BookDate')
+  final String bookDate;
 
+  @JsonKey(name: 'BookTime')
+  final String bookTime;
+
+  @JsonKey(name: 'UPlateNo')
+  final String plateNo;
+
+  @JsonKey(name: 'UnitID')
+  final String unitId;
+
+  @JsonKey(name: 'Status')
   final String status;
+
+  @JsonKey(name: 'Notes')
   final String? notes;
-  final double price;
 
   const BookingModel({
-    required this.id,
-    required this.serviceId,
-    required this.serviceName,
-    required this.scheduledAt,
+    required this.bookingId,
+    required this.bsName,
+    required this.bsAddress,
+    required this.bookDate,
+    required this.bookTime,
+    required this.plateNo,
+    required this.unitId,
     required this.status,
-    required this.price,
     this.notes,
   });
 
@@ -35,18 +55,29 @@ class BookingModel {
 
   Map<String, dynamic> toJson() => _$BookingModelToJson(this);
 
-  BookingEntity toEntity() => BookingEntity(
-        id: id,
-        serviceId: serviceId,
-        serviceName: serviceName,
-        scheduledAt: scheduledAt,
-        status: status,
-        price: price,
-        notes: notes,
-      );
+  BookingEntity toEntity() {
+    final trimmedNotes = notes?.trim();
+    return BookingEntity(
+      id: bookingId,
+      bsName: bsName,
+      bsAddress: bsAddress,
+      scheduledAt: _combineDateAndTime(bookDate, bookTime),
+      plateNo: plateNo,
+      unitId: unitId,
+      status: status,
+      notes: (trimmedNotes == null || trimmedNotes.isEmpty)
+          ? null
+          : trimmedNotes,
+    );
+  }
 }
 
-DateTime _dateFromJson(String value) =>
-    DateTime.parse(value).toLocal();
-
-String _dateToJson(DateTime value) => value.toUtc().toIso8601String();
+/// Combines a `"yyyy-MM-dd"` date and an `"HH:mm"` time into one local
+/// [DateTime]. Falls back to midnight if [time] doesn't parse.
+DateTime _combineDateAndTime(String date, String time) {
+  final day = DateTime.parse(date);
+  final parts = time.split(':');
+  final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
+  final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+  return DateTime(day.year, day.month, day.day, hour, minute);
+}

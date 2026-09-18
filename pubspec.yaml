@@ -75,6 +75,10 @@ dependencies:
   # url_launcher: opens a post's Instagram permalink in the browser/app.
   url_launcher: ^6.3.1
 
+  # ── UI ────────────────────────────────────────────────────────────────────
+  # sliding_up_panel: the advanced-filter panel on the Bookings tab.
+  sliding_up_panel: ^2.0.0+1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

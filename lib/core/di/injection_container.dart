@@ -212,7 +212,11 @@ Future<void> initDependencies() async {
     () => BookingsRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<BookingsRepository>(
-    () => BookingsRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+    () => BookingsRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      authRepository: sl(),
+    ),
   );
   sl.registerLazySingleton(() => GetBookingsUseCase(sl<BookingsRepository>()));
   sl.registerLazySingleton(

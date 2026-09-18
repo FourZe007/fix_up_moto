@@ -109,6 +109,11 @@ class AppTheme {
       shadowColor: Colors.black12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // Without this, a Card's child (e.g. ListTile, itself a Material) isn't
+      // clipped to the Card's own rounded shape, and Impeller (Android's
+      // default renderer) can show a hairline seam where the two Materials'
+      // paint bounds meet — the "white line" cutting across ServiceCard.
+      clipBehavior: Clip.antiAlias,
     ),
 
     // ── Bottom Navigation Bar ────────────────────────────────────────────────
@@ -173,6 +178,8 @@ class AppTheme {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // Same reasoning as the light theme's cardTheme — see its comment.
+      clipBehavior: Clip.antiAlias,
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.surfaceDark,

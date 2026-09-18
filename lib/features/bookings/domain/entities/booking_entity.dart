@@ -1,41 +1,54 @@
 import 'package:equatable/equatable.dart';
 
 /// Represents a single service booking made by the user.
+///
+/// Fields mirror `BrowseTrans` (`Jenis: "SERVICEBOOKINGHISTORYBYMEMBER"`)
+/// directly — see `BookingModel` for the raw JSON keys.
 class BookingEntity extends Equatable {
+  /// `BookingID` — the natural unique identifier for this record.
   final String id;
 
-  /// The service this booking is for.
-  final String serviceId;
-  final String serviceName;
+  /// Workshop/branch name where the booking was made.
+  final String bsName;
+  final String bsAddress;
 
-  /// Scheduled date and time (stored as UTC, displayed in local time).
+  /// `BookDate` + `BookTime` combined into one local [DateTime].
   final DateTime scheduledAt;
 
-  /// Current status — one of: pending, confirmed, in_progress, completed, cancelled.
+  /// The motorcycle booked in for service.
+  final String plateNo;
+  final String unitId;
+
+  /// Server-provided status string (e.g. "MENUNGGU KONFIRMASI") — shown
+  /// verbatim rather than mapped to a fixed enum, since the full set of
+  /// possible values hasn't been confirmed against the backend yet.
   final String status;
 
-  /// Optional notes from the user (max 500 chars per [AppConstants.maxBookingNotesLength]).
   final String? notes;
-
-  /// Total price charged at the time of booking.
-  final double price;
 
   const BookingEntity({
     required this.id,
-    required this.serviceId,
-    required this.serviceName,
+    required this.bsName,
+    required this.bsAddress,
     required this.scheduledAt,
+    required this.plateNo,
+    required this.unitId,
     required this.status,
-    required this.price,
     this.notes,
   });
 
   /// Convenience getter — true for bookings that haven't happened yet.
-  bool get isUpcoming =>
-      scheduledAt.isAfter(DateTime.now()) && status != 'cancelled';
+  bool get isUpcoming => scheduledAt.isAfter(DateTime.now());
 
   @override
   List<Object?> get props => [
-        id, serviceId, serviceName, scheduledAt, status, price, notes,
-      ];
+    id,
+    bsName,
+    bsAddress,
+    scheduledAt,
+    plateNo,
+    unitId,
+    status,
+    notes,
+  ];
 }
