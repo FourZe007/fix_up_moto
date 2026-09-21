@@ -126,19 +126,19 @@ class _ProfileBody extends StatelessWidget {
         const SizedBox(height: 24),
         const Divider(),
 
-        // Not wired yet: listing units needs BrowseTrans confirmed, and adding
-        // one needs InsertUnit. ProfileBloc never loaded this list either —
-        // ProfileLoaded.motorcycles always defaulted to an empty list.
+        // This section is just a shortcut into the dedicated MyBikesPage now
+        // (see its own BikesBloc) — this placeholder never loaded a real list
+        // itself.
         ListTile(
-          title: Text('My Motorcycles', style: theme.textTheme.titleMedium),
+          title: Text('My Bikes', style: theme.textTheme.titleMedium),
           trailing: IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.push(RouteNames.addMotorcycle),
+            onPressed: () => context.push(RouteNames.addBike),
           ),
         ),
         const Padding(
           padding: EdgeInsets.all(16),
-          child: Text('No motorcycles added yet'),
+          child: Text('No bikes added yet'),
         ),
       ],
     );

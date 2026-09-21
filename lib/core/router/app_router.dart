@@ -16,7 +16,8 @@ import 'package:fix_up_moto/features/chatbot/presentation/pages/chatbot_page.dar
 import 'package:fix_up_moto/features/feeds/presentation/pages/feeds_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
-import 'package:fix_up_moto/features/profile/presentation/pages/add_motorcycle_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
 import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_page.dart';
@@ -175,6 +176,19 @@ class AppRouter {
         path: RouteNames.chatbot,
         builder: (_, _) => const ChatbotPage(),
       ),
+      // Opened from Home's "Motor Saya" button — same reasoning as the
+      // routes above.
+      GoRoute(
+        path: RouteNames.myBikes,
+        builder: (_, _) => const MyBikesPage(),
+      ),
+      // Reached from MyBikesPage's FAB — used to be nested under /profile on
+      // the assumption only Profile would ever push it, the same mistake
+      // /home/workshops made before. Top-level avoids repeating that bug.
+      GoRoute(
+        path: RouteNames.addBike,
+        builder: (_, _) => const AddBikePage(),
+      ),
 
       // ── Shell route: main tabs with persistent bottom nav bar ──────────────
       ShellRoute(
@@ -210,12 +224,6 @@ class AppRouter {
           GoRoute(
             path: RouteNames.profile,
             builder: (_, _) => const ProfilePage(),
-            routes: [
-              GoRoute(
-                path: 'motorcycle/add', // full path: /profile/motorcycle/add
-                builder: (_, _) => const AddMotorcyclePage(),
-              ),
-            ],
           ),
         ],
       ),

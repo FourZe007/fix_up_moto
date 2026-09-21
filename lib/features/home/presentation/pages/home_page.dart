@@ -307,9 +307,8 @@ class _PromoCarouselViewState extends State<_PromoCarouselView> {
 
 /// Quick-action buttons: Booking and Bikes list.
 ///
-/// Both reuse existing screens rather than opening new ones — Booking goes to
-/// the merged Bookings tab, Bikes list goes to the motorcycles section
-/// already on Profile.
+/// Booking goes to the merged Bookings tab; Bikes list goes to the dedicated
+/// MyBikesPage (see RouteNames.myBikes), not Profile.
 class _MainFeatures extends StatelessWidget {
   const _MainFeatures();
 
@@ -328,8 +327,8 @@ class _MainFeatures extends StatelessWidget {
         Expanded(
           child: _FeatureButton(
             icon: Icons.two_wheeler_outlined,
-            label: 'Bikes List',
-            onTap: () => context.go(RouteNames.profile),
+            label: 'Motor Saya',
+            onTap: () => context.push(RouteNames.myBikes),
           ),
         ),
       ],
@@ -396,9 +395,9 @@ class _ChatWithMikaButton extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Chat with Mika',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
               const Icon(Icons.chevron_right),

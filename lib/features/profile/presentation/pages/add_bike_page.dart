@@ -1,19 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/profile_event.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 
-/// Form for registering a new motorcycle to the user's profile.
-class AddMotorcyclePage extends StatefulWidget {
-  const AddMotorcyclePage({super.key});
+/// Form for registering a new bike to the user's profile.
+///
+/// Reached via `context.push(RouteNames.addBike)` — a top-level route, so
+/// (like CreateBookingPage before it) this needs its own [BikesBloc] rather
+/// than assuming an ancestor provides one, which a pushed page can never see.
+class AddBikePage extends StatelessWidget {
+  const AddBikePage({super.key});
 
   @override
-  State<AddMotorcyclePage> createState() => _AddMotorcyclePageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<BikesBloc>(),
+      child: const _AddBikeView(),
+    );
+  }
 }
 
-class _AddMotorcyclePageState extends State<AddMotorcyclePage> {
+class _AddBikeView extends StatefulWidget {
+  const _AddBikeView();
+
+  @override
+  State<_AddBikeView> createState() => _AddBikeViewState();
+}
+
+class _AddBikeViewState extends State<_AddBikeView> {
   final _formKey = GlobalKey<FormState>();
   final _brandController = TextEditingController();
   final _modelController = TextEditingController();
@@ -31,8 +48,9 @@ class _AddMotorcyclePageState extends State<AddMotorcyclePage> {
 
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
-      context.read<ProfileBloc>().add(
-        MotorcycleAddRequested(
+      context.read<BikesBloc>().add(
+        BikeAddRequested(
+          memberId: '',
           brand: _brandController.text.trim(),
           model: _modelController.text.trim(),
           year: int.parse(_yearController.text.trim()),
@@ -45,17 +63,17 @@ class _AddMotorcyclePageState extends State<AddMotorcyclePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Motorcycle')),
+      appBar: AppBar(title: const Text('Add Bike')),
       // top: false — the AppBar already accounts for the status bar; this
-      // guards "Add Motorcycle" at the form's end from the gesture nav bar,
-      // since this page has no bottomNavigationBar to reserve that space.
+      // guards "Add Bike" at the form's end from the gesture nav bar, since
+      // this page has no bottomNavigationBar to reserve that space.
       body: SafeArea(
         top: false,
-        child: BlocListener<ProfileBloc, ProfileState>(
+        child: BlocListener<BikesBloc, BikesState>(
           listener: (context, state) {
-            if (state is ProfileActionSuccess) {
+            if (state is BikeActionSuccess) {
               Navigator.of(context).pop();
-            } else if (state is ProfileError) {
+            } else if (state is BikesError) {
               ScaffoldMessenger.of(
                 context,
               ).showSnackBar(SnackBar(content: Text(state.message)));
@@ -107,7 +125,7 @@ class _AddMotorcyclePageState extends State<AddMotorcyclePage> {
                   const SizedBox(height: 32),
                   ElevatedButton(
                     onPressed: _submit,
-                    child: const Text('Add Motorcycle'),
+                    child: const Text('Add Bike'),
                   ),
                 ],
               ),

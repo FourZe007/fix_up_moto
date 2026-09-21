@@ -1,6 +1,5 @@
 import 'package:equatable/equatable.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
-import 'package:fix_up_moto/features/profile/domain/entities/motorcycle_entity.dart';
 
 sealed class ProfileState extends Equatable {
   const ProfileState();
@@ -13,21 +12,14 @@ final class ProfileLoading extends ProfileState { const ProfileLoading(); }
 
 final class ProfileLoaded extends ProfileState {
   final UserEntity user;
-  final List<MotorcycleEntity> motorcycles;
 
-  const ProfileLoaded({required this.user, this.motorcycles = const []});
+  const ProfileLoaded({required this.user});
 
   @override
-  List<Object> get props => [user, motorcycles];
+  List<Object> get props => [user];
 
-  ProfileLoaded copyWith({
-    UserEntity? user,
-    List<MotorcycleEntity>? motorcycles,
-  }) {
-    return ProfileLoaded(
-      user: user ?? this.user,
-      motorcycles: motorcycles ?? this.motorcycles,
-    );
+  ProfileLoaded copyWith({UserEntity? user}) {
+    return ProfileLoaded(user: user ?? this.user);
   }
 }
 

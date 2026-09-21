@@ -50,7 +50,7 @@ class MainShell extends StatelessWidget {
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home),
-              label: 'Home',
+              label: 'Beranda',
             ),
             NavigationDestination(
               icon: Icon(Icons.play_circle_outline),
@@ -65,12 +65,12 @@ class MainShell extends StatelessWidget {
             NavigationDestination(
               icon: Icon(Icons.calendar_month_outlined),
               selectedIcon: Icon(Icons.calendar_month),
-              label: 'Bookings',
+              label: 'Booking',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person),
-              label: 'Profile',
+              label: 'Saya',
             ),
           ],
         ),

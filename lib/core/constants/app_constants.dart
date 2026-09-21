@@ -6,7 +6,7 @@ class AppConstants {
   AppConstants._(); // private constructor prevents instantiation
 
   /// Display name shown in the app bar and OS task switcher.
-  static const String appName = 'Fix Up Moto';
+  static const String appName = 'FixUp Moto';
 
   /// Maximum number of items returned per paginated API list request.
   /// Used by datasources when building query parameters.

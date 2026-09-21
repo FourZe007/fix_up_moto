@@ -33,11 +33,17 @@ import 'package:fix_up_moto/features/home/data/repositories/home_repository_impl
 import 'package:fix_up_moto/features/home/domain/repositories/home_repository.dart';
 import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/profile/data/datasources/bikes_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
+import 'package:fix_up_moto/features/profile/data/repositories/bikes_repository_impl.dart';
 import 'package:fix_up_moto/features/profile/data/repositories/profile_repository_impl.dart';
+import 'package:fix_up_moto/features/profile/domain/repositories/bikes_repository.dart';
 import 'package:fix_up_moto/features/profile/domain/repositories/profile_repository.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/add_bike_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/get_bikes_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/get_profile_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_profile_usecase.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:fix_up_moto/features/promos/data/datasources/promos_remote_data_source.dart';
 import 'package:fix_up_moto/features/promos/data/repositories/promos_repository_impl.dart';
@@ -134,7 +140,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => RegisterUseCase(sl<AuthRepository>()));
   sl.registerLazySingleton(() => LogoutUseCase(sl<AuthRepository>()));
   sl.registerLazySingleton(() => GetCurrentUserUseCase(sl<AuthRepository>()));
-  sl.registerLazySingleton(() => GetGoogleIdentityUseCase(sl<AuthRepository>()));
+  sl.registerLazySingleton(
+    () => GetGoogleIdentityUseCase(sl<AuthRepository>()),
+  );
   sl.registerLazySingleton(
     () => GetRememberedGooglePhoneUseCase(sl<AuthRepository>()),
   );
@@ -245,6 +253,25 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => UpdateProfileUseCase(sl<ProfileRepository>()));
   sl.registerFactory(() => ProfileBloc(getProfile: sl(), updateProfile: sl()));
 
+  // ── Bikes Feature ─────────────────────────────────────────────────────────
+  // Split out from Profile's — see BikesRepository's own file and BikesBloc's
+  // doc comment for why (different endpoints entirely, a growing domain of
+  // its own, reused beyond just this one page).
+
+  sl.registerLazySingleton<BikesRemoteDataSource>(
+    () => BikesRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<BikesRepository>(
+    () => BikesRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      authRepository: sl(),
+    ),
+  );
+  sl.registerLazySingleton(() => GetBikesUseCase(sl<BikesRepository>()));
+  sl.registerLazySingleton(() => AddBikeUseCase(sl<BikesRepository>()));
+  sl.registerFactory(() => BikesBloc(getBikes: sl(), addBike: sl()));
+
   // ── Workshops Feature ─────────────────────────────────────────────────────
 
   sl.registerLazySingleton<WorkshopsRemoteDataSource>(
@@ -253,7 +280,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<WorkshopsRepository>(
     () => WorkshopsRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
-  sl.registerLazySingleton(() => GetWorkshopsUseCase(sl<WorkshopsRepository>()));
+  sl.registerLazySingleton(
+    () => GetWorkshopsUseCase(sl<WorkshopsRepository>()),
+  );
   sl.registerFactory(() => WorkshopsBloc(getWorkshops: sl()));
 
   // ── Promos Feature ────────────────────────────────────────────────────────

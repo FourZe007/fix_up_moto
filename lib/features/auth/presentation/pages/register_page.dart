@@ -98,7 +98,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                             // ── Header ───────────────────────────────────
                             Text(
-                              'Join Fix Up Moto',
+                              'Join FixUp Moto',
                               style: Theme.of(context).textTheme.headlineLarge,
                             ),
                             const SizedBox(height: 8),

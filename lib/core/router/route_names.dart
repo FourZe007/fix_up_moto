@@ -46,7 +46,8 @@ class RouteNames {
   /// credentials exist — see FeedsPage.
   static const String feeds = '/feeds';
 
-  /// User profile, account settings, and registered motorcycles.
+  /// User profile and account settings. Registered bikes live on the
+  /// dedicated [myBikes] page instead — see its own doc comment.
   static const String profile = '/profile';
 
   // ── Detail / nested routes ────────────────────────────────────────────────
@@ -59,8 +60,14 @@ class RouteNames {
   /// Create a new booking — opened from the Services detail or Bookings tab.
   static const String createBooking = '/bookings/create';
 
-  /// Add a motorcycle — opened from the Profile page.
-  static const String addMotorcycle = '/profile/motorcycle/add';
+  /// Lists the member's registered bikes — opened from Home's "Motor Saya"
+  /// button. A dedicated top-level page, not the Profile tab's own (still
+  /// unwired) placeholder section.
+  static const String myBikes = '/my-bikes';
+
+  /// Add a bike — reached from [myBikes], so this is a top-level route too
+  /// rather than nested under Profile specifically.
+  static const String addBike = '/bikes/add';
 
   /// Lists nearby/partner workshops so the member can pick one — reached
   /// from both Home's picker and Create Booking's, so this is a top-level

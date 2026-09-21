@@ -50,11 +50,11 @@ class ApiConstants {
   /// POST — the membership/transaction browse endpoint.
   ///
   /// Body varies by `Jenis`: `{Jenis, MemberID, MemberName, PlateNo, PhoneNo,
-  /// Status}` for the dashboard/motorcycle-list projections, or
+  /// Status}` for the dashboard/bike-list projections, or
   /// `{Jenis: "SERVICEBOOKINGHISTORYBYMEMBER", MemberID, BeginDate, EndDate}`
-  /// for a member's booking history. Backs the home dashboard stats, the
-  /// profile's motorcycle list, and My Bookings; `Jenis` selects which
-  /// projection is returned.
+  /// for a member's booking history. Backs the home dashboard stats, My
+  /// Bikes' list, and My Bookings; `Jenis` selects which projection is
+  /// returned.
   static const String browseTrans = '/apiSAMP/BrowseTrans';
 
   /// POST — body: `{PhoneNo, DecryptedPassword}` → envelope carrying
@@ -112,7 +112,7 @@ class ApiConstants {
   // Before shipping: check each against the real endpoint list and correct both
   // the path and the body keys in the owning data source. The response models
   // (`user_model.dart`, `service_model.dart`, `booking_model.dart`,
-  // `motorcycle_model.dart`) still carry scaffold field mappings and will need
+  // `bike_model.dart`) still carry scaffold field mappings and will need
   // the same treatment — only `dashboard_stats_model.dart` reflects the real
   // schema so far.
   // ══════════════════════════════════════════════════════════════════════════
@@ -162,11 +162,11 @@ class ApiConstants {
   /// POST — body: `{Name, PhoneNo}` → the updated member record.
   static const String updateProfile = '/apiSAMP/UpdateMember';
 
-  /// POST — body: `{Brand, Model, Year, PlateNo}` → the created motorcycle.
+  /// POST — body: `{Brand, Model, Year, PlateNo}` → the created bike.
   ///
   /// Registering a unit is a write, so it does not share [browseTrans]; the
   /// previous code posted an insert-shaped body to the browse endpoint.
-  static const String addMotorcycle = '/apiSAMP/InsertUnit';
+  static const String addBike = '/apiSAMP/InsertUnit';
 
   // NOTE: there is no separate dashboard endpoint. The home dashboard reads
   // membership stats from [browseTrans]; the former `/dashboard` constant was
