@@ -1,3 +1,4 @@
+import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
@@ -63,71 +64,102 @@ class _AddBikeViewState extends State<_AddBikeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.primary,
       appBar: AppBar(title: const Text('Add Bike')),
       // top: false — the AppBar already accounts for the status bar; this
       // guards "Add Bike" at the form's end from the gesture nav bar, since
       // this page has no bottomNavigationBar to reserve that space.
-      body: SafeArea(
-        top: false,
-        child: BlocListener<BikesBloc, BikesState>(
-          listener: (context, state) {
-            if (state is BikeActionSuccess) {
-              Navigator.of(context).pop();
-            } else if (state is BikesError) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(state.message)));
-            }
-          },
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _brandController,
-                    decoration: const InputDecoration(labelText: 'Brand'),
-                    validator: Validators.required('Brand'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _modelController,
-                    decoration: const InputDecoration(labelText: 'Model'),
-                    validator: Validators.required('Model'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _yearController,
-                    decoration: const InputDecoration(labelText: 'Year'),
-                    keyboardType: TextInputType.number,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Year is required';
-                      final year = int.tryParse(v);
-                      if (year == null ||
-                          year < 1900 ||
-                          year > DateTime.now().year + 1) {
-                        return 'Enter a valid year';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _plateController,
-                    decoration: const InputDecoration(
-                      labelText: 'Plate Number',
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          // Top-only — the bottom already meets the screen edge, so rounding
+          // it wouldn't be visible against anything.
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height,
+            child: BlocListener<BikesBloc, BikesState>(
+              listener: (context, state) {
+                if (state is BikeActionSuccess) {
+                  Navigator.of(context).pop();
+                } else if (state is BikesError) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.message)));
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  spacing: 32,
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            spacing: 16,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextFormField(
+                                controller: _brandController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Brand',
+                                ),
+                                validator: Validators.required('Brand'),
+                              ),
+
+                              TextFormField(
+                                controller: _modelController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Model',
+                                ),
+                                validator: Validators.required('Model'),
+                              ),
+
+                              TextFormField(
+                                controller: _yearController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Year',
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) {
+                                    return 'Year is required';
+                                  }
+                                  final year = int.tryParse(v);
+                                  if (year == null ||
+                                      year < 1900 ||
+                                      year > DateTime.now().year + 1) {
+                                    return 'Enter a valid year';
+                                  }
+                                  return null;
+                                },
+                              ),
+
+                              TextFormField(
+                                controller: _plateController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Plate Number',
+                                ),
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: Validators.plateNumber,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                    textCapitalization: TextCapitalization.characters,
-                    validator: Validators.plateNumber,
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: _submit,
-                    child: const Text('Add Bike'),
-                  ),
-                ],
+
+                    ElevatedButton(
+                      onPressed: _submit,
+                      child: const Text('Add Bike'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
