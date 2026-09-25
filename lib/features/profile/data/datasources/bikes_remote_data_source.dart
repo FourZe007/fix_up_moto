@@ -8,11 +8,16 @@ abstract class BikesRemoteDataSource {
     String memberId, {
     String type = 'membershipmotor',
   });
+
   Future<BikeModel> addBike({
-    required String brand,
-    required String model,
-    required int year,
+    required String memberId,
     required String plateNumber,
+    required String unitId, // brand name with its variant
+    required String chasisNo,
+    required String engineNo,
+    required String color,
+    required int year,
+    required String photo,
   });
 }
 
@@ -41,21 +46,33 @@ class BikesRemoteDataSourceImpl implements BikesRemoteDataSource {
 
   @override
   Future<BikeModel> addBike({
-    required String brand,
-    required String model,
-    required int year,
+    required String memberId,
     required String plateNumber,
+    required String unitId, // brand name with its variant
+    required String chasisNo,
+    required String engineNo,
+    required String color,
+    required int year,
+    required String photo,
   }) async {
     try {
       // Registering a unit is a write, so it does not go to browseTrans —
       // the previous code posted an insert-shaped body to the browse endpoint.
       final response = await _dio.post(
-        ApiConstants.addBike,
+        ApiConstants.modify,
         data: {
-          'Brand': brand,
-          'Model': model,
-          'Year': year,
-          'PlateNo': plateNumber,
+          'Mode': '1',
+          'TransID': 'REGISTERMOTOR',
+          'Data': {
+            'MemberID': memberId,
+            'PlateNo': plateNumber,
+            'UnitID': unitId,
+            'ChasisNo': chasisNo,
+            'EngineNo': engineNo,
+            'Color': color,
+            'Year': year,
+            'Photo': photo,
+          },
         },
       );
       return BikeModel.fromJson(SampEnvelope.first(response));

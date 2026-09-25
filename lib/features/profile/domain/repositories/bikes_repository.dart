@@ -6,10 +6,15 @@ abstract class BikesRepository {
   Future<Either<Failure, List<BikeEntity>>> getBikes({
     required String memberId,
   });
+
   Future<Either<Failure, BikeEntity>> addBike({
-    required String brand,
-    required String model,
-    required int year,
+    required String memberId,
     required String plateNumber,
+    required String unitId, // brand name with its variant
+    required String chasisNo,
+    required String engineNo,
+    required String color,
+    required int year,
+    required String photo,
   });
 }

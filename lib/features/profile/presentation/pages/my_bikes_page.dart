@@ -62,7 +62,14 @@ class _MyBikesViewState extends State<_MyBikesView> {
         child: SlidingUpPanel(
           controller: _actionsPanelController,
           minHeight: 0,
-          maxHeight: 220,
+          // Sized to exactly fit _BikeActionsPanel's content so the panel
+          // doesn't leave dead space below the buttons when open: 32
+          // (Padding.fromLTRB(20,12,20,20)'s vertical 12+20) + 20 (the drag
+          // handle's 4 height + 16 bottom margin) + 88 (two default Material
+          // 3 TextButtons at 40 each, +8 Column spacing between them — this
+          // theme's textButtonTheme doesn't override minimumSize, so the M3
+          // default height applies).
+          maxHeight: 160,
           // Defaults to false — without it there's no dim/tap-to-close layer
           // at all, same gotcha as Bookings' filter panel.
           backdropEnabled: true,
@@ -113,7 +120,11 @@ class _MyBikesViewState extends State<_MyBikesView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primary,
-      appBar: AppBar(title: const Text('Motor Saya')),
+      appBar: AppBar(
+        title: const Text('Motor Saya'),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
       body: DecoratedBox(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -296,9 +307,8 @@ class _BikeCard extends StatelessWidget {
   }
 }
 
-/// Edit/delete actions shown in the "more actions" panel — labeled
-/// full-width buttons rather than bare icons, since they now live in their
-/// own panel space instead of squeezed into the card header.
+/// Edit/delete actions shown in the "more actions" panel — plain text-and-
+/// icon rows stacked vertically, no button chrome, just the tap behavior.
 class _CardActions extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -306,25 +316,27 @@ class _CardActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      spacing: 8,
       children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit'),
+        TextButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.black,
+            alignment: Alignment.centerLeft,
+            minimumSize: Size(MediaQuery.of(context).size.width, 0),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Delete'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
+        TextButton.icon(
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Hapus'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.black,
+            alignment: Alignment.centerLeft,
+            minimumSize: Size(MediaQuery.of(context).size.width, 0),
           ),
         ),
       ],
@@ -357,8 +369,9 @@ class _ActionButton extends StatelessWidget {
 }
 
 /// Content of the shared "more actions" SlidingUpPanel (see
-/// _MyBikesViewState) — a drag handle and the bike's name over the same
-/// [_CardActions] edit/delete pair the header row used to show inline.
+/// _MyBikesViewState) — a drag handle over the same [_CardActions] edit/
+/// delete pair the header row used to show inline. `bike` isn't displayed
+/// here; it's only needed to name the bike in [_confirmDelete]'s dialog.
 class _BikeActionsPanel extends StatelessWidget {
   final BikeEntity bike;
   final VoidCallback onEdit;
@@ -399,7 +412,7 @@ class _BikeActionsPanel extends StatelessWidget {
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Delete'),
+            child: const Text('Hapus'),
           ),
         ],
       ),
@@ -412,7 +425,7 @@ class _BikeActionsPanel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Center(
             child: Container(
@@ -425,8 +438,6 @@ class _BikeActionsPanel extends StatelessWidget {
               ),
             ),
           ),
-          Text(bike.unitId, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
           _CardActions(onEdit: onEdit, onDelete: () => _confirmDelete(context)),
         ],
       ),

@@ -12,27 +12,48 @@ class AddBikeUseCase extends UseCase<BikeEntity, AddBikeParams> {
   @override
   Future<Either<Failure, BikeEntity>> call(AddBikeParams params) {
     return repository.addBike(
-      brand: params.brand,
-      model: params.model,
-      year: params.year,
+      memberId: params.memberId,
       plateNumber: params.plateNumber,
+      unitId: params.unitId,
+      chasisNo: params.chasisNo,
+      engineNo: params.engineNo,
+      color: params.color,
+      year: params.year,
+      photo: params.photo,
     );
   }
 }
 
 class AddBikeParams extends Equatable {
-  final String brand;
-  final String model;
-  final int year;
+  final String memberId;
   final String plateNumber;
+  final String unitId; // brand name with its variant
+  final String chasisNo;
+  final String engineNo;
+  final String color;
+  final int year;
+  final String photo;
 
   const AddBikeParams({
-    required this.brand,
-    required this.model,
-    required this.year,
+    required this.memberId,
     required this.plateNumber,
+    required this.unitId, // brand name with its variant
+    required this.chasisNo,
+    required this.engineNo,
+    required this.color,
+    required this.year,
+    required this.photo,
   });
 
   @override
-  List<Object> get props => [brand, model, year, plateNumber];
+  List<Object> get props => [
+    memberId,
+    plateNumber,
+    unitId,
+    chasisNo,
+    engineNo,
+    color,
+    year,
+    photo,
+  ];
 }

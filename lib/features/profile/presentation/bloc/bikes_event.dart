@@ -14,19 +14,34 @@ final class BikesLoadRequested extends BikesEvent {
 
 final class BikeAddRequested extends BikesEvent {
   final String memberId;
-  final String brand;
-  final String model;
-  final int year;
   final String plateNumber;
+  final String unitId; // brand name with its variant
+  final String chasisNo;
+  final String engineNo;
+  final String color;
+  final int year;
+  final String photo;
 
   const BikeAddRequested({
     required this.memberId,
-    required this.brand,
-    required this.model,
-    required this.year,
     required this.plateNumber,
+    required this.unitId, // brand name with its variant
+    required this.chasisNo,
+    required this.engineNo,
+    required this.color,
+    required this.year,
+    required this.photo,
   });
 
   @override
-  List<Object> get props => [memberId, brand, model, year, plateNumber];
+  List<Object> get props => [
+    memberId,
+    plateNumber,
+    unitId,
+    chasisNo,
+    engineNo,
+    color,
+    year,
+    photo,
+  ];
 }

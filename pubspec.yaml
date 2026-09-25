@@ -74,6 +74,9 @@ dependencies:
   video_player: ^2.9.2
   # url_launcher: opens a post's Instagram permalink in the browser/app.
   url_launcher: ^6.3.1
+  # image_picker: gallery-only photo selection on Add Bike — pickImage is
+  # called with source: ImageSource.gallery, never .camera.
+  image_picker: ^1.2.3
 
   # ── UI ────────────────────────────────────────────────────────────────────
   # sliding_up_panel: the advanced-filter panel on the Bookings tab.

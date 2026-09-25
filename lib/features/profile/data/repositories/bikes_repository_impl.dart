@@ -61,10 +61,14 @@ class BikesRepositoryImpl implements BikesRepository {
 
   @override
   Future<Either<Failure, BikeEntity>> addBike({
-    required String brand,
-    required String model,
-    required int year,
+    required String memberId,
     required String plateNumber,
+    required String unitId, // brand name with its variant
+    required String chasisNo,
+    required String engineNo,
+    required String color,
+    required int year,
+    required String photo,
   }) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
@@ -72,10 +76,14 @@ class BikesRepositoryImpl implements BikesRepository {
 
     try {
       final bikeModel = await remoteDataSource.addBike(
-        brand: brand,
-        model: model,
-        year: year,
+        memberId: memberId,
         plateNumber: plateNumber,
+        unitId: unitId,
+        chasisNo: chasisNo,
+        engineNo: engineNo,
+        color: color,
+        year: year,
+        photo: photo,
       );
       return Right(bikeModel.toEntity());
     } on UnauthorizedException {

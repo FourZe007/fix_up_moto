@@ -40,14 +40,20 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
     Emitter<BikesState> emit,
   ) async {
     emit(const BikesLoading());
+
     final result = await _addBike(
       AddBikeParams(
-        brand: event.brand,
-        model: event.model,
-        year: event.year,
+        memberId: event.memberId,
         plateNumber: event.plateNumber,
+        unitId: event.unitId,
+        chasisNo: event.chasisNo,
+        engineNo: event.engineNo,
+        color: event.color,
+        year: event.year,
+        photo: event.photo,
       ),
     );
+
     result.fold(
       (f) => emit(BikesError(f.message)),
       // Emit success then re-load the list so it reflects the new bike —
