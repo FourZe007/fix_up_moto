@@ -110,6 +110,17 @@ class _MyBikesViewState extends State<_MyBikesView> {
     _actionsPanelController.open();
   }
 
+  // AddBikePage owns its own (separate, page-scoped) BikesBloc instance, so
+  // popping back here doesn't itself refresh this page's list — awaiting
+  // the push and checking its result (AddBikePage pops with `true` only on
+  // a real successful add) tells us when to actually re-fetch.
+  Future<void> _openAddBike(BuildContext context) async {
+    final added = await context.push<bool>(RouteNames.addBike);
+    if (added == true && context.mounted) {
+      context.read<BikesBloc>().add(const BikesLoadRequested(memberId: ''));
+    }
+  }
+
   @override
   void dispose() {
     _actionsOverlayEntry?.remove();
@@ -173,7 +184,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push(RouteNames.addBike),
+        onPressed: () => _openAddBike(context),
         tooltip: 'Add a bike',
         child: const Icon(Icons.add),
       ),
