@@ -98,13 +98,12 @@ class _AddBikeViewState extends State<_AddBikeView> {
     if (_formKey.currentState?.validate() ?? false) {
       context.read<BikesBloc>().add(
         BikeAddRequested(
-          memberId: '',
           plateNumber: _plateController.text.trim().toUpperCase(),
           unitId: _unitIdController.text.trim(),
           chasisNo: _chasisController.text.trim(),
           engineNo: _engineController.text.trim(),
           color: _colorController.text.trim(),
-          year: int.parse(_yearController.text.trim()),
+          year: _yearController.text.trim(),
           photo: _photoBytes == null ? '' : base64Encode(_photoBytes!),
         ),
       );
@@ -147,7 +146,11 @@ class _AddBikeViewState extends State<_AddBikeView> {
           top: false,
           child: BlocListener<BikesBloc, BikesState>(
             listener: (context, state) {
-              if (state is BikeActionSuccess) {
+              if (state is BikesAdded) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Motor berhasil ditambah!')),
+                );
+
                 // Popping with `true` lets whichever caller pushed this
                 // route (MyBikesPage's FAB) know a bike was actually added,
                 // so it can refresh its own (separate) BikesBloc instance —
@@ -162,10 +165,11 @@ class _AddBikeViewState extends State<_AddBikeView> {
               }
             },
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
               child: Column(
                 spacing: 32,
                 children: [
+                  // Input Textfields
                   Expanded(
                     child: SingleChildScrollView(
                       child: Form(
@@ -190,7 +194,7 @@ class _AddBikeViewState extends State<_AddBikeView> {
                             spacing: 16,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const _SectionHeader('Identitas Motor'),
+                              const _SectionHeader('Informasi Motor'),
                               TextFormField(
                                 controller: _unitIdController,
                                 decoration: const InputDecoration(
@@ -205,7 +209,7 @@ class _AddBikeViewState extends State<_AddBikeView> {
                                   labelText: 'Warna',
                                   hintText: 'Contoh: Hitam',
                                 ),
-                                validator: (v) => _required('Warna', v),
+                                // validator: (v) => _required('Warna', v),
                               ),
                               TextFormField(
                                 controller: _yearController,
@@ -215,19 +219,21 @@ class _AddBikeViewState extends State<_AddBikeView> {
                                 ),
                                 keyboardType: TextInputType.number,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Tahun wajib diisi';
-                                  }
-                                  final year = int.tryParse(v);
-                                  if (year == null ||
-                                      year < 1900 ||
-                                      year > DateTime.now().year + 1) {
-                                    return 'Masukkan tahun yang valid';
+                                  // if (v == null || v.isEmpty) {
+                                  //   return 'Tahun wajib diisi';
+                                  // }
+                                  if (v != null && v.isNotEmpty) {
+                                    final year = int.tryParse(v);
+                                    if (year == null ||
+                                        year < 1900 ||
+                                        year > DateTime.now().year + 1) {
+                                      return 'Masukkan tahun yang valid';
+                                    }
                                   }
                                   return null;
                                 },
                               ),
-                              const Divider(height: 32),
+                              const Divider(height: 20),
                               const _SectionHeader('Registrasi'),
                               TextFormField(
                                 controller: _plateController,
@@ -247,7 +253,7 @@ class _AddBikeViewState extends State<_AddBikeView> {
                                 ),
                                 textCapitalization:
                                     TextCapitalization.characters,
-                                validator: (v) => _required('No Chasis', v),
+                                // validator: (v) => _required('No Chasis', v),
                               ),
                               TextFormField(
                                 controller: _engineController,
@@ -257,9 +263,9 @@ class _AddBikeViewState extends State<_AddBikeView> {
                                 ),
                                 textCapitalization:
                                     TextCapitalization.characters,
-                                validator: (v) => _required('No Mesin', v),
+                                // validator: (v) => _required('No Mesin', v),
                               ),
-                              const Divider(height: 32),
+                              const Divider(height: 20),
                               const _SectionHeader('Foto'),
                               _PhotoPicker(
                                 photoBytes: _photoBytes,
@@ -272,6 +278,8 @@ class _AddBikeViewState extends State<_AddBikeView> {
                       ),
                     ),
                   ),
+
+                  // Add Button
                   ElevatedButton(
                     onPressed: _submit,
                     child: const Text('Tambah Motor'),

@@ -12,7 +12,7 @@ class BikeEntity extends Equatable {
   final String chasisNo;
   final String engineNo;
   final String color;
-  final int year;
+  final String year;
   final String photo;
 
   const BikeEntity({

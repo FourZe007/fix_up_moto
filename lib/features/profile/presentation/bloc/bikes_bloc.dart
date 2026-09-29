@@ -28,7 +28,7 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
     Emitter<BikesState> emit,
   ) async {
     emit(const BikesLoading());
-    final result = await _getBikes(GetBikesParams(memberId: event.memberId));
+    final result = await _getBikes(GetBikesParams());
     result.fold(
       (f) => emit(BikesError(f.message)),
       (bikes) => emit(BikesLoaded(bikes)),
@@ -43,7 +43,6 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
 
     final result = await _addBike(
       AddBikeParams(
-        memberId: event.memberId,
         plateNumber: event.plateNumber,
         unitId: event.unitId,
         chasisNo: event.chasisNo,
@@ -59,8 +58,8 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
       // Emit success then re-load the list so it reflects the new bike —
       // same pattern BookingsBloc uses after creating a booking.
       (_) {
-        emit(const BikeActionSuccess('Bike added successfully'));
-        add(BikesLoadRequested(memberId: event.memberId));
+        emit(const BikesAdded('Bike added successfully'));
+        add(BikesLoadRequested());
       },
     );
   }

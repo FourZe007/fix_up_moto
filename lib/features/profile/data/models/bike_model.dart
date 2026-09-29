@@ -5,8 +5,8 @@ part 'bike_model.g.dart';
 
 /// JSON model for a single record from `BrowseTrans`'s bike-list projection.
 ///
-/// `Year` arrives as a string (e.g. "2023"), not a number — kept as `String`
-/// here to match the wire format exactly, parsed to `int` only in [toEntity].
+/// `Year` arrives as a string (e.g. "2023"), not a number — [BikeEntity]
+/// keeps it as `String` too, so [toEntity] passes it through unchanged.
 /// `Line` (a row/sequence number in the raw response) isn't mapped — nothing
 /// in the app needs it.
 @JsonSerializable()
@@ -53,7 +53,7 @@ class BikeModel {
     chasisNo: chasisNo,
     engineNo: engineNo,
     color: color,
-    year: int.tryParse(year) ?? 0,
+    year: year,
     photo: photo,
   );
 }

@@ -11,14 +11,14 @@ class GetBikesUseCase extends UseCase<List<BikeEntity>, GetBikesParams> {
 
   @override
   Future<Either<Failure, List<BikeEntity>>> call(GetBikesParams params) =>
-      repository.getBikes(memberId: params.memberId);
+      repository.getBikes();
 }
 
 class GetBikesParams extends Equatable {
-  final String memberId;
+  // final String memberId;
 
-  const GetBikesParams({required this.memberId});
+  const GetBikesParams();
 
   @override
-  List<Object> get props => [memberId];
+  List<Object> get props => [];
 }

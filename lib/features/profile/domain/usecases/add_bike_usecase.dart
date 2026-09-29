@@ -2,17 +2,16 @@ import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/usecases/usecase.dart';
-import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/domain/repositories/bikes_repository.dart';
 
-class AddBikeUseCase extends UseCase<BikeEntity, AddBikeParams> {
+class AddBikeUseCase extends UseCase<String, AddBikeParams> {
   final BikesRepository repository;
   AddBikeUseCase(this.repository);
 
   @override
-  Future<Either<Failure, BikeEntity>> call(AddBikeParams params) {
+  Future<Either<Failure, String>> call(AddBikeParams params) {
     return repository.addBike(
-      memberId: params.memberId,
+      // memberId: params.memberId,
       plateNumber: params.plateNumber,
       unitId: params.unitId,
       chasisNo: params.chasisNo,
@@ -25,17 +24,17 @@ class AddBikeUseCase extends UseCase<BikeEntity, AddBikeParams> {
 }
 
 class AddBikeParams extends Equatable {
-  final String memberId;
+  // final String memberId;
   final String plateNumber;
   final String unitId; // brand name with its variant
   final String chasisNo;
   final String engineNo;
   final String color;
-  final int year;
+  final String year;
   final String photo;
 
   const AddBikeParams({
-    required this.memberId,
+    // required this.memberId,
     required this.plateNumber,
     required this.unitId, // brand name with its variant
     required this.chasisNo,
@@ -47,7 +46,7 @@ class AddBikeParams extends Equatable {
 
   @override
   List<Object> get props => [
-    memberId,
+    // memberId,
     plateNumber,
     unitId,
     chasisNo,

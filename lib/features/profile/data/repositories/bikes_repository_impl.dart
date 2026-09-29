@@ -25,9 +25,11 @@ class BikesRepositoryImpl implements BikesRepository {
   });
 
   @override
-  Future<Either<Failure, List<BikeEntity>>> getBikes({
+  Future<Either<Failure, List<BikeEntity>>> getBikes(
+    /*{
     required String memberId,
-  }) async {
+  }*/
+  ) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
@@ -60,40 +62,53 @@ class BikesRepositoryImpl implements BikesRepository {
   }
 
   @override
-  Future<Either<Failure, BikeEntity>> addBike({
-    required String memberId,
+  Future<Either<Failure, String>> addBike({
+    // required String memberId,
     required String plateNumber,
     required String unitId, // brand name with its variant
     required String chasisNo,
     required String engineNo,
     required String color,
-    required int year,
+    required String year,
     required String photo,
   }) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
 
-    try {
-      final bikeModel = await remoteDataSource.addBike(
-        memberId: memberId,
-        plateNumber: plateNumber,
-        unitId: unitId,
-        chasisNo: chasisNo,
-        engineNo: engineNo,
-        color: color,
-        year: year,
-        photo: photo,
-      );
-      return Right(bikeModel.toEntity());
-    } on UnauthorizedException {
-      return const Left(AuthFailure('Session expired. Please sign in again.'));
-    } on ForbiddenException catch (e) {
-      return Left(PermissionFailure(e.message));
-    } on NotFoundException catch (e) {
-      return Left(NotFoundFailure(e.message));
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message, statusCode: e.statusCode));
-    }
+    final currentUserResult = await authRepository.getCurrentUser();
+
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        return const Left(AuthFailure('No signed-in member found'));
+      }
+
+      try {
+        final result = await remoteDataSource.addBike(
+          memberId: user.id,
+          plateNumber: plateNumber,
+          unitId: unitId,
+          chasisNo: chasisNo,
+          engineNo: engineNo,
+          color: color,
+          year: year,
+          photo: photo,
+        );
+
+        return Right(result.resultMessage);
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+    });
   }
 }

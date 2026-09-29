@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
+import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/profile/data/models/bike_model.dart';
 
@@ -9,14 +10,14 @@ abstract class BikesRemoteDataSource {
     String type = 'membershipmotor',
   });
 
-  Future<BikeModel> addBike({
+  Future<ResultMessageModel> addBike({
     required String memberId,
     required String plateNumber,
     required String unitId, // brand name with its variant
     required String chasisNo,
     required String engineNo,
     required String color,
-    required int year,
+    required String year,
     required String photo,
   });
 }
@@ -45,14 +46,14 @@ class BikesRemoteDataSourceImpl implements BikesRemoteDataSource {
   }
 
   @override
-  Future<BikeModel> addBike({
+  Future<ResultMessageModel> addBike({
     required String memberId,
     required String plateNumber,
     required String unitId, // brand name with its variant
     required String chasisNo,
     required String engineNo,
     required String color,
-    required int year,
+    required String year,
     required String photo,
   }) async {
     try {
@@ -75,7 +76,8 @@ class BikesRemoteDataSourceImpl implements BikesRemoteDataSource {
           },
         },
       );
-      return BikeModel.fromJson(SampEnvelope.first(response));
+
+      return ResultMessageModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
       SampEnvelope.error(e);
     }

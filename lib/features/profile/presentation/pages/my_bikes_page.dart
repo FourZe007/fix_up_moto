@@ -22,8 +22,7 @@ class MyBikesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) =>
-          sl<BikesBloc>()..add(const BikesLoadRequested(memberId: '')),
+      create: (_) => sl<BikesBloc>()..add(const BikesLoadRequested()),
       child: const _MyBikesView(),
     );
   }
@@ -117,7 +116,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
   Future<void> _openAddBike(BuildContext context) async {
     final added = await context.push<bool>(RouteNames.addBike);
     if (added == true && context.mounted) {
-      context.read<BikesBloc>().add(const BikesLoadRequested(memberId: ''));
+      context.read<BikesBloc>().add(const BikesLoadRequested());
     }
   }
 
@@ -153,9 +152,12 @@ class _MyBikesViewState extends State<_MyBikesView> {
             child: BlocConsumer<BikesBloc, BikesState>(
               listener: (context, state) {
                 if (state is BikesError) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(state.message)));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  );
                 }
               },
               builder: (context, state) {
@@ -165,13 +167,13 @@ class _MyBikesViewState extends State<_MyBikesView> {
                   ),
                   // Loading again after Add pops back in — same spinner, not a
                   // separate case, since a fresh list is already on the way.
-                  BikeActionSuccess() => const Center(
+                  BikesAdded() => const Center(
                     child: CircularProgressIndicator(),
                   ),
                   BikesError() => Center(
                     child: TextButton(
                       onPressed: () => context.read<BikesBloc>().add(
-                        const BikesLoadRequested(memberId: ''),
+                        const BikesLoadRequested(),
                       ),
                       child: const Text('Retry'),
                     ),
@@ -268,10 +270,7 @@ class _BikeCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
 
-              Text(
-                '${bike.plateNo} - ${bike.color} - ${bike.year}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(_plateSummary, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
         ),
@@ -287,12 +286,28 @@ class _BikeCard extends StatelessWidget {
     );
   }
 
+  /// Plate number is the only mandatory field in this line; color and year
+  /// are appended only when the data actually has them, same
+  /// hide-when-missing approach as [_specSection] below.
+  String get _plateSummary {
+    final hasColor = bike.color.trim().isNotEmpty;
+    final hasYear = bike.year.trim().isNotEmpty;
+
+    return switch ((hasColor, hasYear)) {
+      (false, false) => bike.plateNo,
+      (true, false) => '${bike.plateNo} - ${bike.color}',
+      (false, true) => '${bike.plateNo} - ${bike.year}',
+      (true, true) => '${bike.plateNo} - ${bike.color} - ${bike.year}',
+    };
+  }
+
   /// Chassis/engine rows, each hidden individually when its own value is
   /// missing; the divider above them is hidden too when both are, so no
   /// empty section (or a bare divider leading nowhere) is ever shown.
   List<Widget> get _specSection {
     final hasChasis = bike.chasisNo.trim().isNotEmpty;
     final hasEngine = bike.engineNo.trim().isNotEmpty;
+
     const divider = Padding(
       padding: EdgeInsets.symmetric(vertical: 12),
       child: Divider(height: 1),

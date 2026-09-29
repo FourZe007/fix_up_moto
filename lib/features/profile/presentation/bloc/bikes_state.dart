@@ -23,9 +23,9 @@ final class BikesLoaded extends BikesState {
   List<Object> get props => [bikes];
 }
 
-final class BikeActionSuccess extends BikesState {
+final class BikesAdded extends BikesState {
   final String message;
-  const BikeActionSuccess(this.message);
+  const BikesAdded(this.message);
 
   @override
   List<Object> get props => [message];
