@@ -44,6 +44,10 @@ class BookingsBloc extends Bloc<BookingsEvent, BookingsState> {
       CreateBookingParams(
         serviceId: event.serviceId,
         scheduledAt: event.scheduledAt,
+        branch: event.branch,
+        shop: event.shop,
+        plateNo: event.plateNo,
+        unitId: event.unitId,
         notes: event.notes,
       ),
     );

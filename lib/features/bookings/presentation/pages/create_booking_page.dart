@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
-import 'package:fix_up_moto/core/helpers/date_formatter.dart';
+import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
 import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 
@@ -39,18 +43,23 @@ class _BookingSetupCard extends StatelessWidget {
   final VoidCallback onTapWorkshop;
   final DateTime? selectedDate;
   final VoidCallback onTapDate;
+  final BikeEntity? selectedBike;
+  final VoidCallback onTapBike;
 
   const _BookingSetupCard({
     required this.selectedWorkshop,
     required this.onTapWorkshop,
     required this.selectedDate,
     required this.onTapDate,
+    required this.selectedBike,
+    required this.onTapBike,
   });
 
   @override
   Widget build(BuildContext context) {
     final selectedWorkshop = this.selectedWorkshop;
     final selectedDate = this.selectedDate;
+    final selectedBike = this.selectedBike;
 
     return Material(
       // Same value as chipTheme.backgroundColor (app_theme.dart) — matches
@@ -105,19 +114,52 @@ class _BookingSetupCard extends StatelessWidget {
           _SetupRow(
             icon: Icons.calendar_today_outlined,
             onTap: onTapDate,
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(12),
-            ),
+            borderRadius: BorderRadius.zero,
             content: selectedDate == null
                 ? const Text('Select a date')
                 : Text(
                     // "Today"/"Tomorrow" for near dates — the common case,
                     // since bookings are usually made a day or two ahead —
                     // falling back to "Mon, 16 Mar 2026" further out.
-                    DateFormatter.toRelativeLabel(selectedDate),
+                    DateTimeFormatter.toRelativeLabel(selectedDate),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+          ),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: Colors.grey.shade300,
+            indent: 14,
+            endIndent: 14,
+          ),
+          _SetupRow(
+            icon: Icons.two_wheeler_outlined,
+            onTap: onTapBike,
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(12),
+            ),
+            content: selectedBike == null
+                ? const Text('Select your bike')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        selectedBike.unitId,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        selectedBike.plateNo,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -197,6 +239,7 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
   final _notesController = TextEditingController();
   DateTime? _selectedDate;
   _TimeSlot? _selectedTimeSlot;
+  BikeEntity? _selectedBike;
 
   @override
   void dispose() {
@@ -223,11 +266,33 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  /// Bottom sheet rather than a full pushed route — unlike workshops (which
+  /// carry maps/addresses that justify their own page), picking a bike is a
+  /// smaller, in-context decision. Gives its own [BikesBloc] since this page
+  /// doesn't otherwise provide one.
+  Future<void> _pickBike() async {
+    final picked = await showModalBottomSheet<BikeEntity>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _BikePickerSheet(),
+    );
+    if (picked != null && mounted) setState(() => _selectedBike = picked);
+  }
+
   void _submit(String serviceId) {
     if (_selectedDate == null || _selectedTimeSlot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a date and time')),
       );
+      return;
+    }
+    if (_selectedBike == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select your bike')));
       return;
     }
 
@@ -240,10 +305,18 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
       _selectedTimeSlot!.start.minute,
     );
 
+    // Guaranteed non-null by this page's own doc comment (a workshop must
+    // already be selected before CreateBookingPage is ever reached).
+    final workshop = context.read<SelectedWorkshopCubit>().state!;
+
     context.read<BookingsBloc>().add(
       BookingCreateRequested(
         serviceId: serviceId,
         scheduledAt: scheduledAt,
+        branch: workshop.branch,
+        shop: workshop.shop,
+        plateNo: _selectedBike!.plateNo,
+        unitId: _selectedBike!.unitId,
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
@@ -300,6 +373,8 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
                       onTapWorkshop: _changeWorkshop,
                       selectedDate: _selectedDate,
                       onTapDate: _pickDate,
+                      selectedBike: _selectedBike,
+                      onTapBike: _pickBike,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -344,6 +419,60 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom-sheet content for [_CreateBookingViewState._pickBike] — its own
+/// [BikesBloc] (this page doesn't otherwise provide one), listing the
+/// member's registered bikes and returning the tapped one via
+/// `Navigator.pop(context, bike)`.
+class _BikePickerSheet extends StatelessWidget {
+  const _BikePickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<BikesBloc>()..add(const BikesLoadRequested()),
+      child: SafeArea(
+        top: false,
+        child: BlocBuilder<BikesBloc, BikesState>(
+          builder: (context, state) {
+            return switch (state) {
+              BikesInitial() ||
+              BikesLoading() ||
+              BikesAdded() => const SizedBox(
+                height: 160,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              BikesError(:final message) => SizedBox(
+                height: 160,
+                child: Center(child: Text(message)),
+              ),
+              BikesLoaded(:final bikes) =>
+                bikes.isEmpty
+                    ? const SizedBox(
+                        height: 160,
+                        child: Center(child: Text('No bikes registered yet')),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: bikes.length,
+                        itemBuilder: (context, index) {
+                          final bike = bikes[index];
+                          return ListTile(
+                            leading: const Icon(Icons.two_wheeler_outlined),
+                            title: Text(bike.unitId),
+                            subtitle: Text(bike.plateNo),
+                            onTap: () => Navigator.of(context).pop(bike),
+                          );
+                        },
+                      ),
+            };
+          },
         ),
       ),
     );

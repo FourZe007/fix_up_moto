@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fix_up_moto/core/helpers/date_formatter.dart';
+import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
 /// Displays a single service transaction/history record in the list.
@@ -32,7 +32,7 @@ class ServiceCard extends StatelessWidget {
   /// hiding a record over an unexpected date format.
   String _displayDate(String transDate) {
     final parsed = DateTime.tryParse(transDate);
-    return parsed == null ? transDate : DateFormatter.toShortDate(parsed);
+    return parsed == null ? transDate : DateTimeFormatter.toShortDate(parsed);
   }
 
   @override

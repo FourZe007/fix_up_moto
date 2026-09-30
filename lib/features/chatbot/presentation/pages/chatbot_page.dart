@@ -12,7 +12,7 @@ class ChatbotPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat with Mika')),
+      appBar: AppBar(title: const Text('Chat with Fima')),
       body: const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

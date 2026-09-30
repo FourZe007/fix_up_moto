@@ -15,16 +15,32 @@ final class BookingsListRequested extends BookingsEvent {
 final class BookingCreateRequested extends BookingsEvent {
   final String serviceId;
   final DateTime scheduledAt;
+  final String branch;
+  final String shop;
+  final String plateNo;
+  final String unitId;
   final String? notes;
 
   const BookingCreateRequested({
     required this.serviceId,
     required this.scheduledAt,
+    required this.branch,
+    required this.shop,
+    required this.plateNo,
+    required this.unitId,
     this.notes,
   });
 
   @override
-  List<Object?> get props => [serviceId, scheduledAt, notes];
+  List<Object?> get props => [
+    serviceId,
+    scheduledAt,
+    branch,
+    shop,
+    plateNo,
+    unitId,
+    notes,
+  ];
 }
 
 /// Cancel an existing booking.

@@ -394,7 +394,7 @@ class _ChatWithMikaButton extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Chat with Mika',
+                  'Chat with Fima',
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),

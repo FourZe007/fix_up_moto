@@ -14,6 +14,10 @@ class CreateBookingUseCase extends UseCase<BookingEntity, CreateBookingParams> {
     return repository.createBooking(
       serviceId: params.serviceId,
       scheduledAt: params.scheduledAt,
+      branch: params.branch,
+      shop: params.shop,
+      plateNo: params.plateNo,
+      unitId: params.unitId,
       notes: params.notes,
     );
   }
@@ -22,14 +26,30 @@ class CreateBookingUseCase extends UseCase<BookingEntity, CreateBookingParams> {
 class CreateBookingParams extends Equatable {
   final String serviceId;
   final DateTime scheduledAt;
+  final String branch;
+  final String shop;
+  final String plateNo;
+  final String unitId;
   final String? notes;
 
   const CreateBookingParams({
     required this.serviceId,
     required this.scheduledAt,
+    required this.branch,
+    required this.shop,
+    required this.plateNo,
+    required this.unitId,
     this.notes,
   });
 
   @override
-  List<Object?> get props => [serviceId, scheduledAt, notes];
+  List<Object?> get props => [
+    serviceId,
+    scheduledAt,
+    branch,
+    shop,
+    plateNo,
+    unitId,
+    notes,
+  ];
 }

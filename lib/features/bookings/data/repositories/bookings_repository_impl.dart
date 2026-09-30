@@ -60,27 +60,55 @@ class BookingsRepositoryImpl implements BookingsRepository {
   Future<Either<Failure, BookingEntity>> createBooking({
     required String serviceId,
     required DateTime scheduledAt,
+    required String branch,
+    required String shop,
+    required String plateNo,
+    required String unitId,
     String? notes,
   }) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
-    try {
-      final model = await remoteDataSource.createBooking(
-        serviceId: serviceId,
-        scheduledAt: scheduledAt,
-        notes: notes,
-      );
-      return Right(model.toEntity());
-    } on UnauthorizedException {
-      return const Left(AuthFailure('Session expired. Please sign in again.'));
-    } on ForbiddenException catch (e) {
-      return Left(PermissionFailure(e.message));
-    } on NotFoundException catch (e) {
-      return Left(NotFoundFailure(e.message));
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message, statusCode: e.statusCode));
-    }
+
+    final currentUserResult = await authRepository.getCurrentUser();
+
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        return const Left(AuthFailure('No signed-in member found'));
+      }
+
+      try {
+        final model = await remoteDataSource.createBooking(
+          serviceId: serviceId,
+          scheduledAt: scheduledAt,
+          branch: branch,
+          shop: shop,
+          plateNo: plateNo,
+          unitId: unitId,
+          // Resolved from the same cached session as memberId, not threaded
+          // from the UI — the user's own name/phone aren't something the
+          // booking form should be collecting input for.
+          uName: user.name,
+          uPhoneNo: user.phone ?? '',
+          notes: notes,
+          memberId: user.id,
+        );
+
+        return Right(model.toEntity());
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+    });
   }
 
   @override

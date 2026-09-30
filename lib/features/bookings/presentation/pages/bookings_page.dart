@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
-import 'package:fix_up_moto/core/helpers/date_formatter.dart';
+import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
@@ -310,7 +310,7 @@ class _BookingsViewState extends State<_BookingsView>
                               ),
                               Text(
                                 // "Mon, 10 Mar 2026 • 10:30 AM"
-                                DateFormatter.toFullDateTime(
+                                DateTimeFormatter.toFullDateTime(
                                   booking.scheduledAt,
                                 ),
                                 style: Theme.of(context).textTheme.bodySmall,
@@ -465,8 +465,8 @@ class _FilterPanelState extends State<_FilterPanel> {
             label: Text(
               _draft == null
                   ? 'Select date range'
-                  : '${DateFormatter.toShortDate(_draft!.start)} '
-                        '- ${DateFormatter.toShortDate(_draft!.end)}',
+                  : '${DateTimeFormatter.toShortDate(_draft!.start)} '
+                        '- ${DateTimeFormatter.toShortDate(_draft!.end)}',
             ),
           ),
           const SizedBox(height: 20),

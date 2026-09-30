@@ -10,6 +10,10 @@ abstract class BookingsRepository {
   Future<Either<Failure, BookingEntity>> createBooking({
     required String serviceId,
     required DateTime scheduledAt,
+    required String branch,
+    required String shop,
+    required String plateNo,
+    required String unitId,
     String? notes,
   });
 
