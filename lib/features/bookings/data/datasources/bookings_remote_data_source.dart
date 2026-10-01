@@ -1,13 +1,16 @@
+import 'dart:developer';
+
 import 'package:dio/dio.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
+import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/bookings/data/models/booking_model.dart';
 
 abstract class BookingsRemoteDataSource {
   Future<List<BookingModel>> getBookings(String memberId);
-  Future<BookingModel> createBooking({
-    required String serviceId,
+  Future<ResultMessageModel> createBooking({
+    // required String serviceId,
     required DateTime scheduledAt,
     required String branch,
     required String shop,
@@ -44,8 +47,8 @@ class BookingsRemoteDataSourceImpl implements BookingsRemoteDataSource {
   }
 
   @override
-  Future<BookingModel> createBooking({
-    required String serviceId,
+  Future<ResultMessageModel> createBooking({
+    // required String serviceId,
     required DateTime scheduledAt,
     required String branch,
     required String shop,
@@ -80,10 +83,12 @@ class BookingsRemoteDataSourceImpl implements BookingsRemoteDataSource {
         'Data': data,
       };
 
+      log('create booking body: ${body.toString()}');
+
       // Creating is a separate endpoint from browsing under the SAMP
       // convention — both are POST, so the path is what distinguishes them.
       final response = await _dio.post(ApiConstants.modify, data: body);
-      return BookingModel.fromJson(SampEnvelope.first(response));
+      return ResultMessageModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
       SampEnvelope.error(e);
     }

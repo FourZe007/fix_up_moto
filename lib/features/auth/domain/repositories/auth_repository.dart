@@ -18,13 +18,20 @@ import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 abstract class AuthRepository {
   /// Authenticates the member with [phone] and [password].
   ///
-  /// [phone] is the number as the member typed it — the data layer normalises
-  /// it to the subscriber form the backend expects.
+  /// [phone] is the number as the member typed it for a manual login — the
+  /// data layer normalises it to the subscriber form the backend expects.
+  /// For a Google-derived account, pass the account's email instead and set
+  /// [isGoogleLogin] to `'1'`, so the data layer sends it through untouched
+  /// rather than normalising it as a phone number.
   ///
   /// On success: caches the member record locally and returns the [UserEntity].
   /// On failure: returns [AuthFailure] for bad credentials or an inactive
   /// membership, [ServerFailure] for API errors, or [NetworkFailure] if offline.
-  Future<Either<Failure, UserEntity>> login(String phone, String password);
+  Future<Either<Failure, UserEntity>> login(
+    String phone,
+    String password, {
+    String isGoogleLogin = '0',
+  });
 
   /// Opens the Google account sheet and returns the chosen account's identity.
   ///

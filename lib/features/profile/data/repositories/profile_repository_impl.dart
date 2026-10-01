@@ -2,7 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
-import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/profile_entity.dart';
 import 'package:fix_up_moto/features/profile/domain/repositories/profile_repository.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
 
@@ -16,7 +16,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   });
 
   @override
-  Future<Either<Failure, UserEntity>> getProfile() async {
+  Future<Either<Failure, ProfileEntity>> getProfile() async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
@@ -35,7 +35,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   }
 
   @override
-  Future<Either<Failure, UserEntity>> updateProfile({
+  Future<Either<Failure, ProfileEntity>> updateProfile({
     required String name,
     String? phone,
   }) async {

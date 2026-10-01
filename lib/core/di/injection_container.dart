@@ -143,6 +143,10 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(
     () => GetGoogleIdentityUseCase(sl<AuthRepository>()),
   );
+  // No longer injected into AuthBloc — email is now the actual Google login
+  // credential, so AuthBloc just retries login(email, derivedPassword)
+  // directly instead of consulting this per-device cache first. Left
+  // registered in case a real "remembered contact phone" use shows up later.
   sl.registerLazySingleton(
     () => GetRememberedGooglePhoneUseCase(sl<AuthRepository>()),
   );
@@ -166,7 +170,6 @@ Future<void> initDependencies() async {
       getCurrentUserUseCase: sl(),
       getGoogleIdentityUseCase: sl(),
       submitGoogleAccountUseCase: sl(),
-      getRememberedGooglePhoneUseCase: sl(),
     ),
   );
 

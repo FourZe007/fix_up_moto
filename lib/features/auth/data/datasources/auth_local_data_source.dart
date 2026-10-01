@@ -3,17 +3,17 @@ import 'dart:developer';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
-import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
+import 'package:fix_up_moto/features/auth/data/models/login_user_model.dart';
 
 /// Contract for reading/writing auth data in local storage.
 abstract class AuthLocalDataSource {
   /// Persists [user] as JSON in the OS keychain so it survives app restarts.
-  Future<void> cacheUser(UserModel user);
+  Future<void> cacheUser(LoginUserModel user);
 
   /// Reads the cached user JSON and deserialises it.
   /// Returns null if no user has been cached (first launch / after logout).
   /// Throws [CacheException] if the stored JSON is corrupted.
-  Future<UserModel?> getCachedUser();
+  Future<LoginUserModel?> getCachedUser();
 
   /// Deletes the cached member record — the whole persisted session.
   Future<void> clearUser();
@@ -45,7 +45,7 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   AuthLocalDataSourceImpl(this._storage);
 
   @override
-  Future<void> cacheUser(UserModel user) async {
+  Future<void> cacheUser(LoginUserModel user) async {
     try {
       // Serialise the model to a JSON string before storing — secure storage
       // only accepts String values, not arbitrary objects.
@@ -59,15 +59,15 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   }
 
   @override
-  Future<UserModel?> getCachedUser() async {
+  Future<LoginUserModel?> getCachedUser() async {
     try {
       final jsonString = await _storage.read(key: ApiConstants.cachedUserKey);
 
       // null means no entry exists — not an error, just "not logged in"
       if (jsonString == null) return null;
 
-      // Decode JSON string → Map → UserModel
-      return UserModel.fromJson(jsonDecode(jsonString) as Map<String, dynamic>);
+      // Decode JSON string → Map → LoginUserModel
+      return LoginUserModel.fromJson(jsonDecode(jsonString) as Map<String, dynamic>);
     } on FormatException catch (e) {
       // The stored JSON was malformed — treat as a corrupted cache
       throw CacheException(message: 'Corrupted user cache: ${e.message}');

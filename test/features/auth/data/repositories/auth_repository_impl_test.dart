@@ -7,7 +7,7 @@ import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
 import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:fix_up_moto/features/auth/data/datasources/auth_remote_data_source.dart';
-import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
+import 'package:fix_up_moto/features/auth/data/models/login_user_model.dart';
 import 'package:fix_up_moto/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 
@@ -33,7 +33,7 @@ void main() {
   const tEmail = 'member@example.com';
 
   /// An active member — what a successful sign-in returns.
-  const tUserModel = UserModel(
+  const tUserModel = LoginUserModel(
     id: 'M-001',
     name: 'Test Member',
     email: tEmail,
@@ -42,7 +42,7 @@ void main() {
   );
 
   setUpAll(() {
-    // cacheUser takes a UserModel, so mocktail needs a fallback to match any().
+    // cacheUser takes a LoginUserModel, so mocktail needs a fallback to match any().
     registerFallbackValue(tUserModel);
   });
 
@@ -193,8 +193,7 @@ void main() {
   group('submitGoogleAccount', () {
     const tName = 'John Doe';
 
-    test('returns the member, caches it, and remembers the phone on success',
-        () async {
+    test('returns the member and caches it on success', () async {
       givenOnline();
       when(
         () => mockRemote.submitGoogleAccount(
@@ -204,12 +203,6 @@ void main() {
         ),
       ).thenAnswer((_) async => tUserModel);
       when(() => mockLocal.cacheUser(any())).thenAnswer((_) async {});
-      when(
-        () => mockLocal.rememberGooglePhone(
-          email: any(named: 'email'),
-          phone: any(named: 'phone'),
-        ),
-      ).thenAnswer((_) async {});
 
       final result = await repository.submitGoogleAccount(
         name: tName,
@@ -220,11 +213,16 @@ void main() {
       expect(result, Right(tUserModel.toEntity()));
       verify(() => mockLocal.cacheUser(tUserModel)).called(1);
 
-      // This is what lets the NEXT Google sign-in with this email skip the
-      // complete-profile form — losing it silently would be easy to miss.
-      verify(
-        () => mockLocal.rememberGooglePhone(email: tEmail, phone: tPhone),
-      ).called(1);
+      // Email is now the actual login credential for a Google account (see
+      // AuthRemoteDataSourceImpl.submitGoogleAccount), so there's no longer a
+      // per-device "remembered phone" to write — a future sign-in just
+      // retries login(email, derivedPassword) directly instead.
+      verifyNever(
+        () => mockLocal.rememberGooglePhone(
+          email: any(named: 'email'),
+          phone: any(named: 'phone'),
+        ),
+      );
     });
 
     test('returns AuthFailure with the server wording when inactive',

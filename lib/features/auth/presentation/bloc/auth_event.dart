@@ -19,12 +19,17 @@ final class AuthLoginRequested extends AuthEvent {
   /// data layer, so the presentation layer holds no backend formatting rules.
   final String phone;
   final String password;
+  final String isGoogleLogin;
 
-  const AuthLoginRequested({required this.phone, required this.password});
+  const AuthLoginRequested({
+    required this.phone,
+    required this.password,
+    this.isGoogleLogin = '0',
+  });
 
   /// Equatable needs props to compare events in bloc_test expectations.
   @override
-  List<Object> get props => [phone, password];
+  List<Object> get props => [phone, password, isGoogleLogin];
 }
 
 /// Dispatched when the user taps "Continue with Google".

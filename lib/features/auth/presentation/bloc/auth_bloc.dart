@@ -7,7 +7,6 @@ import 'package:fix_up_moto/core/usecases/usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/get_current_user_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/get_google_identity_usecase.dart';
-import 'package:fix_up_moto/features/auth/domain/usecases/get_remembered_google_phone_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/login_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/logout_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/register_usecase.dart';
@@ -36,7 +35,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final GetCurrentUserUseCase _getCurrentUserUseCase;
   final GetGoogleIdentityUseCase _getGoogleIdentityUseCase;
   final SubmitGoogleAccountUseCase _submitGoogleAccountUseCase;
-  final GetRememberedGooglePhoneUseCase _getRememberedGooglePhoneUseCase;
 
   /// All use cases are injected by the DI container — [AuthBloc] never
   /// instantiates collaborators directly (Dependency Inversion Principle).
@@ -47,10 +45,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required GetCurrentUserUseCase getCurrentUserUseCase,
     required GetGoogleIdentityUseCase getGoogleIdentityUseCase,
     required SubmitGoogleAccountUseCase submitGoogleAccountUseCase,
-    required GetRememberedGooglePhoneUseCase getRememberedGooglePhoneUseCase,
   }) : _getGoogleIdentityUseCase = getGoogleIdentityUseCase,
        _submitGoogleAccountUseCase = submitGoogleAccountUseCase,
-       _getRememberedGooglePhoneUseCase = getRememberedGooglePhoneUseCase,
        _loginUseCase = loginUseCase,
        _registerUseCase = registerUseCase,
        _logoutUseCase = logoutUseCase,
@@ -77,7 +73,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoading());
 
     final result = await _loginUseCase(
-      LoginParams(phone: event.phone, password: event.password),
+      LoginParams(
+        phone: event.phone,
+        password: event.password,
+        isGoogleLogin: event.isGoogleLogin,
+      ),
     );
 
     // fold() handles both branches of Either without try/catch
@@ -153,57 +153,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   /// Decides what a successfully-picked Google identity leads to.
   ///
-  /// If this device has seen this email before (a phone was remembered by an
-  /// earlier [_onGoogleAccountSubmitted]), re-derive the same deterministic
-  /// password and log straight in — the complete-profile form only exists to
-  /// collect information once. A remembered login that fails for any reason
-  /// (the membership was disabled since, or the mapping is simply stale)
-  /// falls back to the form rather than dead-ending on an error; the form's
-  /// own submit path will surface the real reason if it happens again.
+  /// Email is the actual login credential for a Google-derived account (see
+  /// `GooglePassword`/`AuthRemoteDataSourceImpl.submitGoogleAccount`) — it's
+  /// stable and already verified by Google, so the same (email, derived
+  /// password) pair works identically on any device. That means there's no
+  /// need for a per-device "remembered phone" cache any more: just try
+  /// logging in directly. A failure (never registered yet, or the membership
+  /// was disabled since) falls back to the complete-profile form rather than
+  /// dead-ending on a raw error; the form's own submit path will surface the
+  /// real reason if it happens again.
   Future<void> _resumeOrCompleteGoogleProfile(
     GoogleAccountIdentity identity,
     Emitter<AuthState> emit,
   ) async {
-    final rememberedPhoneResult = await _getRememberedGooglePhoneUseCase(
-      identity.email,
-    );
     log(
-      'Saved phone number: $rememberedPhoneResult',
-      name: '_resumeOrCompleteGoogleProfile',
-    );
-
-    // A cache-read failure is treated the same as "never seen before" — the
-    // complete-profile form is always a safe fallback, never a dead end.
-    final rememberedPhone = rememberedPhoneResult.fold(
-      (_) => null,
-      (phone) => phone,
-    );
-
-    if (rememberedPhone == null) {
-      log(
-        '_resumeOrCompleteGoogleProfile: no remembered phone for '
-        '${identity.email} — emitting AuthGoogleIdentityObtained',
-        name: 'AuthBloc',
-      );
-      emit(
-        AuthGoogleIdentityObtained(
-          displayName: identity.displayName,
-          email: identity.email,
-        ),
-      );
-      return;
-    }
-
-    log(
-      '_resumeOrCompleteGoogleProfile: remembered phone found for '
-      '${identity.email} — attempting direct login',
+      '_resumeOrCompleteGoogleProfile: attempting direct login for '
+      '${identity.email}',
       name: 'AuthBloc',
     );
 
     final loginResult = await _loginUseCase(
       LoginParams(
-        phone: rememberedPhone,
+        phone: identity.email,
         password: GooglePassword.forNameFromEmail(identity.email),
+        isGoogleLogin: '1',
       ),
     );
     log('loginResult: $loginResult', name: 'Auth Bloc');
@@ -211,7 +184,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     loginResult.fold(
       (failure) {
         log(
-          '_resumeOrCompleteGoogleProfile: remembered login failed '
+          '_resumeOrCompleteGoogleProfile: direct login failed '
           '(${failure.message}) — falling back to AuthGoogleIdentityObtained',
           name: 'AuthBloc',
         );
@@ -223,12 +196,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
       },
       (user) {
-        log(
-          '_resumeOrCompleteGoogleProfile: remembered login succeeded — '
-          'emitting AuthAuthenticated — memberId=${user.id}',
-          name: 'AuthBloc',
-        );
         if (user.isActive) {
+          log(
+            '_resumeOrCompleteGoogleProfile: direct login succeeded — '
+            'emitting AuthAuthenticated — memberId=${user.id}',
+            name: 'AuthBloc',
+          );
           emit(AuthAuthenticated(user));
         } else {
           emit(

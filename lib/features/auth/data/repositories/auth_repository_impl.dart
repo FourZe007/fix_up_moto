@@ -32,8 +32,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, UserEntity>> login(
     String phone,
-    String password,
-  ) async {
+    String password, {
+    String isGoogleLogin = '0',
+  }) async {
     // Check connectivity first to give an immediate, friendly error instead
     // of waiting for a 30-second Dio timeout.
     if (!await networkInfo.isConnected) {
@@ -42,10 +43,19 @@ class AuthRepositoryImpl implements AuthRepository {
 
     try {
       log(
-        'Auth Repo Impl: phone: $phone; password: $password',
+        'Auth Repo Impl: phone: $phone; password: $password; '
+        'isGoogleLogin: $isGoogleLogin',
         name: 'AuthRepoImpl login',
       );
-      final userModel = await remoteDataSource.login(phone, password);
+      // isGoogleLogin previously stopped here — LoginUseCase called
+      // repository.login(phone, password) with no way to forward it, so the
+      // data source always saw the default '0' regardless of the caller's
+      // intent. Now threaded through properly.
+      final userModel = await remoteDataSource.login(
+        phone,
+        password,
+        isGoogleLogin: isGoogleLogin,
+      );
 
       // Persist the user in secure storage so the next launch skips login
       await localDataSource.cacheUser(userModel);
@@ -106,11 +116,14 @@ class AuthRepositoryImpl implements AuthRepository {
       );
       await localDataSource.cacheUser(userModel);
 
-      // Remember this email→phone link regardless of which phase succeeded
-      // (existing login, or fresh registration) — either way, this Google
-      // account now has a working phone, and the next sign-in with it should
-      // skip the complete-profile form entirely.
-      await localDataSource.rememberGooglePhone(email: email, phone: phone);
+      // No longer remembering an email→phone link here: email is the actual
+      // login credential for a Google account (see
+      // AuthRemoteDataSourceImpl.submitGoogleAccount), so AuthBloc can just
+      // retry logging in with (email, derived password) directly on a future
+      // sign-in — the same pair works from any device, with no per-device
+      // cache needed. rememberGooglePhone/getRememberedGooglePhone are left
+      // in place (data source + domain method) in case a real "remembered
+      // contact phone" use shows up later, just unused for this decision now.
 
       return Right(userModel.toEntity());
     } on AccountInactiveException catch (e) {

@@ -20,8 +20,14 @@ class LoginUseCase extends UseCase<UserEntity, LoginParams> {
   /// Callers invoke this like a function: `await loginUseCase(params)`
   @override
   Future<Either<Failure, UserEntity>> call(LoginParams params) {
-    // Delegate entirely to the repository — no duplicated business logic
-    return repository.login(params.phone, params.password);
+    // Delegate entirely to the repository — no duplicated business logic.
+    // isGoogleLogin must be forwarded explicitly: it used to stop here,
+    // silently always reaching the data source as the default '0'.
+    return repository.login(
+      params.phone,
+      params.password,
+      isGoogleLogin: params.isGoogleLogin,
+    );
   }
 }
 
@@ -35,9 +41,14 @@ class LoginParams extends Equatable {
   /// backend's expected form happens in the data layer.
   final String phone;
   final String password;
+  final String isGoogleLogin;
 
-  const LoginParams({required this.phone, required this.password});
+  const LoginParams({
+    required this.phone,
+    required this.password,
+    this.isGoogleLogin = '0',
+  });
 
   @override
-  List<Object> get props => [phone, password];
+  List<Object> get props => [phone, password, isGoogleLogin];
 }

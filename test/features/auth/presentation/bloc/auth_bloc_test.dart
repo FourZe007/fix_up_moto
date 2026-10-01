@@ -10,7 +10,6 @@ import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/get_current_user_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/get_google_identity_usecase.dart';
-import 'package:fix_up_moto/features/auth/domain/usecases/get_remembered_google_phone_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/login_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/logout_usecase.dart';
 import 'package:fix_up_moto/features/auth/domain/usecases/register_usecase.dart';
@@ -37,9 +36,6 @@ class MockGetGoogleIdentityUseCase extends Mock
 class MockSubmitGoogleAccountUseCase extends Mock
     implements SubmitGoogleAccountUseCase {}
 
-class MockGetRememberedGooglePhoneUseCase extends Mock
-    implements GetRememberedGooglePhoneUseCase {}
-
 void main() {
   // Use cases shared across all test groups.
   late MockLoginUseCase mockLogin;
@@ -48,7 +44,6 @@ void main() {
   late MockGetCurrentUserUseCase mockGetCurrentUser;
   late MockGetGoogleIdentityUseCase mockGetGoogleIdentity;
   late MockSubmitGoogleAccountUseCase mockSubmitGoogleAccount;
-  late MockGetRememberedGooglePhoneUseCase mockGetRememberedGooglePhone;
 
   // Shared test data.
   const tUser = UserEntity(
@@ -82,16 +77,6 @@ void main() {
     mockGetCurrentUser = MockGetCurrentUserUseCase();
     mockGetGoogleIdentity = MockGetGoogleIdentityUseCase();
     mockSubmitGoogleAccount = MockSubmitGoogleAccountUseCase();
-    mockGetRememberedGooglePhone = MockGetRememberedGooglePhoneUseCase();
-
-    // Default: "never seen this Google account before". Every successful
-    // AuthGoogleIdentityRequested now consults this use case, so tests that
-    // don't care about the remembered-phone path (most of them) need this
-    // stubbed or mocktail throws a MissingStubError. Individual tests below
-    // override it to exercise the remembered-login path instead.
-    when(
-      () => mockGetRememberedGooglePhone(any()),
-    ).thenAnswer((_) async => const Right(null));
   });
 
   // Helper that builds the BLoC under test with all mocked dependencies.
@@ -102,7 +87,6 @@ void main() {
     getCurrentUserUseCase: mockGetCurrentUser,
     getGoogleIdentityUseCase: mockGetGoogleIdentity,
     submitGoogleAccountUseCase: mockSubmitGoogleAccount,
-    getRememberedGooglePhoneUseCase: mockGetRememberedGooglePhone,
   );
 
   // ── Initial state ─────────────────────────────────────────────────────────
@@ -191,6 +175,12 @@ void main() {
         when(
           () => mockGetGoogleIdentity(),
         ).thenAnswer((_) async => const Right(tIdentity));
+        // _resumeOrCompleteGoogleProfile now always tries a direct login
+        // first — "not registered yet" is what should fall through to the
+        // complete-profile form.
+        when(() => mockLogin(any())).thenAnswer(
+          (_) async => const Left(AuthFailure('Invalid phone number or password')),
+        );
         return buildBloc();
       },
       act: (bloc) => bloc.add(const AuthGoogleIdentityRequested()),
@@ -241,20 +231,18 @@ void main() {
       ],
     );
 
-    // ── Returning Google account (remembered phone) ─────────────────────────
-    // This device has completed Google sign-up for this email before, so the
-    // complete-profile form should be skipped entirely.
+    // ── Returning Google account (direct email login) ───────────────────────
+    // Email is the actual login credential for a Google account, so an
+    // existing one logs straight in from any device — no per-device cache
+    // involved any more.
 
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthAuthenticated] — skipping the form — when a '
-      'remembered phone logs in successfully',
+      'direct login with the Google email succeeds',
       build: () {
         when(
           () => mockGetGoogleIdentity(),
         ).thenAnswer((_) async => const Right(tIdentity));
-        when(
-          () => mockGetRememberedGooglePhone(tIdentity.email),
-        ).thenAnswer((_) async => const Right(tPhone));
         when(
           () => mockLogin(any()),
         ).thenAnswer((_) async => const Right(tUser));
@@ -266,31 +254,28 @@ void main() {
       verify: (_) => verify(
         () => mockLogin(
           LoginParams(
-            phone: tPhone,
+            phone: tIdentity.email,
             password: GooglePassword.forNameFromEmail(tIdentity.email),
+            isGoogleLogin: '1',
           ),
         ),
       ).called(1),
     );
 
     blocTest<AuthBloc, AuthState>(
-      'falls back to AuthGoogleIdentityObtained when the remembered phone no '
-      'longer logs in',
+      'falls back to AuthGoogleIdentityObtained when the direct login fails',
       build: () {
         when(
           () => mockGetGoogleIdentity(),
         ).thenAnswer((_) async => const Right(tIdentity));
-        when(
-          () => mockGetRememberedGooglePhone(tIdentity.email),
-        ).thenAnswer((_) async => const Right(tPhone));
         when(() => mockLogin(any())).thenAnswer(
           (_) async => const Left(AuthFailure('Membership disabled')),
         );
         return buildBloc();
       },
       act: (bloc) => bloc.add(const AuthGoogleIdentityRequested()),
-      // A stale or invalidated mapping must not dead-end the user — it falls
-      // through to the ordinary form instead of showing a raw error.
+      // Not registered yet, or the membership was disabled since — either
+      // way this falls through to the ordinary form instead of a raw error.
       expect: () => [
         isA<AuthLoading>(),
         predicate<AuthState>(

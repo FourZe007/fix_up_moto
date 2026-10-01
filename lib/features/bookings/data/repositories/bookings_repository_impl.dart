@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
+import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
 import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 import 'package:fix_up_moto/features/bookings/domain/repositories/bookings_repository.dart';
@@ -57,8 +58,8 @@ class BookingsRepositoryImpl implements BookingsRepository {
   }
 
   @override
-  Future<Either<Failure, BookingEntity>> createBooking({
-    required String serviceId,
+  Future<Either<Failure, ResultMessageModel>> createBooking({
+    // required String serviceId,
     required DateTime scheduledAt,
     required String branch,
     required String shop,
@@ -81,7 +82,7 @@ class BookingsRepositoryImpl implements BookingsRepository {
 
       try {
         final model = await remoteDataSource.createBooking(
-          serviceId: serviceId,
+          // serviceId: serviceId,
           scheduledAt: scheduledAt,
           branch: branch,
           shop: shop,
@@ -96,7 +97,7 @@ class BookingsRepositoryImpl implements BookingsRepository {
           memberId: user.id,
         );
 
-        return Right(model.toEntity());
+        return Right(model);
       } on UnauthorizedException {
         return const Left(
           AuthFailure('Session expired. Please sign in again.'),

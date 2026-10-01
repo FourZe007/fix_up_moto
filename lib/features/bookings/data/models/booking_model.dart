@@ -65,9 +65,7 @@ class BookingModel {
       plateNo: plateNo,
       unitId: unitId,
       status: status,
-      notes: (trimmedNotes == null || trimmedNotes.isEmpty)
-          ? null
-          : trimmedNotes,
+      notes: (trimmedNotes == null || trimmedNotes.isEmpty) ? '' : trimmedNotes,
     );
   }
 }

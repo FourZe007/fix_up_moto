@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/features/bookings/domain/usecases/cancel_booking_usecase.dart';
 import 'package:fix_up_moto/features/bookings/domain/usecases/create_booking_usecase.dart';
@@ -14,10 +16,10 @@ class BookingsBloc extends Bloc<BookingsEvent, BookingsState> {
     required GetBookingsUseCase getBookings,
     required CreateBookingUseCase createBooking,
     required CancelBookingUseCase cancelBooking,
-  })  : _getBookings = getBookings,
-        _createBooking = createBooking,
-        _cancelBooking = cancelBooking,
-        super(const BookingsInitial()) {
+  }) : _getBookings = getBookings,
+       _createBooking = createBooking,
+       _cancelBooking = cancelBooking,
+       super(const BookingsInitial()) {
     on<BookingsListRequested>(_onListRequested);
     on<BookingCreateRequested>(_onCreateRequested);
     on<BookingCancelRequested>(_onCancelRequested);
@@ -39,10 +41,11 @@ class BookingsBloc extends Bloc<BookingsEvent, BookingsState> {
     BookingCreateRequested event,
     Emitter<BookingsState> emit,
   ) async {
+    log('onCreateRequested: ${event.toString()}');
     emit(const BookingsLoading());
     final result = await _createBooking(
       CreateBookingParams(
-        serviceId: event.serviceId,
+        // serviceId: event.serviceId,
         scheduledAt: event.scheduledAt,
         branch: event.branch,
         shop: event.shop,
@@ -51,6 +54,7 @@ class BookingsBloc extends Bloc<BookingsEvent, BookingsState> {
         notes: event.notes,
       ),
     );
+
     result.fold(
       (f) => emit(BookingsError(f.message)),
       // Emit success then re-load the list so it reflects the new booking
@@ -67,12 +71,9 @@ class BookingsBloc extends Bloc<BookingsEvent, BookingsState> {
   ) async {
     emit(const BookingsLoading());
     final result = await _cancelBooking(CancelBookingParams(event.bookingId));
-    result.fold(
-      (f) => emit(BookingsError(f.message)),
-      (_) {
-        emit(const BookingActionSuccess('Booking cancelled'));
-        add(const BookingsListRequested());
-      },
-    );
+    result.fold((f) => emit(BookingsError(f.message)), (_) {
+      emit(const BookingActionSuccess('Booking cancelled'));
+      add(const BookingsListRequested());
+    });
   }
 }

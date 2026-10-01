@@ -8,7 +8,7 @@ import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/helpers/google_password.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/network/samp_envelope.dart';
-import 'package:fix_up_moto/features/auth/data/models/user_model.dart';
+import 'package:fix_up_moto/features/auth/data/models/login_user_model.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 
 /// Contract for all authentication HTTP calls.
@@ -16,13 +16,21 @@ import 'package:fix_up_moto/features/auth/domain/entities/google_account_identit
 abstract class AuthRemoteDataSource {
   /// Sends login credentials to the API.
   ///
-  /// [phone] is accepted as the member typed it and normalised here.
-  /// Returns a [UserModel] parsed from the response on success.
+  /// [identifier] is a phone number for a manual login (normalised to the
+  /// subscriber form here) or an email for a Google login — Google-derived
+  /// accounts use their email as the credential, and it's sent through
+  /// untouched when [isGoogleLogin] is `'1'`, since the phone-normalisation
+  /// rule would otherwise strip every letter out of it.
+  /// Returns a [LoginUserModel] parsed from the response on success.
   /// Throws [UnauthorizedException] on 401, [AccountInactiveException] when the
   /// membership is barred, [ServerException] on other errors.
-  Future<UserModel> login(String phone, String password);
+  Future<LoginUserModel> login(
+    String identifier,
+    String password, {
+    String isGoogleLogin = '0',
+  });
 
-  /// Registers a new account and returns the created [UserModel].
+  /// Registers a new account and returns the created [LoginUserModel].
   ///
   /// [name], [phone], and [password] are mandatory; [email] is optional.
   /// Uses the same real contract as [submitGoogleAccount]'s registration
@@ -32,7 +40,7 @@ abstract class AuthRemoteDataSource {
   /// password here is exactly what the user typed, never a derived one.
   ///
   /// Throws [ServerException] on failure.
-  Future<UserModel> register({
+  Future<LoginUserModel> register({
     required String name,
     required String phone,
     String? email,
@@ -60,7 +68,7 @@ abstract class AuthRemoteDataSource {
   ///
   /// Throws [AccountInactiveException] when a matching membership exists but
   /// is barred, [ServerException] on other failures.
-  Future<UserModel> submitGoogleAccount({
+  Future<LoginUserModel> submitGoogleAccount({
     required String name,
     required String phone,
     required String email,
@@ -80,26 +88,39 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   AuthRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<UserModel> login(String phone, String password) async {
+  Future<LoginUserModel> login(
+    String identifier,
+    String password, {
+    String isGoogleLogin = '0',
+  }) async {
     try {
+      // Google accounts log in with their email as the credential — running
+      // it through toSubscriberNumber() would strip every letter out of it
+      // (that function is built for phone numbers), so only normalise for a
+      // manual, phone-based login.
+      final credential = isGoogleLogin == '1'
+          ? identifier
+          : PhoneNumber.toSubscriberNumber(identifier);
       log('dio post');
-      log('Phone number: ${PhoneNumber.toSubscriberNumber(phone)}');
+      log('Credential sent as PhoneNo: $credential');
       log('Descrypted password: $password');
       final response = await _dio.post(
         ApiConstants.login,
         data: {
-          // The backend wants the bare subscriber number — '081234567890' as
-          // typed becomes '81234567890'. Normalising at this boundary keeps the
-          // form forgiving without the rest of the app knowing the rule.
-          'PhoneNo': PhoneNumber.toSubscriberNumber(phone),
+          // The backend wants the bare subscriber number for a manual login —
+          // '081234567890' as typed becomes '81234567890'. Normalising at this
+          // boundary keeps the form forgiving without the rest of the app
+          // knowing the rule. A Google login sends the email as-is instead.
+          'PhoneNo': credential,
           'DecryptedPassword': password,
+          'isGoogle': isGoogleLogin,
         },
       );
       log('Login response: $response');
 
       // SAMP returns the member record as the single element of `Data`.
-      log('Changing JSON return data into UserModel');
-      final user = UserModel.fromJson(SampEnvelope.first(response));
+      log('Changing JSON return data into LoginUserModel');
+      final user = LoginUserModel.fromJson(SampEnvelope.first(response));
 
       // A parsed record is not yet a valid session. SAMP answers "successfully"
       // with a member whose `Active` flag is false — the same shape as SIP
@@ -122,7 +143,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<UserModel> register({
+  Future<LoginUserModel> register({
     required String name,
     required String phone,
     String? email,
@@ -151,7 +172,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     // Same reasoning as submitGoogleAccount's Phase 3: Modify's own success
     // response shape has not been confirmed, while login's has — so fetch
     // the canonical member record through the trusted path instead of
-    // parsing Modify's result directly.
+    // parsing Modify's result directly. This is the manual registration
+    // form, never Google, so isGoogleLogin stays at its default — passing
+    // '1' here (as a previous edit did) would skip phone normalisation on a
+    // real phone number.
     return login(phone, password);
   }
 
@@ -203,7 +227,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<UserModel> submitGoogleAccount({
+  Future<LoginUserModel> submitGoogleAccount({
     required String name,
     required String phone,
     required String email,
@@ -211,20 +235,27 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     // Deterministic and never shown in the UI — see GooglePassword's doc for
     // why a Google-originated account needs a password at all.
     final password = GooglePassword.forNameFromEmail(email);
-    log('User Phone Number: $phone');
+    log('User Email (credential): $email');
     log('User Google Password: $password');
-    log('User Email: $email');
+    // [phone] is contact info only — collected by the complete-profile form,
+    // but not sent anywhere here. The credential for a Google account is its
+    // email (stable, already verified by Google), not this phone number;
+    // there's no confirmed backend field yet for storing a real contact
+    // phone alongside a Google-derived account.
+    log('User Phone (contact info, not sent): $phone');
 
-    // ── Phase 1: does this phone already have an account? ───────────────────
+    // ── Phase 1: does this email already have an account? ───────────────────
     // There is no endpoint that answers that directly, so a login attempt
-    // doubles as the check: if it succeeds, the phone was already registered
-    // (by a previous Google sign-up using this same derivation, or the
-    // password happens to match). AccountInactiveException means the account
-    // exists but is barred — surfaced as-is, never papered over by
-    // registering a duplicate.
+    // doubles as the check: if it succeeds, this email was already registered
+    // (by a previous Google sign-up using this same derivation). Returning
+    // immediately here — rather than falling through to Phase 2 regardless —
+    // is what stops every sign-in for an existing account from attempting a
+    // redundant (and potentially rejected-as-duplicate) re-registration.
     try {
       log('Attempt 1st Login');
-      await login(phone, password);
+      final existing = await login(email, password, isGoogleLogin: '1');
+      log('Phase 1 login succeeded — account already exists, skipping Phase 2');
+      return existing;
     }
     // on AccountInactiveException {
     //   log('Account Inactive Exception');
@@ -232,13 +263,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     // }
     on ServerException {
       log('Server Exception');
-      // PLACEHOLDER: the real Flag/Memo values for "phone not found" vs
-      // "phone found, wrong password" are not yet confirmed (see
-      // ApiConstants.login). Until they are, any server-reported login
-      // failure here is read as "not registered yet" and falls through to
-      // registration below. If the phone actually belongs to a different,
-      // unrelated account, Phase 2's Modify call is expected to reject the
-      // duplicate — at which point that failure needs a case here too.
+      // PLACEHOLDER: the real Flag/Memo values for "not found" vs "found,
+      // wrong password" are not yet confirmed (see ApiConstants.login).
+      // Until they are, any server-reported login failure here is read as
+      // "not registered yet" and falls through to registration below.
     } on UnauthorizedException {
       log('UnauthorizedException');
       // Same placeholder reasoning as above.
@@ -253,12 +281,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           'Mode': ModifyMode.create.wireValue,
           'TransID': 'REGISTRATION',
           'Data': {
-            'MemberID': '', // blank = new account, per the confirmed contract
             'MemberName': name,
             'MemberPass': password,
-            'PhoneNo': PhoneNumber.toSubscriberNumber(phone),
+            // Email is the credential (PhoneNo is this backend's generic
+            // "username" field) — not the real phone collected above.
+            'PhoneNo': email,
             'EmailAddress': email,
-            'OldPass': '',
           },
         },
       );
@@ -269,8 +297,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     // ── Phase 3: log in for real ─────────────────────────────────────────────
     // Deliberately a second call rather than parsing Modify's own response:
     // Modify's success shape has not been confirmed, while login's has. This
-    // way the resulting UserModel goes through the exact same parsing and
+    // way the resulting LoginUserModel goes through the exact same parsing and
     // isActive gate as every other login, manual or Google.
-    return login(phone, password);
+    return login(email, password, isGoogleLogin: '1');
   }
 }

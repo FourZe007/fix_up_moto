@@ -1,24 +1,36 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 
-// Tells build_runner to generate _$UserModelFromJson / _$UserModelToJson.
+// Tells build_runner to generate _$LoginUserModelFromJson / _$LoginUserModelToJson.
 // Run: dart run build_runner build --delete-conflicting-outputs
-part 'user_model.g.dart';
+part 'login_user_model.g.dart';
 
-/// Data-layer JSON model for a user API response / local cache entry.
+/// Data-layer JSON model for the **login/register/Google-session** response
+/// and the locally-cached session — not for the richer Profile
+/// (`BrowseMember`) response, which has its own [ProfileModel] with
+/// different JSON keys for some of the same information (e.g. `Active`
+/// instead of `Flag`, `Status` instead of `Memo`) plus extra fields
+/// (`Qty`, `Point`) this response doesn't have at all.
+///
+/// Fields match a real confirmed login response exactly:
+/// ```json
+/// { "Flag": 1, "Memo": "SUKSES", "MemberID": "0101202400000014",
+///   "MemberName": "ANTONIUS", "EmailAddress": "-" }
+/// ```
+/// `PhoneNo`/`avatar_url`/`created_at` were removed — none of them are ever
+/// actually present in this response, so they were always null in practice.
 ///
 /// **Why not extend [UserEntity]?**
 /// Extending an entity and re-declaring its fields triggers Dart's
 /// "field overrides a field" error. The idiomatic solution is composition:
-/// [UserModel] is a standalone JSON-serialisable class in the Data layer,
+/// [LoginUserModel] is a standalone JSON-serialisable class in the Data layer,
 /// and [toEntity()] converts it into the Domain type returned to callers.
 ///
-/// [UserModel] never leaves the Data layer — repository impls return [UserEntity].
+/// [LoginUserModel] never leaves the Data layer — repository impls return
+/// [UserEntity].
 @JsonSerializable()
-class UserModel {
+class LoginUserModel {
   /// @JsonKey maps the API's PascalCase field to the Dart camelCase property.
-  /// The key names below match the live SAMP member record — the same schema
-  /// `DashboardStatsModel` parses from `/apiSAMP/BrowseTrans`.
   @JsonKey(name: 'MemberID')
   final String id;
 
@@ -27,10 +39,6 @@ class UserModel {
 
   @JsonKey(name: 'EmailAddress')
   final String? email;
-
-  /// Optional — may be absent for users who haven't added a phone number.
-  @JsonKey(name: 'PhoneNo')
-  final String? phone;
 
   /// Whether the membership may sign in — see [UserEntity.active].
   ///
@@ -42,68 +50,61 @@ class UserModel {
   @JsonKey(name: 'Flag', fromJson: _boolFromJson)
   final bool isActive;
 
-  /// The server's own message about the membership state.
+  /// The server's own message about the membership state. Login's key for
+  /// this is `Memo`, unlike Profile's `Status`.
   @JsonKey(name: 'Memo')
   final String status;
 
-  /// Not part of the SAMP member record — stays null until an endpoint provides
-  /// it. json_serializable leaves absent nullable fields null, so no work needed.
-  @JsonKey(name: 'avatar_url')
-  final String? avatarUrl;
+  /// Whether this member account originated from Google sign-in (see
+  /// `GooglePassword` for how those accounts get their synthetic password).
+  /// A string, not a bool, per the backend's actual wire type — defaults to
+  /// `'0'` when the key is missing from the response.
+  @JsonKey(name: 'isGoogle', defaultValue: '0')
+  final String isGoogleLogin;
 
-  /// ISO-8601 string from the API is converted to [DateTime] via the helper below.
-  /// Also absent from the SAMP record — see [avatarUrl].
-  @JsonKey(name: 'created_at', fromJson: _dateFromJson, toJson: _dateToJson)
-  final DateTime? createdAt;
-
-  const UserModel({
+  const LoginUserModel({
     required this.id,
     required this.name,
     required this.status,
     required this.isActive,
-    this.email,
-    this.phone,
-    this.avatarUrl,
-    this.createdAt,
+    required this.email,
+    this.isGoogleLogin = '0',
   });
 
-  /// Deserialises a JSON map (API response body) into a [UserModel].
-  /// The generated implementation lives in user_model.g.dart.
-  factory UserModel.fromJson(Map<String, dynamic> json) =>
-      _$UserModelFromJson(json);
+  /// Deserialises a JSON map (API response body) into a [LoginUserModel].
+  /// The generated implementation lives in login_user_model.g.dart.
+  factory LoginUserModel.fromJson(Map<String, dynamic> json) =>
+      _$LoginUserModelFromJson(json);
 
   /// Serialises this model to a JSON map for writing to local cache.
-  Map<String, dynamic> toJson() => _$UserModelToJson(this);
+  Map<String, dynamic> toJson() => _$LoginUserModelToJson(this);
 
   /// Converts this Data-layer model into the Domain-layer [UserEntity].
   /// Called by repository implementations before returning to use cases.
+  /// `phone`/`avatarUrl`/`createdAt` aren't set here — this response never
+  /// carries them, so they stay null on the resulting entity.
   UserEntity toEntity() => UserEntity(
     id: id,
     name: name,
     email: email,
     isActive: isActive,
     status: status,
-    phone: phone,
-    avatarUrl: avatarUrl,
-    createdAt: createdAt,
   );
 
-  /// Creates a [UserModel] from a [UserEntity] — used when caching an entity
-  /// that was received from a source other than JSON (e.g. after a profile update).
-  factory UserModel.fromEntity(UserEntity entity) => UserModel(
+  /// Creates a [LoginUserModel] from a [UserEntity] — used when caching an
+  /// entity that was received from a source other than JSON (e.g. after a
+  /// profile update).
+  factory LoginUserModel.fromEntity(UserEntity entity) => LoginUserModel(
     id: entity.id,
     name: entity.name,
     email: entity.email,
     isActive: entity.isActive,
     status: entity.status,
-    phone: entity.phone,
-    avatarUrl: entity.avatarUrl,
-    createdAt: entity.createdAt,
   );
 }
 
 // ── Converter helpers ──────────────────────────────────────────────────────
-// Used via @JsonKey(fromJson: ..., toJson: ...).
+// Used via @JsonKey(fromJson: ...).
 
 /// Reads a flag that the backend may express as a bool, an int, or a string.
 ///
@@ -119,8 +120,3 @@ bool _boolFromJson(dynamic value) {
   }
   return false;
 }
-
-DateTime? _dateFromJson(String? value) =>
-    value == null ? null : DateTime.tryParse(value)?.toLocal();
-
-String? _dateToJson(DateTime? value) => value?.toUtc().toIso8601String();

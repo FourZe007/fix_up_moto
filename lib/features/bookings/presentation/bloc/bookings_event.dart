@@ -13,7 +13,7 @@ final class BookingsListRequested extends BookingsEvent {
 
 /// Create a new booking.
 final class BookingCreateRequested extends BookingsEvent {
-  final String serviceId;
+  // final String serviceId;
   final DateTime scheduledAt;
   final String branch;
   final String shop;
@@ -22,7 +22,7 @@ final class BookingCreateRequested extends BookingsEvent {
   final String? notes;
 
   const BookingCreateRequested({
-    required this.serviceId,
+    // required this.serviceId,
     required this.scheduledAt,
     required this.branch,
     required this.shop,
@@ -33,7 +33,7 @@ final class BookingCreateRequested extends BookingsEvent {
 
   @override
   List<Object?> get props => [
-    serviceId,
+    // serviceId,
     scheduledAt,
     branch,
     shop,

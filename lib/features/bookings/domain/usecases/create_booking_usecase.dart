@@ -1,18 +1,19 @@
 import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
+import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/core/usecases/usecase.dart';
-import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 import 'package:fix_up_moto/features/bookings/domain/repositories/bookings_repository.dart';
 
-class CreateBookingUseCase extends UseCase<BookingEntity, CreateBookingParams> {
+class CreateBookingUseCase
+    extends UseCase<ResultMessageModel, CreateBookingParams> {
   final BookingsRepository repository;
   CreateBookingUseCase(this.repository);
 
   @override
-  Future<Either<Failure, BookingEntity>> call(CreateBookingParams params) {
+  Future<Either<Failure, ResultMessageModel>> call(CreateBookingParams params) {
     return repository.createBooking(
-      serviceId: params.serviceId,
+      // serviceId: params.serviceId,
       scheduledAt: params.scheduledAt,
       branch: params.branch,
       shop: params.shop,
@@ -24,7 +25,7 @@ class CreateBookingUseCase extends UseCase<BookingEntity, CreateBookingParams> {
 }
 
 class CreateBookingParams extends Equatable {
-  final String serviceId;
+  // final String serviceId;
   final DateTime scheduledAt;
   final String branch;
   final String shop;
@@ -33,7 +34,7 @@ class CreateBookingParams extends Equatable {
   final String? notes;
 
   const CreateBookingParams({
-    required this.serviceId,
+    // required this.serviceId,
     required this.scheduledAt,
     required this.branch,
     required this.shop,
@@ -44,7 +45,7 @@ class CreateBookingParams extends Equatable {
 
   @override
   List<Object?> get props => [
-    serviceId,
+    // serviceId,
     scheduledAt,
     branch,
     shop,

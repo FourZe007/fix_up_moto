@@ -282,7 +282,7 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
     if (picked != null && mounted) setState(() => _selectedBike = picked);
   }
 
-  void _submit(String serviceId) {
+  void _submit() {
     if (_selectedDate == null || _selectedTimeSlot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a date and time')),
@@ -311,7 +311,7 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
 
     context.read<BookingsBloc>().add(
       BookingCreateRequested(
-        serviceId: serviceId,
+        // serviceId: serviceId,
         scheduledAt: scheduledAt,
         branch: workshop.branch,
         shop: workshop.shop,
@@ -326,9 +326,6 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
 
   @override
   Widget build(BuildContext context) {
-    // TODO: pass serviceId via GoRouter extras or path parameter
-    const serviceId = 'placeholder-service-id';
-
     return Scaffold(
       // Matches AppBarTheme.backgroundColor (app_theme.dart) so the two read
       // as one continuous orange surface — this is what shows through the
@@ -351,8 +348,25 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
           child: BlocListener<BookingsBloc, BookingsState>(
             listener: (context, state) {
               if (state is BookingActionSuccess) {
+                // Captured once, as an object — not re-derived from context
+                // inside the action below, since context.pop() right after
+                // this deactivates CreateBookingPage's own context. A
+                // ScaffoldMessengerState reference stays valid regardless;
+                // looking it up again from a deactivated context is what
+                // throws "Looking up a deactivated widget's ancestor".
+                final messenger = ScaffoldMessenger.of(context);
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(state.message.toLowerCase()),
+                    action: SnackBarAction(
+                      label: 'Tutup',
+                      onPressed: messenger.clearSnackBars,
+                    ),
+                  ),
+                );
+
                 // Pop back to the bookings list after a successful booking
-                Navigator.of(context).pop();
+                context.pop();
               } else if (state is BookingsError) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -412,7 +426,7 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
                   ),
                   const Spacer(),
                   ElevatedButton(
-                    onPressed: () => _submit(serviceId),
+                    onPressed: () => _submit(),
                     child: const Text('Confirm Booking'),
                   ),
                 ],
