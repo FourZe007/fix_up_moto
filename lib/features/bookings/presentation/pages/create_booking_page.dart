@@ -425,9 +425,28 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
                     ),
                   ),
                   const Spacer(),
-                  ElevatedButton(
-                    onPressed: () => _submit(),
-                    child: const Text('Confirm Booking'),
+                  // This page's BookingsBloc is its own instance (see
+                  // CreateBookingPage), so BookingsLoading here can only mean
+                  // "the booking is being created" — never a list refresh.
+                  BlocBuilder<BookingsBloc, BookingsState>(
+                    builder: (context, state) {
+                      final isLoading = state is BookingsLoading;
+                      return ElevatedButton(
+                        // Disabled while in flight to prevent a double-tap
+                        // from creating the same booking twice.
+                        onPressed: isLoading ? null : _submit,
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Confirm Booking'),
+                      );
+                    },
                   ),
                 ],
               ),

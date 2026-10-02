@@ -8,7 +8,11 @@ import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/bookings/data/models/booking_model.dart';
 
 abstract class BookingsRemoteDataSource {
-  Future<List<BookingModel>> getBookings(String memberId);
+  Future<List<BookingModel>> getBookings(
+    String memberId,
+    DateTime beginDate,
+    DateTime endDate,
+  );
   Future<ResultMessageModel> createBooking({
     // required String serviceId,
     required DateTime scheduledAt,
@@ -29,15 +33,20 @@ class BookingsRemoteDataSourceImpl implements BookingsRemoteDataSource {
   BookingsRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<List<BookingModel>> getBookings(String memberId) async {
+  Future<List<BookingModel>> getBookings(
+    String memberId,
+    DateTime beginDate,
+    DateTime endDate,
+  ) async {
     try {
       final response = await _dio.post(
         ApiConstants.browseTrans,
         data: {
           'Jenis': 'SERVICEBOOKINGHISTORYBYMEMBER',
           'MemberID': memberId,
-          'BeginDate': '',
-          'EndDate': '',
+          // Same yyyy-MM-dd wire format as BookDate.
+          'BeginDate': DateTimeFormatter.fromUtcToDate(beginDate),
+          'EndDate': DateTimeFormatter.fromUtcToDate(endDate),
         },
       );
       return SampEnvelope.rows(response).map(BookingModel.fromJson).toList();

@@ -179,7 +179,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         isGoogleLogin: '1',
       ),
     );
-    log('loginResult: $loginResult', name: 'Auth Bloc');
+    log('loginResult: $loginResult', name: 'AuthBloc');
 
     loginResult.fold(
       (failure) {

@@ -57,6 +57,17 @@ class AuthRepositoryImpl implements AuthRepository {
         isGoogleLogin: isGoogleLogin,
       );
 
+      // Flag is a raw status code, not just true/false — 1 means the account
+      // exists (the ordinary success path), 2 means it doesn't. Anything
+      // else is an unconfirmed value, so it falls through to the existing
+      // behavior rather than guessing a new rejection rule for it.
+      switch (userModel.flag) {
+        case 1:
+          break; // falls through to the success path below
+        case 2:
+          return const Left(NotFoundFailure('Account not found'));
+      }
+
       // Persist the user in secure storage so the next launch skips login
       await localDataSource.cacheUser(userModel);
 

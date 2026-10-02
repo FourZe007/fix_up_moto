@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart' show DateTimeRange;
 
 sealed class BookingsEvent extends Equatable {
   const BookingsEvent();
@@ -6,9 +7,16 @@ sealed class BookingsEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Load (or refresh) the booking list.
+/// Load (or refresh) the booking list for [range] — sent to the backend as
+/// `BeginDate`/`EndDate`. Required and non-null: the whole chain below needs
+/// both dates, so the compiler rules out "no range" here rather than the
+/// BLoC having to guess a fallback window at runtime.
 final class BookingsListRequested extends BookingsEvent {
-  const BookingsListRequested();
+  final DateTimeRange range;
+  const BookingsListRequested({required this.range});
+
+  @override
+  List<Object?> get props => [range];
 }
 
 /// Create a new booking.

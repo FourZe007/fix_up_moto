@@ -37,8 +37,9 @@ void main() {
     id: 'M-001',
     name: 'Test Member',
     email: tEmail,
-    isActive: true,
+    flag: 1,
     status: 'Active',
+    isGoogleLogin: '0',
   );
 
   setUpAll(() {

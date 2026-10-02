@@ -26,7 +26,10 @@ class BookingsRepositoryImpl implements BookingsRepository {
   });
 
   @override
-  Future<Either<Failure, List<BookingEntity>>> getBookings() async {
+  Future<Either<Failure, List<BookingEntity>>> getBookings(
+    DateTime beginDate,
+    DateTime endDate,
+  ) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
     }
@@ -41,7 +44,11 @@ class BookingsRepositoryImpl implements BookingsRepository {
       }
 
       try {
-        final models = await remoteDataSource.getBookings(user.id);
+        final models = await remoteDataSource.getBookings(
+          user.id,
+          beginDate,
+          endDate,
+        );
         return Right(models.map((m) => m.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(
@@ -90,9 +97,11 @@ class BookingsRepositoryImpl implements BookingsRepository {
           unitId: unitId,
           // Resolved from the same cached session as memberId, not threaded
           // from the UI — the user's own name/phone aren't something the
-          // booking form should be collecting input for.
+          // booking form should be collecting input for. loginId is the
+          // PhoneNo credential itself: the phone number for a manual account,
+          // the email for a Google one.
           uName: user.name,
-          uPhoneNo: user.phone ?? '',
+          uPhoneNo: user.loginId ?? '',
           notes: notes,
           memberId: user.id,
         );

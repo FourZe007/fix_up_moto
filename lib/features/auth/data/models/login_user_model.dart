@@ -40,15 +40,18 @@ class LoginUserModel {
   @JsonKey(name: 'EmailAddress')
   final String? email;
 
-  /// Whether the membership may sign in — see [UserEntity.active].
-  ///
-  /// Read through [_boolFromJson] because this family of endpoints is not
-  /// consistent about flag types: SIP Sales' backend returned them as ints
-  /// (`Flag: 1`, `LoginOK: 1`) while `DashboardStatsModel` receives a real
-  /// bool. Accepting both costs nothing and avoids a crash on a type we can't
-  /// verify until the endpoint is confirmed.
-  @JsonKey(name: 'Flag', fromJson: _boolFromJson)
-  final bool isActive;
+  /// The raw `Flag` value — not just true/false. `1` means the account
+  /// exists (the ordinary success path), `2` means it doesn't; see
+  /// [AuthRepositoryImpl.login]'s checker. Read through [_intFromJson]
+  /// because this family of endpoints isn't consistent about numeric
+  /// types: the backend may send a real number or a numeric string.
+  @JsonKey(name: 'Flag', fromJson: _intFromJson)
+  final int flag;
+
+  /// Whether the membership may sign in — see [UserEntity.active]. Derived
+  /// from [flag] rather than its own JSON field, since json_serializable
+  /// won't map two fields from the same `Flag` key.
+  bool get isActive => flag == 1;
 
   /// The server's own message about the membership state. Login's key for
   /// this is `Memo`, unlike Profile's `Status`.
@@ -62,14 +65,35 @@ class LoginUserModel {
   @JsonKey(name: 'isGoogle', defaultValue: '0')
   final String isGoogleLogin;
 
+  /// The credential this session was signed in with — the value sent as
+  /// `PhoneNo` at login: a normalised phone number for a manual account, the
+  /// email for a Google one. The login response never echoes it (nor
+  /// `isGoogle`), so `AuthRemoteDataSourceImpl.login` stamps it on after
+  /// parsing via [copyWith]; it then rides along in the cached session.
+  /// `null` only for sessions cached before this field existed.
+  @JsonKey(name: 'PhoneNo')
+  final String? loginId;
+
   const LoginUserModel({
     required this.id,
     required this.name,
     required this.status,
-    required this.isActive,
+    required this.flag,
     required this.email,
-    this.isGoogleLogin = '0',
+    required this.isGoogleLogin,
+    this.loginId,
   });
+
+  LoginUserModel copyWith({String? isGoogleLogin, String? loginId}) =>
+      LoginUserModel(
+        id: id,
+        name: name,
+        status: status,
+        flag: flag,
+        email: email,
+        isGoogleLogin: isGoogleLogin ?? this.isGoogleLogin,
+        loginId: loginId ?? this.loginId,
+      );
 
   /// Deserialises a JSON map (API response body) into a [LoginUserModel].
   /// The generated implementation lives in login_user_model.g.dart.
@@ -89,34 +113,35 @@ class LoginUserModel {
     email: email,
     isActive: isActive,
     status: status,
+    isGoogle: isGoogleLogin,
+    loginId: loginId,
   );
 
   /// Creates a [LoginUserModel] from a [UserEntity] — used when caching an
   /// entity that was received from a source other than JSON (e.g. after a
-  /// profile update).
+  /// profile update). [UserEntity] has no concept of the raw Flag code, so
+  /// it's re-derived from [UserEntity.isActive] instead.
   factory LoginUserModel.fromEntity(UserEntity entity) => LoginUserModel(
     id: entity.id,
     name: entity.name,
     email: entity.email,
-    isActive: entity.isActive,
+    flag: entity.isActive ? 1 : 0,
     status: entity.status,
+    isGoogleLogin: entity.isGoogle,
+    loginId: entity.loginId,
   );
 }
 
 // ── Converter helpers ──────────────────────────────────────────────────────
 // Used via @JsonKey(fromJson: ...).
 
-/// Reads a flag that the backend may express as a bool, an int, or a string.
-///
-/// Accepts `true`, `1`, `"1"`, `"true"`, `"Y"` — anything else, including null,
-/// is false. Defaulting an unrecognised value to false fails *closed*: an
-/// unparseable flag denies access rather than granting it.
-bool _boolFromJson(dynamic value) {
-  if (value is bool) return value;
-  if (value is num) return value == 1;
-  if (value is String) {
-    final normalised = value.trim().toLowerCase();
-    return normalised == '1' || normalised == 'true' || normalised == 'y';
-  }
-  return false;
+/// Reads [flag] as a plain int, whether the backend sends it as a number or
+/// a numeric string (e.g. `1` or `"1"`). Falls back to `0` for anything
+/// unparseable — a value AuthRepositoryImpl's checker doesn't treat as
+/// either "exists" (`1`) or "doesn't exist" (`2`).
+int _intFromJson(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim()) ?? 0;
+  return 0;
 }

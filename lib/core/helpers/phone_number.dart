@@ -16,6 +16,13 @@
 class PhoneNumber {
   PhoneNumber._(); // static-only class — never instantiated
 
+  /// True if [input] looks like an email address rather than a phone number
+  /// — i.e. it contains `@`, which no phone number ever does. Used to guard
+  /// [toSubscriberNumber] from being run on an email: that function strips
+  /// everything but digits, so feeding it an email silently mangles it down
+  /// to a handful of stray digits (or nothing) instead of failing loudly.
+  static bool looksLikeEmail(String input) => input.contains('@');
+
   /// Strips separators, the `+62`/`62` country code, and any leading zeros,
   /// returning the bare subscriber number the backend expects.
   ///

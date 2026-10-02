@@ -34,10 +34,10 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
         data: {
           'Jenis': type.toUpperCase(),
           'MemberID': memberId,
-          'MemberName': memberName,
-          'PlateNo': plateNo,
-          'PhoneNo': phoneNo,
-          'Status': status,
+          // 'MemberName': memberName,
+          // 'PlateNo': plateNo,
+          // 'PhoneNo': phoneNo,
+          // 'Status': status,
         },
       );
 

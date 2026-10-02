@@ -4,8 +4,12 @@ import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 
 abstract class BookingsRepository {
-  /// Returns all bookings for the authenticated user, newest first.
-  Future<Either<Failure, List<BookingEntity>>> getBookings();
+  /// Returns the authenticated user's bookings, newest first, bounded to
+  /// [beginDate]..[endDate] by the backend.
+  Future<Either<Failure, List<BookingEntity>>> getBookings(
+    DateTime beginDate,
+    DateTime endDate,
+  );
 
   /// Creates a new booking and returns the confirmed [BookingEntity].
   Future<Either<Failure, ResultMessageModel>> createBooking({

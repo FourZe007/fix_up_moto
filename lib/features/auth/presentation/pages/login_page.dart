@@ -1,8 +1,10 @@
+import 'dart:developer';
+
+import 'package:fix_up_moto/core/helpers/validators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
-import 'package:fix_up_moto/core/helpers/validators.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
@@ -35,6 +37,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _onLoginPressed() {
+    log('Username: ${_phoneController.text}');
     // Validate all fields before dispatching the event
     if (_formKey.currentState?.validate() ?? false) {
       context.read<AuthBloc>().add(

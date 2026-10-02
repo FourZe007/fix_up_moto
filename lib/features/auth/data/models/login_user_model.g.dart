@@ -11,9 +11,10 @@ LoginUserModel _$LoginUserModelFromJson(Map<String, dynamic> json) =>
       id: json['MemberID'] as String,
       name: json['MemberName'] as String,
       status: json['Memo'] as String,
-      isActive: _boolFromJson(json['Flag']),
+      flag: _intFromJson(json['Flag']),
       email: json['EmailAddress'] as String?,
       isGoogleLogin: json['isGoogle'] as String? ?? '0',
+      loginId: json['PhoneNo'] as String?,
     );
 
 Map<String, dynamic> _$LoginUserModelToJson(LoginUserModel instance) =>
@@ -21,7 +22,8 @@ Map<String, dynamic> _$LoginUserModelToJson(LoginUserModel instance) =>
       'MemberID': instance.id,
       'MemberName': instance.name,
       'EmailAddress': instance.email,
-      'Flag': instance.isActive,
+      'Flag': instance.flag,
       'Memo': instance.status,
       'isGoogle': instance.isGoogleLogin,
+      'PhoneNo': instance.loginId,
     };

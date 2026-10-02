@@ -33,9 +33,9 @@ class BookingsPage extends StatelessWidget {
         BlocProvider(
           create: (_) => sl<ServicesBloc>()..add(const ServicesListRequested()),
         ),
-        BlocProvider(
-          create: (_) => sl<BookingsBloc>()..add(const BookingsListRequested()),
-        ),
+        // No initial event here: the date range lives in _BookingsViewState,
+        // which dispatches the first load itself (see its initState).
+        BlocProvider(create: (_) => sl<BookingsBloc>()),
       ],
       child: const _BookingsView(),
     );
@@ -59,7 +59,22 @@ class _BookingsViewState extends State<_BookingsView>
   final _searchController = TextEditingController();
   final _panelController = PanelController();
   String _query = '';
-  DateTimeRange? _dateRange;
+  DateTimeRange _dateRange = _tomorrowPlusOneMonth();
+
+  /// Date-only (midnight) bounds, matching how [_withinRange] compares days.
+  /// The end clamps to the target month's last day, so a 31st doesn't spill
+  /// into the month after (Jan 31 + 1 month would otherwise become Mar 3).
+  static DateTimeRange _tomorrowPlusOneMonth() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day + 1);
+    final lastDayOfNextMonth = DateTime(start.year, start.month + 2, 0).day;
+    final end = DateTime(
+      start.year,
+      start.month + 1,
+      start.day < lastDayOfNextMonth ? start.day : lastDayOfNextMonth,
+    );
+    return DateTimeRange(start: start, end: end);
+  }
 
   // Mounts the filter SlidingUpPanel into the app's root Overlay rather than
   // this page's own widget tree — MainShell always paints its NavigationBar
@@ -77,6 +92,7 @@ class _BookingsViewState extends State<_BookingsView>
       ..addListener(() {
         if (!_tabController.indexIsChanging) setState(() {});
       });
+    _loadBookings();
     WidgetsBinding.instance.addPostFrameCallback((_) => _insertFilterOverlay());
   }
 
@@ -121,12 +137,10 @@ class _BookingsViewState extends State<_BookingsView>
 
   bool get _onMyBookings => _tabController.index == 0;
 
-  /// Inclusive on both ends. No range set means everything matches.
+  /// Inclusive on both ends.
   bool _withinRange(DateTime date) {
-    final range = _dateRange;
-    if (range == null) return true;
     final day = DateTime(date.year, date.month, date.day);
-    return !day.isBefore(range.start) && !day.isAfter(range.end);
+    return !day.isBefore(_dateRange.start) && !day.isAfter(_dateRange.end);
   }
 
   /// Matches on workshop name, plate number, or motorcycle model — the
@@ -143,9 +157,20 @@ class _BookingsViewState extends State<_BookingsView>
     }).toList();
   }
 
-  void _applyDateRange(DateTimeRange? range) => setState(() {
-    _dateRange = range;
-  });
+  /// Fetches the bookings inside the current [_dateRange] from the backend.
+  void _loadBookings() => context.read<BookingsBloc>().add(
+    BookingsListRequested(range: _dateRange),
+  );
+
+  // The panel's "Clear" passes null; with a non-nullable range that means
+  // "back to the default", not "no filter". The new range is fetched from the
+  // backend rather than only filtered on the device.
+  void _applyDateRange(DateTimeRange? range) {
+    setState(() {
+      _dateRange = range ?? _tomorrowPlusOneMonth();
+    });
+    _loadBookings();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,11 +240,22 @@ class _BookingsViewState extends State<_BookingsView>
                 },
                 builder: (context, state) {
                   return switch (state) {
-                    // Initial is never followed by a fetch right now (see
-                    // BookingsPage's doc comment) — it's the default empty
-                    // state, not a momentary loading flicker.
-                    BookingsInitial() => const Center(
-                      child: Text('No bookings yet'),
+                    // Only visible for the first frame: initState dispatches
+                    // the first load, which moves the bloc on to Loading.
+                    BookingsInitial() => Center(
+                      child: Column(
+                        spacing: 12,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Belum ada pemesanan'),
+
+                          OutlinedButton.icon(
+                            onPressed: _loadBookings,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Muat ulang'),
+                          ),
+                        ],
+                      ),
                     ),
                     BookingsLoading() => const Center(
                       child: CircularProgressIndicator(),
@@ -257,7 +293,23 @@ class _BookingsViewState extends State<_BookingsView>
     BuildContext context,
     List<BookingEntity> bookings,
   ) {
-    if (bookings.isEmpty) return const Center(child: Text('No bookings yet'));
+    if (bookings.isEmpty) {
+      return Center(
+        child: Column(
+          spacing: 12,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Belum ada pemesanan'),
+
+            OutlinedButton.icon(
+              onPressed: _loadBookings,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Muat ulang'),
+            ),
+          ],
+        ),
+      );
+    }
 
     final filtered = _filterBookings(bookings);
     if (filtered.isEmpty) {
@@ -265,8 +317,7 @@ class _BookingsViewState extends State<_BookingsView>
     }
 
     return RefreshIndicator(
-      onRefresh: () async =>
-          context.read<BookingsBloc>().add(const BookingsListRequested()),
+      onRefresh: () async => _loadBookings(),
       child: ListView.builder(
         itemCount: filtered.length,
         itemBuilder: (context, index) {

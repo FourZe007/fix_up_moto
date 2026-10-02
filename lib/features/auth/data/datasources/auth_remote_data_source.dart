@@ -96,9 +96,15 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       // Google accounts log in with their email as the credential — running
       // it through toSubscriberNumber() would strip every letter out of it
-      // (that function is built for phone numbers), so only normalise for a
-      // manual, phone-based login.
-      final credential = isGoogleLogin == '1'
+      // (that function is built for phone numbers), so skip normalisation
+      // whenever the credential is actually an email — not just when
+      // isGoogleLogin says so. A manual login can be typed as a phone number
+      // OR an email (if the member's account uses one as its identifier), so
+      // this checks the identifier's own shape rather than trusting the flag
+      // alone — the flag says *why* this login is happening, the shape check
+      // guards against *what* was actually typed, regardless of why.
+      final credential =
+          (isGoogleLogin == '1' || PhoneNumber.looksLikeEmail(identifier))
           ? identifier
           : PhoneNumber.toSubscriberNumber(identifier);
       log('dio post');
@@ -133,7 +139,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         log('User is active');
       }
 
-      return user;
+      // The response echoes neither what was sent as PhoneNo nor the isGoogle
+      // flag, so stamp both on from the request — they're what later features
+      // (e.g. booking's UPhoneNo) read back out of the cached session.
+      return user.copyWith(loginId: credential, isGoogleLogin: isGoogleLogin);
     } on DioException catch (e) {
       // SampEnvelope.error has return type Never — it always throws,
       // so no rethrow is needed after it.

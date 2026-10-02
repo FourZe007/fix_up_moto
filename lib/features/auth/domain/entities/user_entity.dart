@@ -31,6 +31,13 @@ class UserEntity extends Equatable {
   /// session. The data layer checks this before login is allowed to succeed.
   final bool isActive;
 
+  final String isGoogle;
+
+  /// What this session signed in with — the `PhoneNo` credential: a phone
+  /// number for a manual account, the email for a Google one. Distinct from
+  /// [phone], which is display-only contact info.
+  final String? loginId;
+
   /// The server's own wording about the membership state, shown to the user
   /// when [active] is false (the SAMP equivalent of SIP Sales' `Memo`).
   ///
@@ -56,8 +63,10 @@ class UserEntity extends Equatable {
     required this.name,
     required this.status,
     required this.isActive,
-    this.email,
+    this.isGoogle = '0',
+    this.loginId,
     this.phone,
+    this.email,
     this.avatarUrl,
     this.createdAt,
   });
@@ -70,6 +79,8 @@ class UserEntity extends Equatable {
     name,
     email,
     isActive,
+    isGoogle,
+    loginId,
     status,
     phone,
     avatarUrl,
@@ -88,6 +99,8 @@ class UserEntity extends Equatable {
       name: name ?? this.name,
       email: email,
       isActive: isActive,
+      isGoogle: isGoogle,
+      loginId: loginId,
       status: status,
       phone: phone ?? this.phone,
       avatarUrl: avatarUrl ?? this.avatarUrl,
