@@ -171,6 +171,13 @@ class _LoginPageState extends State<LoginPage> {
                             ElevatedButton(
                               // Disable while loading to prevent double-tap
                               onPressed: isLoading ? null : _onLoginPressed,
+                              style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadiusGeometry.circular(
+                                    40,
+                                  ),
+                                ),
+                              ),
                               child: isLoading
                                   ? const SizedBox(
                                       height: 20,
@@ -278,7 +285,9 @@ class _GoogleSignInSection extends StatelessWidget {
                     const AuthGoogleIdentityRequested(),
                   ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
+              // surfaceLight is the same white as before in light mode; in
+              // dark mode the theme turns it light grey.
+              backgroundColor: theme.colorScheme.surface,
               minimumSize: const Size(32, 32),
               // elevatedButtonTheme sets 24/14 padding app-wide; without
               // overriding it here the button keeps 48px of horizontal

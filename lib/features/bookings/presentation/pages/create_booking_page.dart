@@ -5,6 +5,8 @@ import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
@@ -330,7 +332,7 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
       // Matches AppBarTheme.backgroundColor (app_theme.dart) so the two read
       // as one continuous orange surface — this is what shows through the
       // body's cut top corners below, not just an empty background.
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(title: const Text('Book Service')),
       // top: false — the AppBar already accounts for the status bar itself;
       // this only guards "Confirm Booking" at the bottom from the gesture
@@ -343,112 +345,114 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
           // it wouldn't be visible against anything.
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: SafeArea(
-          top: false,
-          child: BlocListener<BookingsBloc, BookingsState>(
-            listener: (context, state) {
-              if (state is BookingActionSuccess) {
-                // Captured once, as an object — not re-derived from context
-                // inside the action below, since context.pop() right after
-                // this deactivates CreateBookingPage's own context. A
-                // ScaffoldMessengerState reference stays valid regardless;
-                // looking it up again from a deactivated context is what
-                // throws "Looking up a deactivated widget's ancestor".
-                final messenger = ScaffoldMessenger.of(context);
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(state.message.toLowerCase()),
-                    action: SnackBarAction(
-                      label: 'Tutup',
-                      onPressed: messenger.clearSnackBars,
+        child: LightSurfaceScope(
+          child: SafeArea(
+            top: false,
+            child: BlocListener<BookingsBloc, BookingsState>(
+              listener: (context, state) {
+                if (state is BookingActionSuccess) {
+                  // Captured once, as an object — not re-derived from context
+                  // inside the action below, since context.pop() right after
+                  // this deactivates CreateBookingPage's own context. A
+                  // ScaffoldMessengerState reference stays valid regardless;
+                  // looking it up again from a deactivated context is what
+                  // throws "Looking up a deactivated widget's ancestor".
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(state.message.toLowerCase()),
+                      action: SnackBarAction(
+                        label: 'Tutup',
+                        onPressed: messenger.clearSnackBars,
+                      ),
                     ),
-                  ),
-                );
+                  );
 
-                // Pop back to the bookings list after a successful booking
-                context.pop();
-              } else if (state is BookingsError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                );
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  BlocBuilder<SelectedWorkshopCubit, WorkshopEntity?>(
-                    builder: (context, selected) => _BookingSetupCard(
-                      selectedWorkshop: selected,
-                      onTapWorkshop: _changeWorkshop,
-                      selectedDate: _selectedDate,
-                      onTapDate: _pickDate,
-                      selectedBike: _selectedBike,
-                      onTapBike: _pickBike,
+                  // Pop back to the bookings list after a successful booking
+                  context.pop();
+                } else if (state is BookingsError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: Theme.of(context).colorScheme.error,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Time slot picker — only these three windows are bookable.
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Select Time',
-                      style: Theme.of(context).textTheme.labelLarge,
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    BlocBuilder<SelectedWorkshopCubit, WorkshopEntity?>(
+                      builder: (context, selected) => _BookingSetupCard(
+                        selectedWorkshop: selected,
+                        onTapWorkshop: _changeWorkshop,
+                        selectedDate: _selectedDate,
+                        onTapDate: _pickDate,
+                        selectedBike: _selectedBike,
+                        onTapBike: _pickBike,
+                      ),
                     ),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final slot in _timeSlots)
-                        ChoiceChip(
-                          label: Text(slot.label),
-                          selected: _selectedTimeSlot == slot,
-                          onSelected: (_) =>
-                              setState(() => _selectedTimeSlot = slot),
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Optional notes field
-                  TextFormField(
-                    controller: _notesController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes (optional)',
-                      hintText:
-                          'Any special requests or information for the mechanic',
+                    const SizedBox(height: 16),
+                    // Time slot picker — only these three windows are bookable.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Select Time',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  // This page's BookingsBloc is its own instance (see
-                  // CreateBookingPage), so BookingsLoading here can only mean
-                  // "the booking is being created" — never a list refresh.
-                  BlocBuilder<BookingsBloc, BookingsState>(
-                    builder: (context, state) {
-                      final isLoading = state is BookingsLoading;
-                      return ElevatedButton(
-                        // Disabled while in flight to prevent a double-tap
-                        // from creating the same booking twice.
-                        onPressed: isLoading ? null : _submit,
-                        child: isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Confirm Booking'),
-                      );
-                    },
-                  ),
-                ],
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final slot in _timeSlots)
+                          ChoiceChip(
+                            label: Text(slot.label),
+                            selected: _selectedTimeSlot == slot,
+                            onSelected: (_) =>
+                                setState(() => _selectedTimeSlot = slot),
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Optional notes field
+                    TextFormField(
+                      controller: _notesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (optional)',
+                        hintText:
+                            'Any special requests or information for the mechanic',
+                      ),
+                    ),
+                    const Spacer(),
+                    // This page's BookingsBloc is its own instance (see
+                    // CreateBookingPage), so BookingsLoading here can only mean
+                    // "the booking is being created" — never a list refresh.
+                    BlocBuilder<BookingsBloc, BookingsState>(
+                      builder: (context, state) {
+                        final isLoading = state is BookingsLoading;
+                        return ElevatedButton(
+                          // Disabled while in flight to prevent a double-tap
+                          // from creating the same booking twice.
+                          onPressed: isLoading ? null : _submit,
+                          child: isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Confirm Booking'),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

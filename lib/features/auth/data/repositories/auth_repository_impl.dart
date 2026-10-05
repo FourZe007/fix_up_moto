@@ -64,7 +64,7 @@ class AuthRepositoryImpl implements AuthRepository {
       switch (userModel.flag) {
         case 1:
           break; // falls through to the success path below
-        case 2:
+        default:
           return const Left(NotFoundFailure('Account not found'));
       }
 
@@ -182,6 +182,7 @@ class AuthRepositoryImpl implements AuthRepository {
         email: email,
         password: password,
       );
+
       await localDataSource.cacheUser(userModel);
       return Right(userModel.toEntity());
     } on UnauthorizedException {

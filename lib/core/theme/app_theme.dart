@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/constants/asset_constants.dart';
 import 'app_colors.dart';
 import 'app_text_styles.dart';
@@ -153,17 +154,17 @@ class AppTheme {
       surface: AppColors.surfaceDark,
       error: AppColors.error,
     ),
-    scaffoldBackgroundColor: AppColors.backgroundDark,
+    scaffoldBackgroundColor: AppColors.backgroundBlack,
     fontFamily: AssetConstants.fontPoppins,
     textTheme: _textTheme(Colors.white),
     appBarTheme: AppBarTheme(
-      backgroundColor: AppColors.surfaceDark,
+      // Same colour as the scaffold, so the bar and the page read as one
+      // surface — the dark counterpart of light mode's orange-on-orange.
+      backgroundColor: AppColors.backgroundBlack,
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,
-      titleTextStyle: AppTextStyles.headingMedium.copyWith(
-        color: Colors.white,
-      ),
+      titleTextStyle: AppTextStyles.headingMedium.copyWith(color: Colors.white),
     ),
     // Same reasoning as the light theme's tabBarTheme — without it, a TabBar
     // in AppBar.bottom would default to ColorScheme.primary rather than
@@ -174,7 +175,7 @@ class AppTheme {
       indicatorColor: Colors.white,
     ),
     cardTheme: CardThemeData(
-      color: AppColors.surfaceDark,
+      color: AppColors.backgroundBlack,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -183,11 +184,58 @@ class AppTheme {
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.surfaceDark,
-      selectedItemColor: AppColors.primaryLight,
-      unselectedItemColor: Colors.white54,
+      // Light grey bar, so the items need dark-on-light colours (the old
+      // primaryLight / white54 pair was chosen for a dark bar).
+      selectedItemColor: AppColors.primary,
+      unselectedItemColor: AppColors.grey600,
       type: BottomNavigationBarType.fixed,
     ),
   );
+
+  // ── Light-grey surfaces inside dark mode ──────────────────────────────────
+
+  /// The light theme re-skinned for content that sits on a light-grey
+  /// surface in dark mode.
+  ///
+  /// Dark mode keeps a black page with white text, but cards, panels and
+  /// inputs that are white in light mode are light grey here — and text on
+  /// light grey must be dark, which the dark theme's own colours can't give
+  /// without breaking text drawn straight on the black page. So that content
+  /// is built from the light theme instead (see `LightSurfaceScope`), with
+  /// only the white surfaces swapped to [AppColors.surfaceDark] and the two
+  /// grey secondary text styles darkened to stay readable on it.
+  static final ThemeData darkSurface = light.copyWith(
+    colorScheme: light.colorScheme.copyWith(surface: AppColors.surfaceDark),
+    cardTheme: light.cardTheme.copyWith(color: AppColors.surfaceDark),
+    inputDecorationTheme: light.inputDecorationTheme.copyWith(
+      fillColor: AppColors.surfaceDark,
+    ),
+    textTheme: light.textTheme.copyWith(
+      bodyMedium: light.textTheme.bodyMedium?.copyWith(
+        color: AppColors.grey700,
+      ),
+      labelSmall: light.textTheme.labelSmall?.copyWith(
+        color: AppColors.grey700,
+      ),
+    ),
+  );
+
+  /// The mode `MaterialApp` should actually use. While the theme switch is
+  /// off ([AppConstants.themeSwitchEnabled]) that is always light — whatever
+  /// the member saved earlier and whatever the phone is set to — so dark mode
+  /// can stay in the code without ever being shown.
+  static ThemeMode resolveMode(
+    ThemeMode chosen, {
+    bool enabled = AppConstants.themeSwitchEnabled,
+  }) => enabled ? chosen : ThemeMode.light;
+
+  /// Backdrop for screens whose AppBar and rounded body share one coloured
+  /// surface: the brand orange in light mode (exactly what those screens used
+  /// to hard-code), black in dark mode.
+  static Color brandBackdrop(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+      ? AppColors.backgroundBlack
+      : AppColors.primary;
 
   // ── Shared TextTheme factory ──────────────────────────────────────────────
 
@@ -195,14 +243,17 @@ class AppTheme {
   /// [baseColor] lets light/dark modes set appropriate default text colours.
   static TextTheme _textTheme(Color baseColor) {
     return TextTheme(
-      displayLarge:  AppTextStyles.displayLarge.copyWith(color: baseColor),
+      displayLarge: AppTextStyles.displayLarge.copyWith(color: baseColor),
       headlineLarge: AppTextStyles.headingLarge.copyWith(color: baseColor),
       headlineMedium: AppTextStyles.headingMedium.copyWith(color: baseColor),
-      titleLarge:    AppTextStyles.headingSmall.copyWith(color: baseColor),
-      bodyLarge:     AppTextStyles.bodyLarge.copyWith(color: baseColor),
-      bodyMedium:    AppTextStyles.bodyMedium,
-      labelLarge:    AppTextStyles.labelLarge,
-      labelSmall:    AppTextStyles.caption,
+      titleLarge: AppTextStyles.headingSmall.copyWith(color: baseColor),
+      bodyLarge: AppTextStyles.bodyLarge.copyWith(color: baseColor),
+      bodyMedium: AppTextStyles.bodyMedium,
+      // Recoloured like the styles above: AppTextStyles.labelLarge hard-codes
+      // textPrimary (dark grey), which is near-invisible on dark surfaces.
+      // Light mode is unchanged — baseColor there is that same textPrimary.
+      labelLarge: AppTextStyles.labelLarge.copyWith(color: baseColor),
+      labelSmall: AppTextStyles.caption,
     );
   }
 }

@@ -4,7 +4,7 @@ import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/profile/data/models/profile_model.dart';
 
 abstract class ProfileRemoteDataSource {
-  Future<ProfileModel> getProfile();
+  Future<ProfileModel> getProfile({required String memberId});
   Future<ProfileModel> updateProfile({required String name, String? phone});
 }
 
@@ -13,9 +13,13 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   ProfileRemoteDataSourceImpl(this._dio);
 
   @override
-  Future<ProfileModel> getProfile() async {
+  Future<ProfileModel> getProfile({required String memberId}) async {
     try {
-      final response = await _dio.post(ApiConstants.profile);
+      final response = await _dio.post(
+        ApiConstants.browseTrans,
+        data: {'Jenis': 'MEMBERSHIP', 'MemberID': memberId},
+      );
+
       return ProfileModel.fromJson(SampEnvelope.first(response));
     } on DioException catch (e) {
       SampEnvelope.error(e);

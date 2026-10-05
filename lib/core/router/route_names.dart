@@ -65,6 +65,11 @@ class RouteNames {
   /// unwired) placeholder section.
   static const String myBikes = '/my-bikes';
 
+  /// App settings (appearance) — opened from the Profile tab's settings
+  /// button. Top-level like [myBikes], so it renders full-screen with a back
+  /// button rather than inside the bottom-nav shell.
+  static const String settings = '/settings';
+
   /// Add a bike — reached from [myBikes], so this is a top-level route too
   /// rather than nested under Profile specifically.
   static const String addBike = '/bikes/add';

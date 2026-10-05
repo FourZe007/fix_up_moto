@@ -31,19 +31,28 @@ class AppColors {
   /// Page / scaffold background in light mode.
   static const Color backgroundLight = Color(0xFFF5F5F5);
 
-  /// Page / scaffold background in dark mode.
+  /// Near-black. No longer the dark theme's scaffold (that is
+  /// [backgroundBlack]); kept because BookingsPage still uses it as a fixed
+  /// text colour in light mode, and changing it would shift that.
   static const Color backgroundDark = Color(0xFF121212);
+
+  /// Page / scaffold background in dark mode — pure black.
+  static const Color backgroundBlack = Color(0xFF000000);
 
   /// Surface colour for cards and bottom sheets in light mode.
   static const Color surfaceLight = Color(0xFFFFFFFF);
 
-  /// Surface colour for cards and bottom sheets in dark mode.
-  static const Color surfaceDark = Color(0xFF1E1E1E);
+  /// Surface colour for cards, panels and inputs in dark mode — light grey,
+  /// the dark-mode counterpart of every widget that is white
+  /// ([surfaceLight]) in light mode. Dark text sits on it, so see
+  /// `AppTheme.darkSurface`.
+  static const Color surfaceDark = Color(0xFFE0E0E0);
 
   /// Dividers, borders, and disabled UI elements.
   static const Color grey200 = Color(0xFFEEEEEE);
   static const Color grey400 = Color(0xFFBDBDBD);
   static const Color grey600 = Color(0xFF757575);
+  static const Color grey700 = Color(0xFF616161);
 
   // ── Text ──────────────────────────────────────────────────────────────────
 

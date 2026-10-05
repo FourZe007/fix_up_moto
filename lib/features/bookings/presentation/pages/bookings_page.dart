@@ -6,6 +6,8 @@ import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
@@ -115,10 +117,16 @@ class _BookingsViewState extends State<_BookingsView>
           // of enabling the backdrop).
           backdropTapClosesPanel: true,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          panel: _FilterPanel(
-            initialRange: _dateRange,
-            onApply: _applyDateRange,
-            onClose: _panelController.close,
+          // The package's default panel colour is Colors.white — the same
+          // value as surfaceLight, so light mode is unchanged — but fixed, so
+          // it has to be read from the theme to turn light grey in dark mode.
+          color: Theme.of(context).colorScheme.surface,
+          panel: LightSurfaceScope(
+            child: _FilterPanel(
+              initialRange: _dateRange,
+              onApply: _applyDateRange,
+              onClose: _panelController.close,
+            ),
           ),
         ),
       ),
@@ -174,14 +182,20 @@ class _BookingsViewState extends State<_BookingsView>
 
   @override
   Widget build(BuildContext context) {
+    // The bar is orange in light mode (dark text) and black in dark mode
+    // (white text) — a fixed dark colour would vanish on the black bar.
+    final searchColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : AppColors.backgroundDark;
+
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
           onChanged: (value) => setState(() => _query = value),
-          style: const TextStyle(color: AppColors.backgroundDark),
-          cursorColor: AppColors.backgroundDark,
+          style: TextStyle(color: searchColor),
+          cursorColor: searchColor,
           decoration: InputDecoration(
             border: InputBorder.none,
             // isDense + a tight contentPadding collapse the default
@@ -225,57 +239,59 @@ class _BookingsViewState extends State<_BookingsView>
         // page content — no LayoutBuilder/MediaQuery workaround needed
         // either, since that was only ever fixing SlidingUpPanel's own
         // `body:` sizing, which it no longer has.
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: BlocConsumer<BookingsBloc, BookingsState>(
-                listener: (context, state) {
-                  if (state is BookingActionSuccess) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(state.message)));
-                  }
-                },
-                builder: (context, state) {
-                  return switch (state) {
-                    // Only visible for the first frame: initState dispatches
-                    // the first load, which moves the bloc on to Loading.
-                    BookingsInitial() => Center(
-                      child: Column(
-                        spacing: 12,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Belum ada pemesanan'),
+        child: LightSurfaceScope(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: BlocConsumer<BookingsBloc, BookingsState>(
+                  listener: (context, state) {
+                    if (state is BookingActionSuccess) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(state.message)));
+                    }
+                  },
+                  builder: (context, state) {
+                    return switch (state) {
+                      // Only visible for the first frame: initState dispatches
+                      // the first load, which moves the bloc on to Loading.
+                      BookingsInitial() => Center(
+                        child: Column(
+                          spacing: 12,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Belum ada pemesanan'),
 
-                          OutlinedButton.icon(
-                            onPressed: _loadBookings,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Muat ulang'),
-                          ),
-                        ],
+                            OutlinedButton.icon(
+                              onPressed: _loadBookings,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Muat ulang'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    BookingsLoading() => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    BookingsError(:final message) => Center(
-                      child: Text(message),
-                    ),
-                    BookingActionSuccess() => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    BookingsLoaded(:final bookings) => _buildBookingsList(
-                      context,
-                      bookings,
-                    ),
-                  };
-                },
+                      BookingsLoading() => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      BookingsError(:final message) => Center(
+                        child: Text(message),
+                      ),
+                      BookingActionSuccess() => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      BookingsLoaded(:final bookings) => _buildBookingsList(
+                        context,
+                        bookings,
+                      ),
+                    };
+                  },
+                ),
               ),
-            ),
-            ServicesHistoryView(query: _query, dateRange: _dateRange),
-          ],
+              ServicesHistoryView(query: _query, dateRange: _dateRange),
+            ],
+          ),
         ),
       ),
       // Only shown on "My Bookings" (tab index 0) — History has no create

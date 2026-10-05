@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
@@ -349,20 +350,28 @@ class _FeatureButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            children: [
-              Icon(icon, color: AppColors.primary, size: 28),
-              const SizedBox(height: 8),
-              Text(label, style: Theme.of(context).textTheme.labelLarge),
-            ],
+    // The label's colour comes straight from labelLarge. It used to be forced
+    // to colorScheme.onSurface, which nudged the light-mode colour; now that
+    // LightSurfaceScope gives this card the light theme in dark mode, the
+    // plain theme style is already right in both modes.
+    return LightSurfaceScope(
+      child: Builder(
+        builder: (context) => Material(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  Icon(icon, color: AppColors.primary, size: 28),
+                  const SizedBox(height: 8),
+                  Text(label, style: Theme.of(context).textTheme.labelLarge),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -380,28 +389,36 @@ class _ChatWithMikaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push(RouteNames.chatbot),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              const Icon(Icons.chat_bubble_outline, color: AppColors.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Chat with Fima',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                ),
+    return LightSurfaceScope(
+      child: Builder(
+        builder: (scopedContext) => Material(
+          color: Theme.of(scopedContext).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            // The outer context, not the scoped one: navigation doesn't care
+            // which theme a context sees.
+            onTap: () => context.push(RouteNames.chatbot),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Chat with Fima',
+                      style: Theme.of(scopedContext).textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
               ),
-              const Icon(Icons.chevron_right),
-            ],
+            ),
           ),
         ),
       ),

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -113,9 +115,9 @@ class _AddBikeViewState extends State<_AddBikeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppTheme.brandBackdrop(context),
         elevation: 0,
         title: const Text('Tambah Motor'),
         // Plain pop, not go(RouteNames.myBikes) — this route is pushed from
@@ -142,149 +144,157 @@ class _AddBikeViewState extends State<_AddBikeView> {
           // rounding it wouldn't be visible against anything.
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: SafeArea(
-          top: false,
-          child: BlocListener<BikesBloc, BikesState>(
-            listener: (context, state) {
-              if (state is BikesAdded) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Motor berhasil ditambah!')),
-                );
+        child: LightSurfaceScope(
+          child: SafeArea(
+            top: false,
+            child: BlocListener<BikesBloc, BikesState>(
+              listener: (context, state) {
+                if (state is BikesAdded) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Motor berhasil ditambah!')),
+                  );
 
-                // Popping with `true` lets whichever caller pushed this
-                // route (MyBikesPage's FAB) know a bike was actually added,
-                // so it can refresh its own (separate) BikesBloc instance —
-                // this page's Bloc and the caller's are different
-                // page-scoped instances, so a plain pop alone wouldn't
-                // surface the new bike there.
-                context.pop(true);
-              } else if (state is BikesError) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(state.message)));
-              }
-            },
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: Column(
-                spacing: 32,
-                children: [
-                  // Input Textfields
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Form(
-                        key: _formKey,
-                        // Surfaces each field's error as soon as the user
-                        // leaves it, rather than dumping every error at
-                        // once on submit.
-                        autovalidateMode: AutovalidateMode.onUserInteraction,
-                        child: Theme(
-                          // Filled fields suit short/single-field forms;
-                          // unfilled (outlined-only) reads lighter once
-                          // this many fields sit together on one screen —
-                          // Material 3's own guidance for busier forms.
-                          // Scoped to just this form rather than the
-                          // app-wide theme.
-                          data: Theme.of(context).copyWith(
-                            inputDecorationTheme: Theme.of(
-                              context,
-                            ).inputDecorationTheme.copyWith(filled: false),
-                          ),
-                          child: Column(
-                            spacing: 16,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const _SectionHeader('Informasi Motor'),
-                              TextFormField(
-                                controller: _unitIdController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Merek & Model',
-                                  hintText: 'Contoh: Honda Supra x 125',
-                                ),
-                                validator: (v) => _required('Merek & Model', v),
+                  // Popping with `true` lets whichever caller pushed this
+                  // route (MyBikesPage's FAB) know a bike was actually added,
+                  // so it can refresh its own (separate) BikesBloc instance —
+                  // this page's Bloc and the caller's are different
+                  // page-scoped instances, so a plain pop alone wouldn't
+                  // surface the new bike there.
+                  context.pop(true);
+                } else if (state is BikesError) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.message)));
+                }
+              },
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Column(
+                  spacing: 32,
+                  children: [
+                    // Input Textfields
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Form(
+                          key: _formKey,
+                          // Surfaces each field's error as soon as the user
+                          // leaves it, rather than dumping every error at
+                          // once on submit.
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          // Builder so this reads the theme from inside
+                          // LightSurfaceScope — the outer `context` still sees
+                          // the dark theme in dark mode.
+                          child: Builder(
+                            builder: (context) => Theme(
+                              // Filled fields suit short/single-field forms;
+                              // unfilled (outlined-only) reads lighter once
+                              // this many fields sit together on one screen —
+                              // Material 3's own guidance for busier forms.
+                              // Scoped to just this form rather than the
+                              // app-wide theme.
+                              data: Theme.of(context).copyWith(
+                                inputDecorationTheme: Theme.of(
+                                  context,
+                                ).inputDecorationTheme.copyWith(filled: false),
                               ),
-                              TextFormField(
-                                controller: _colorController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Warna',
-                                  hintText: 'Contoh: Hitam',
-                                ),
-                                // validator: (v) => _required('Warna', v),
+                              child: Column(
+                                spacing: 16,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const _SectionHeader('Informasi Motor'),
+                                  TextFormField(
+                                    controller: _unitIdController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Merek & Model',
+                                      hintText: 'Contoh: Honda Supra x 125',
+                                    ),
+                                    validator: (v) =>
+                                        _required('Merek & Model', v),
+                                  ),
+                                  TextFormField(
+                                    controller: _colorController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Warna',
+                                      hintText: 'Contoh: Hitam',
+                                    ),
+                                    // validator: (v) => _required('Warna', v),
+                                  ),
+                                  TextFormField(
+                                    controller: _yearController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Tahun',
+                                      hintText: 'Contoh: 2023',
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    validator: (v) {
+                                      // if (v == null || v.isEmpty) {
+                                      //   return 'Tahun wajib diisi';
+                                      // }
+                                      if (v != null && v.isNotEmpty) {
+                                        final year = int.tryParse(v);
+                                        if (year == null ||
+                                            year < 1900 ||
+                                            year > DateTime.now().year + 1) {
+                                          return 'Masukkan tahun yang valid';
+                                        }
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const Divider(height: 20),
+                                  const _SectionHeader('Registrasi'),
+                                  TextFormField(
+                                    controller: _plateController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Plat Nomor',
+                                      hintText: 'Contoh: L 1234 AB',
+                                    ),
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    validator: _plateNumberValidator,
+                                  ),
+                                  TextFormField(
+                                    controller: _chasisController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'No Chasis',
+                                      hintText: 'Masukkan nomor rangka',
+                                    ),
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    // validator: (v) => _required('No Chasis', v),
+                                  ),
+                                  TextFormField(
+                                    controller: _engineController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'No Mesin',
+                                      hintText: 'Masukkan nomor mesin',
+                                    ),
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    // validator: (v) => _required('No Mesin', v),
+                                  ),
+                                  const Divider(height: 20),
+                                  const _SectionHeader('Foto'),
+                                  _PhotoPicker(
+                                    photoBytes: _photoBytes,
+                                    onPick: _pickPhoto,
+                                    onRemove: _removePhoto,
+                                  ),
+                                ],
                               ),
-                              TextFormField(
-                                controller: _yearController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Tahun',
-                                  hintText: 'Contoh: 2023',
-                                ),
-                                keyboardType: TextInputType.number,
-                                validator: (v) {
-                                  // if (v == null || v.isEmpty) {
-                                  //   return 'Tahun wajib diisi';
-                                  // }
-                                  if (v != null && v.isNotEmpty) {
-                                    final year = int.tryParse(v);
-                                    if (year == null ||
-                                        year < 1900 ||
-                                        year > DateTime.now().year + 1) {
-                                      return 'Masukkan tahun yang valid';
-                                    }
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const Divider(height: 20),
-                              const _SectionHeader('Registrasi'),
-                              TextFormField(
-                                controller: _plateController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Plat Nomor',
-                                  hintText: 'Contoh: L 1234 AB',
-                                ),
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                validator: _plateNumberValidator,
-                              ),
-                              TextFormField(
-                                controller: _chasisController,
-                                decoration: const InputDecoration(
-                                  labelText: 'No Chasis',
-                                  hintText: 'Masukkan nomor rangka',
-                                ),
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                // validator: (v) => _required('No Chasis', v),
-                              ),
-                              TextFormField(
-                                controller: _engineController,
-                                decoration: const InputDecoration(
-                                  labelText: 'No Mesin',
-                                  hintText: 'Masukkan nomor mesin',
-                                ),
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                // validator: (v) => _required('No Mesin', v),
-                              ),
-                              const Divider(height: 20),
-                              const _SectionHeader('Foto'),
-                              _PhotoPicker(
-                                photoBytes: _photoBytes,
-                                onPick: _pickPhoto,
-                                onRemove: _removePhoto,
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
 
-                  // Add Button
-                  ElevatedButton(
-                    onPressed: _submit,
-                    child: const Text('Tambah Motor'),
-                  ),
-                ],
+                    // Add Button
+                    ElevatedButton(
+                      onPressed: _submit,
+                      child: const Text('Tambah Motor'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
@@ -37,9 +38,8 @@ class _MembershipView extends StatelessWidget {
       body: BlocBuilder<HomeBloc, HomeState>(
         builder: (context, state) {
           return switch (state) {
-            HomeInitial() || HomeLoading() => const Center(
-              child: CircularProgressIndicator(),
-            ),
+            HomeInitial() ||
+            HomeLoading() => const Center(child: CircularProgressIndicator()),
             HomeError(:final message) => Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -78,20 +78,39 @@ class _MembershipBody extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           // ── Point balance card ──────────────────────────────────────────
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text('Loyalty Points', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 4),
-                  Text('${stats.point}', style: theme.textTheme.displayLarge),
-                  const SizedBox(height: 8),
-                  // The server's own wording about the membership — same
-                  // field the login refusal message reads.
-                  Text(stats.status, style: theme.textTheme.bodyMedium),
-                ],
-              ),
+          // Cards are white in light mode, light grey in dark — see
+          // LightSurfaceScope. The Builder makes the text styles below come
+          // from the scoped theme, not from the outer `theme`.
+          LightSurfaceScope(
+            child: Builder(
+              builder: (context) {
+                final cardTheme = Theme.of(context);
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Loyalty Points',
+                          style: cardTheme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${stats.point}',
+                          style: cardTheme.textTheme.displayLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        // The server's own wording about the membership — same
+                        // field the login refusal message reads.
+                        Text(
+                          stats.status,
+                          style: cardTheme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 24),
@@ -106,15 +125,19 @@ class _MembershipBody extends StatelessWidget {
             )
           else
             ...stats.detail.map(
-              (entry) => Card(
-                child: ListTile(
-                  leading: const Icon(Icons.history),
-                  title: Text(entry.pointName),
-                  subtitle: Text(entry.transDate),
-                  trailing: Text(
-                    '+${entry.pointQty}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.green,
+              (entry) => LightSurfaceScope(
+                child: Builder(
+                  builder: (context) => Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.history),
+                      title: Text(entry.pointName),
+                      subtitle: Text(entry.transDate),
+                      trailing: Text(
+                        '+${entry.pointQty}',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(color: Colors.green),
+                      ),
                     ),
                   ),
                 ),
@@ -132,15 +155,17 @@ class _MembershipBody extends StatelessWidget {
             )
           else
             ...stats.detail2.map(
-              (voucher) => Card(
-                child: ListTile(
-                  leading: const Icon(Icons.card_giftcard),
-                  title: Text(voucher.voucherName),
-                  subtitle: Text(
-                    '${voucher.statusVoucherMemo} · expires ${voucher.expirationDate}',
-                  ),
-                  trailing: Text(
-                    'Rp${voucher.voucherAmount.toStringAsFixed(0)}',
+              (voucher) => LightSurfaceScope(
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.card_giftcard),
+                    title: Text(voucher.voucherName),
+                    subtitle: Text(
+                      '${voucher.statusVoucherMemo} · expires ${voucher.expirationDate}',
+                    ),
+                    trailing: Text(
+                      'Rp${voucher.voucherAmount.toStringAsFixed(0)}',
+                    ),
                   ),
                 ),
               ),

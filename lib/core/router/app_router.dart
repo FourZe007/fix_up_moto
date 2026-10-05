@@ -19,6 +19,7 @@ import 'package:fix_up_moto/features/membership/presentation/pages/membership_pa
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/settings_page.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
 import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_page.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
@@ -181,6 +182,12 @@ class AppRouter {
       GoRoute(
         path: RouteNames.myBikes,
         builder: (_, _) => const MyBikesPage(),
+      ),
+      // Opened from the Profile tab's settings button — a focused full-screen
+      // page like the routes above, so it is top-level too.
+      GoRoute(
+        path: RouteNames.settings,
+        builder: (_, _) => const SettingsPage(),
       ),
       // Reached from MyBikesPage's FAB — used to be nested under /profile on
       // the assumption only Profile would ever push it, the same mistake

@@ -21,4 +21,12 @@ class AppConstants {
 
   /// Maximum characters allowed in a booking notes field.
   static const int maxBookingNotesLength = 500;
+
+  /// Whether members can choose light/dark mode.
+  ///
+  /// Off for now, so the app always uses the light theme even when the phone
+  /// is set to dark, and the Settings button is hidden from Profile. The
+  /// dark theme, ThemeCubit and Settings page are all still in the code —
+  /// turn this on to bring the feature back.
+  static const bool themeSwitchEnabled = true;
 }

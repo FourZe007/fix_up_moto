@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 
 /// Reusable styled text field for login and registration forms.
 ///
@@ -70,6 +71,13 @@ class _AuthTextFieldState extends State<AuthTextField> {
 
   @override
   Widget build(BuildContext context) {
+    // The field is white-filled in light mode, so in dark mode it is a
+    // light-grey box on the black page — LightSurfaceScope gives its text,
+    // label and icons the dark-on-light colours that needs.
+    return LightSurfaceScope(child: _buildField());
+  }
+
+  Widget _buildField() {
     return TextFormField(
       controller: widget.controller,
       obscureText: _obscured,
@@ -83,9 +91,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
-        prefixIcon: widget.prefixIcon != null
-            ? Icon(widget.prefixIcon)
-            : null,
+        prefixIcon: widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
         // Only password fields get the toggle — a plain text field has
         // nothing to reveal, so its decoration is unaffected either way.
         suffixIcon: widget.obscureText

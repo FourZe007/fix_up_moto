@@ -1,8 +1,10 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/constants/google_auth_constants.dart';
+import 'package:fix_up_moto/core/theme/theme_cubit.dart';
 
 import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:fix_up_moto/features/auth/data/datasources/auth_remote_data_source.dart';
@@ -116,6 +118,11 @@ Future<void> initDependencies() async {
 
   sl.registerLazySingleton(() => const FlutterSecureStorage());
   sl.registerLazySingleton(() => DioClient());
+
+  // Non-sensitive settings (theme choice). Awaited here so ThemeCubit can read
+  // its saved value synchronously in its constructor, before the first frame.
+  final prefs = await SharedPreferences.getInstance();
+  sl.registerLazySingleton<SharedPreferences>(() => prefs);
 
   // ── Core ─────────────────────────────────────────────────────────────────
 
@@ -250,7 +257,11 @@ Future<void> initDependencies() async {
     () => ProfileRemoteDataSourceImpl(sl<DioClient>().dio),
   );
   sl.registerLazySingleton<ProfileRepository>(
-    () => ProfileRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+    () => ProfileRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      authRepository: sl(),
+    ),
   );
   sl.registerLazySingleton(() => GetProfileUseCase(sl<ProfileRepository>()));
   sl.registerLazySingleton(() => UpdateProfileUseCase(sl<ProfileRepository>()));
@@ -303,4 +314,8 @@ Future<void> initDependencies() async {
   // for why this can't be a page-scoped factory. Pair with BlocProvider.value
   // in app.dart for the same reason AuthBloc is paired that way.
   sl.registerLazySingleton(() => SelectedWorkshopCubit());
+
+  // App-scoped for the same reason: MaterialApp itself reads it. Provided with
+  // BlocProvider.value in app.dart.
+  sl.registerLazySingleton(() => ThemeCubit(sl<SharedPreferences>()));
 }

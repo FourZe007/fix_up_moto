@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -75,22 +77,28 @@ class _MyBikesViewState extends State<_MyBikesView> {
           backdropColor: Colors.grey,
           backdropTapClosesPanel: true,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          // The package default is Colors.white (== surfaceLight, so light
+          // mode is unchanged); read from the theme so it is light grey in
+          // dark mode.
+          color: Theme.of(context).colorScheme.surface,
           panel: _selectedBike == null
               ? const SizedBox.shrink()
-              : _BikeActionsPanel(
-                  bike: _selectedBike!,
-                  onEdit: () {
-                    debugPrint(
-                      'Edit button pressed for ${_selectedBike!.unitId}',
-                    );
-                    _actionsPanelController.close();
-                  },
-                  onClosePanel: _actionsPanelController.close,
-                  onDelete: () {
-                    debugPrint(
-                      'Delete button pressed for ${_selectedBike!.unitId}',
-                    );
-                  },
+              : LightSurfaceScope(
+                  child: _BikeActionsPanel(
+                    bike: _selectedBike!,
+                    onEdit: () {
+                      debugPrint(
+                        'Edit button pressed for ${_selectedBike!.unitId}',
+                      );
+                      _actionsPanelController.close();
+                    },
+                    onClosePanel: _actionsPanelController.close,
+                    onDelete: () {
+                      debugPrint(
+                        'Delete button pressed for ${_selectedBike!.unitId}',
+                      );
+                    },
+                  ),
                 ),
         ),
       ),
@@ -129,7 +137,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(
         title: const Text('Motor Saya'),
         elevation: 0,
@@ -145,42 +153,44 @@ class _MyBikesViewState extends State<_MyBikesView> {
         // top: false — the AppBar already accounts for the status bar; this
         // guards the FAB/last card from the gesture nav bar, since this page
         // has no bottomNavigationBar to reserve that space.
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height,
-            child: BlocConsumer<BikesBloc, BikesState>(
-              listener: (context, state) {
-                if (state is BikesError) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.message),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-              },
-              builder: (context, state) {
-                return switch (state) {
-                  BikesInitial() || BikesLoading() => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  // Loading again after Add pops back in — same spinner, not a
-                  // separate case, since a fresh list is already on the way.
-                  BikesAdded() => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  BikesError() => Center(
-                    child: TextButton(
-                      onPressed: () => context.read<BikesBloc>().add(
-                        const BikesLoadRequested(),
+        child: LightSurfaceScope(
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height,
+              child: BlocConsumer<BikesBloc, BikesState>(
+                listener: (context, state) {
+                  if (state is BikesError) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(state.message),
+                        backgroundColor: Theme.of(context).colorScheme.error,
                       ),
-                      child: const Text('Retry'),
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  return switch (state) {
+                    BikesInitial() || BikesLoading() => const Center(
+                      child: CircularProgressIndicator(),
                     ),
-                  ),
-                  BikesLoaded(:final bikes) => _buildList(bikes),
-                };
-              },
+                    // Loading again after Add pops back in — same spinner, not a
+                    // separate case, since a fresh list is already on the way.
+                    BikesAdded() => const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    BikesError() => Center(
+                      child: TextButton(
+                        onPressed: () => context.read<BikesBloc>().add(
+                          const BikesLoadRequested(),
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ),
+                    BikesLoaded(:final bikes) => _buildList(bikes),
+                  };
+                },
+              ),
             ),
           ),
         ),
