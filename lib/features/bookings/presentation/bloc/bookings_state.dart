@@ -7,8 +7,13 @@ sealed class BookingsState extends Equatable {
   List<Object?> get props => [];
 }
 
-final class BookingsInitial extends BookingsState { const BookingsInitial(); }
-final class BookingsLoading extends BookingsState { const BookingsLoading(); }
+final class BookingsInitial extends BookingsState {
+  const BookingsInitial();
+}
+
+final class BookingsLoading extends BookingsState {
+  const BookingsLoading();
+}
 
 /// Booking list loaded successfully.
 final class BookingsLoaded extends BookingsState {

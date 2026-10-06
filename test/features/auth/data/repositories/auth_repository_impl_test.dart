@@ -157,37 +157,38 @@ void main() {
     test('returns the identity on success — no connectivity check', () async {
       // Deliberately NOT calling givenOnline(): this method only talks to
       // Google, never the backend, so connectivity is irrelevant to it.
-      when(() => mockRemote.getGoogleIdentity())
-          .thenAnswer((_) async => tIdentity);
+      when(
+        () => mockRemote.getGoogleIdentity(),
+      ).thenAnswer((_) async => tIdentity);
 
       final result = await repository.getGoogleIdentity();
 
       expect(result, const Right(tIdentity));
     });
 
-    test('returns AuthCancelledFailure when the user dismisses the sheet',
-        () async {
-      when(() => mockRemote.getGoogleIdentity())
-          .thenThrow(const GoogleSignInCancelledException());
+    test(
+      'returns AuthCancelledFailure when the user dismisses the sheet',
+      () async {
+        when(
+          () => mockRemote.getGoogleIdentity(),
+        ).thenThrow(const GoogleSignInCancelledException());
 
-      final result = await repository.getGoogleIdentity();
+        final result = await repository.getGoogleIdentity();
 
-      // A distinct type, not a generic AuthFailure — AuthBloc keys off it to
-      // stay silent instead of showing an error the user did not cause.
-      expect(result, const Left(AuthCancelledFailure()));
-    });
+        // A distinct type, not a generic AuthFailure — AuthBloc keys off it to
+        // stay silent instead of showing an error the user did not cause.
+        expect(result, const Left(AuthCancelledFailure()));
+      },
+    );
 
     test('returns ServerFailure on any other Google-side failure', () async {
-      when(() => mockRemote.getGoogleIdentity()).thenThrow(
-        const ServerException(message: 'No OAuth client configured'),
-      );
+      when(
+        () => mockRemote.getGoogleIdentity(),
+      ).thenThrow(const ServerException(message: 'No OAuth client configured'));
 
       final result = await repository.getGoogleIdentity();
 
-      expect(
-        result,
-        const Left(ServerFailure('No OAuth client configured')),
-      );
+      expect(result, const Left(ServerFailure('No OAuth client configured')));
     });
   });
 
@@ -226,8 +227,7 @@ void main() {
       );
     });
 
-    test('returns AuthFailure with the server wording when inactive',
-        () async {
+    test('returns AuthFailure with the server wording when inactive', () async {
       givenOnline();
       when(
         () => mockRemote.submitGoogleAccount(
@@ -235,7 +235,9 @@ void main() {
           phone: any(named: 'phone'),
           email: any(named: 'email'),
         ),
-      ).thenThrow(const AccountInactiveException(message: 'Membership expired'));
+      ).thenThrow(
+        const AccountInactiveException(message: 'Membership expired'),
+      );
 
       final result = await repository.submitGoogleAccount(
         name: tName,
@@ -247,38 +249,42 @@ void main() {
       verifyNever(() => mockLocal.cacheUser(any()));
     });
 
-    test('returns NetworkFailure without attempting login or registration',
-        () async {
-      when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => false);
+    test(
+      'returns NetworkFailure without attempting login or registration',
+      () async {
+        when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => false);
 
-      final result = await repository.submitGoogleAccount(
-        name: tName,
-        phone: tPhone,
-        email: tEmail,
-      );
+        final result = await repository.submitGoogleAccount(
+          name: tName,
+          phone: tPhone,
+          email: tEmail,
+        );
 
-      expect(result, const Left(NetworkFailure('No internet connection')));
-      verifyNever(
-        () => mockRemote.submitGoogleAccount(
-          name: any(named: 'name'),
-          phone: any(named: 'phone'),
-          email: any(named: 'email'),
-        ),
-      );
-    });
+        expect(result, const Left(NetworkFailure('No internet connection')));
+        verifyNever(
+          () => mockRemote.submitGoogleAccount(
+            name: any(named: 'name'),
+            phone: any(named: 'phone'),
+            email: any(named: 'email'),
+          ),
+        );
+      },
+    );
   });
 
   group('getRememberedGooglePhone', () {
-    test('returns the remembered phone when this device has seen the email',
-        () async {
-      when(
-        () => mockLocal.getRememberedGooglePhone(tEmail),
-      ).thenAnswer((_) async => tPhone);
+    test(
+      'returns the remembered phone when this device has seen the email',
+      () async {
+        when(
+          () => mockLocal.getRememberedGooglePhone(tEmail),
+        ).thenAnswer((_) async => tPhone);
 
-      final result = await repository.getRememberedGooglePhone(tEmail);
+        final result = await repository.getRememberedGooglePhone(tEmail);
 
-      expect(result, const Right(tPhone));
-    });
+        expect(result, const Right(tPhone));
+      },
+    );
 
     test('returns Right(null) for an email never seen before', () async {
       when(
@@ -293,9 +299,9 @@ void main() {
     });
 
     test('returns CacheFailure when the local read itself fails', () async {
-      when(() => mockLocal.getRememberedGooglePhone(tEmail)).thenThrow(
-        const CacheException(message: 'keychain locked'),
-      );
+      when(
+        () => mockLocal.getRememberedGooglePhone(tEmail),
+      ).thenThrow(const CacheException(message: 'keychain locked'));
 
       final result = await repository.getRememberedGooglePhone(tEmail);
 
@@ -321,8 +327,9 @@ void main() {
     });
 
     test('returns CacheFailure when the local clear itself fails', () async {
-      when(() => mockLocal.clearUser())
-          .thenThrow(const CacheException(message: 'keychain locked'));
+      when(
+        () => mockLocal.clearUser(),
+      ).thenThrow(const CacheException(message: 'keychain locked'));
 
       final result = await repository.logout();
 

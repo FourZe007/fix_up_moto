@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
@@ -188,6 +190,16 @@ class _BookingsViewState extends State<_BookingsView>
         ? Colors.white
         : AppColors.backgroundDark;
 
+    // This tab stays alive while hidden, so it reloads the moment a booking is
+    // created elsewhere (the create page signals DataKind.bookings).
+    return RefreshOn(
+      kind: DataKind.bookings,
+      onRefresh: (_) => _loadBookings(),
+      child: _scaffold(context, searchColor),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, Color searchColor) {
     return Scaffold(
       backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(
@@ -212,6 +224,14 @@ class _BookingsViewState extends State<_BookingsView>
           ),
         ),
         actions: [
+          // My Bikes Button
+          IconButton(
+            icon: const Icon(Icons.motorcycle_rounded),
+            tooltip: 'Motor Saya',
+            onPressed: () => context.push(RouteNames.myBikes),
+          ),
+
+          // Advanced Filter Button
           IconButton(
             icon: const Icon(Icons.tune),
             tooltip: 'Advanced filter',

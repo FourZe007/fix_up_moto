@@ -48,17 +48,17 @@ class DashboardStatsEntity extends Equatable {
 
   @override
   List<Object> get props => [
-        status,
-        memberId,
-        memberName,
-        emailAddress,
-        phoneNo,
-        active,
-        qty,
-        point,
-        detail,
-        detail2,
-      ];
+    status,
+    memberId,
+    memberName,
+    emailAddress,
+    phoneNo,
+    active,
+    qty,
+    point,
+    detail,
+    detail2,
+  ];
 }
 
 /// A single point-earning history entry (`Detail[]`).
@@ -125,13 +125,13 @@ class VoucherDetailEntity extends Equatable {
 
   @override
   List<Object> get props => [
-        redeemDate,
-        expirationDate,
-        voucherNo,
-        statusVoucher,
-        voucherId,
-        voucherName,
-        statusVoucherMemo,
-        voucherAmount,
-      ];
+    redeemDate,
+    expirationDate,
+    voucherNo,
+    statusVoucher,
+    voucherId,
+    voucherName,
+    statusVoucherMemo,
+    voucherAmount,
+  ];
 }

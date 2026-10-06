@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
@@ -358,6 +359,14 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
                   // looking it up again from a deactivated context is what
                   // throws "Looking up a deactivated widget's ancestor".
                   final messenger = ScaffoldMessenger.of(context);
+
+                  // Tell the Bookings tab (alive underneath) its list is out of
+                  // date, so it reloads now. Read before the pop below, while
+                  // this context is still active.
+                  context.read<DataRefreshCubit>().invalidate(
+                    DataKind.bookings,
+                  );
+
                   messenger.showSnackBar(
                     SnackBar(
                       content: Text(state.message.toLowerCase()),

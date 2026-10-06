@@ -35,9 +35,15 @@ class ServiceEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        bsName, transNo, transDate, eName,
-        amountService, amountPart, detail, detail2,
-      ];
+    bsName,
+    transNo,
+    transDate,
+    eName,
+    amountService,
+    amountPart,
+    detail,
+    detail2,
+  ];
 }
 
 /// A single performed service line item.

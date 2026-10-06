@@ -5,24 +5,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
-import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
+import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
-class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
-    implements BikesBloc {}
+class MockHomeBloc extends MockBloc<HomeEvent, HomeState> implements HomeBloc {}
 
+/// Signed in, used only so the sign-out button has an AuthBloc to talk to.
 const tUser = UserEntity(
   id: 'M-001',
   name: 'Test Member',
@@ -30,29 +30,44 @@ const tUser = UserEntity(
   isActive: true,
 );
 
-BikeEntity bike(int n) => BikeEntity(
-  unitId: 'YAMAHA $n',
-  plateNo: 'L $n AB',
-  chasisNo: '',
-  engineNo: '',
-  color: '',
-  year: '',
+/// What the page shows: the dashboard stats record, not the login record. The
+/// backend sends the phone without its leading zero.
+const tStats = DashboardStatsEntity(
+  status: 'AKTIF',
+  memberId: 'M-001',
+  memberName: 'Stats Member',
+  emailAddress: 'stats@example.com',
+  phoneNo: '87700001111',
+  active: true,
+  qty: 4,
+  point: 80,
+  detail: [],
+  detail2: [],
 );
 
-/// The page builds its own BikesBloc through GetIt, so each test registers a
+/// The blocs behind the page, so tests can verify what was sent to them.
+class Mocks {
+  final MockHomeBloc home;
+  final MockAuthBloc auth;
+  const Mocks(this.home, this.auth);
+}
+
+/// The app-wide "reload this" signal the page listens to; fresh per test.
+late DataRefreshCubit refreshCubit;
+
+/// The page builds its own HomeBloc through GetIt, so each test registers a
 /// mock one in the state it wants to see.
-Future<MockBikesBloc> pumpProfile(
+Future<Mocks> pumpProfile(
   WidgetTester tester, {
-  ProfilePage? page,
-  BikesState bikesState = const BikesLoaded([]),
+  HomeState homeState = const HomeLoaded(tStats),
 }) async {
-  final bikesBloc = MockBikesBloc();
+  final homeBloc = MockHomeBloc();
   whenListen(
-    bikesBloc,
-    const Stream<BikesState>.empty(),
-    initialState: bikesState,
+    homeBloc,
+    const Stream<HomeState>.empty(),
+    initialState: homeState,
   );
-  sl.registerFactory<BikesBloc>(() => bikesBloc);
+  sl.registerFactory<HomeBloc>(() => homeBloc);
 
   final authBloc = MockAuthBloc();
   whenListen(
@@ -60,14 +75,18 @@ Future<MockBikesBloc> pumpProfile(
     const Stream<AuthState>.empty(),
     initialState: const AuthAuthenticated(tUser),
   );
+
   // A real router, so tapping a tile can be checked by where it lands.
   final router = GoRouter(
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, _) => BlocProvider<AuthBloc>.value(
-          value: authBloc,
-          child: page ?? const ProfilePage(),
+        builder: (_, _) => BlocProvider<DataRefreshCubit>.value(
+          value: refreshCubit,
+          child: BlocProvider<AuthBloc>.value(
+            value: authBloc,
+            child: const ProfilePage(),
+          ),
         ),
       ),
       GoRoute(
@@ -81,49 +100,209 @@ Future<MockBikesBloc> pumpProfile(
     ],
   );
   await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-  return bikesBloc;
+  return Mocks(homeBloc, authBloc);
 }
 
 void main() {
+  setUp(() => refreshCubit = DataRefreshCubit());
+  tearDown(() => sl.reset());
+
   final settingsButton = find.widgetWithIcon(
     IconButton,
     Icons.settings_outlined,
   );
   final logoutButton = find.widgetWithIcon(IconButton, Icons.logout);
-  final bikeColumn = find.byKey(const Key('bike-count-column'));
+  final bikeTile = find.byKey(const Key('bike-count-column'));
+  final pointsTile = find.byKey(const Key('points-stat-tile'));
 
-  tearDown(() => sl.reset());
-
-  testWidgets('the app ships with the theme switch off', (tester) async {
-    expect(AppConstants.themeSwitchEnabled, isFalse);
-  });
-
-  testWidgets('hides the Settings button by default while the switch is off', (
-    tester,
-  ) async {
+  testWidgets('shows the Settings and Sign out buttons', (tester) async {
     await pumpProfile(tester);
-
-    expect(settingsButton, findsNothing);
-    // Everything else in the bar is untouched.
-    expect(logoutButton, findsOneWidget);
-  });
-
-  testWidgets('shows the Settings button again when turned back on', (
-    tester,
-  ) async {
-    await pumpProfile(tester, page: const ProfilePage());
 
     expect(settingsButton, findsOneWidget);
     expect(logoutButton, findsOneWidget);
   });
 
+  group('member details come from the dashboard stats', () {
+    testWidgets('shows name, phone and email from the stats record', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+
+      expect(find.text('Stats Member'), findsOneWidget);
+      // Shown with the leading zero the backend leaves off.
+      expect(find.text('087700001111'), findsOneWidget);
+      expect(find.text('stats@example.com'), findsOneWidget);
+      // The avatar initial comes from the stats name, not the login record's.
+      expect(find.text('S'), findsOneWidget);
+      // The login record's name is no longer shown.
+      expect(find.text(tUser.name), findsNothing);
+    });
+
+    testWidgets('no longer shows the hardcoded placeholder phone number', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+
+      expect(find.text('081234567890'), findsNothing);
+    });
+
+    testWidgets('hides phone and email the backend sent as a dash or blank', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        homeState: const HomeLoaded(
+          DashboardStatsEntity(
+            status: 'AKTIF',
+            memberId: 'M-001',
+            memberName: 'Stats Member',
+            emailAddress: '-',
+            phoneNo: ' ',
+            active: true,
+            qty: 0,
+            point: 0,
+            detail: [],
+            detail2: [],
+          ),
+        ),
+      );
+
+      expect(find.text('Stats Member'), findsOneWidget);
+      expect(find.text('-'), findsNothing);
+    });
+
+    testWidgets('asks for the stats when the page opens', (tester) async {
+      final mocks = await pumpProfile(tester);
+
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
+    });
+
+    testWidgets('shows a spinner while loading, not the member', (
+      tester,
+    ) async {
+      await pumpProfile(tester, homeState: const HomeLoading());
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Stats Member'), findsNothing);
+    });
+
+    testWidgets('shows the error with a Retry that asks again', (tester) async {
+      final mocks = await pumpProfile(
+        tester,
+        homeState: const HomeError('Server down'),
+      );
+
+      expect(find.text('Server down'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+
+      // Once on open, once for the retry.
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
+    });
+
+    testWidgets('sign out still goes through AuthBloc', (tester) async {
+      final mocks = await pumpProfile(tester);
+
+      await tester.tap(logoutButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Sign Out'));
+      await tester.pumpAndSettle();
+
+      verify(() => mocks.auth.add(const AuthLogoutRequested())).called(1);
+    });
+  });
+
+  group('reloads when the stats go out of date elsewhere', () {
+    testWidgets('invalidate(stats) sends HomeStatsRequested again', (
+      tester,
+    ) async {
+      final mocks = await pumpProfile(tester);
+
+      refreshCubit.invalidate(DataKind.stats);
+      await tester.pump();
+
+      // Once when the page opened, once for the signal.
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
+    });
+
+    testWidgets('invalidate(bookings) is none of its business', (tester) async {
+      final mocks = await pumpProfile(tester);
+
+      refreshCubit.invalidate(DataKind.bookings);
+      await tester.pump();
+
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
+    });
+  });
+
   group('stat tiles', () {
+    testWidgets('show the bike count and the points from the stats', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+
+      expect(
+        find.descendant(of: bikeTile, matching: find.text('4')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: bikeTile, matching: find.text('My Bikes')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: bikeTile,
+          matching: find.byIcon(Icons.two_wheeler_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: pointsTile, matching: find.text('80')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: pointsTile, matching: find.text('Points')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('show 0 for a member with no bikes and no points', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        homeState: const HomeLoaded(
+          DashboardStatsEntity(
+            status: 'AKTIF',
+            memberId: 'M-001',
+            memberName: 'Stats Member',
+            emailAddress: '-',
+            phoneNo: '87700001111',
+            active: true,
+            qty: 0,
+            point: 0,
+            detail: [],
+            detail2: [],
+          ),
+        ),
+      );
+
+      expect(
+        find.descendant(of: bikeTile, matching: find.text('0')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: pointsTile, matching: find.text('0')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('are compact but still a comfortable tap target', (
       tester,
     ) async {
       await pumpProfile(tester);
 
-      final height = tester.getSize(bikeColumn).height;
+      final height = tester.getSize(bikeTile).height;
 
       // Material's minimum touch target is 48; the old card was 120 tall.
       expect(height, greaterThanOrEqualTo(48));
@@ -133,10 +312,7 @@ void main() {
     testWidgets('share the width equally', (tester) async {
       await pumpProfile(tester);
 
-      expect(
-        tester.getSize(bikeColumn).width,
-        tester.getSize(find.byKey(const Key('points-stat-tile'))).width,
-      );
+      expect(tester.getSize(bikeTile).width, tester.getSize(pointsTile).width);
     });
 
     testWidgets('no longer use a divider or a fixed-height card', (
@@ -150,7 +326,7 @@ void main() {
     testWidgets('tapping Bikes opens My Bikes', (tester) async {
       await pumpProfile(tester);
 
-      await tester.tap(bikeColumn);
+      await tester.tap(bikeTile);
       await tester.pumpAndSettle();
 
       expect(find.text('my-bikes-page'), findsOneWidget);
@@ -159,106 +335,22 @@ void main() {
     testWidgets('tapping Points opens the Member tab', (tester) async {
       await pumpProfile(tester);
 
-      await tester.tap(find.byKey(const Key('points-stat-tile')));
+      await tester.tap(pointsTile);
       await tester.pumpAndSettle();
 
       expect(find.text('membership-page'), findsOneWidget);
     });
-  });
 
-  group('bike count column', () {
-    testWidgets('asks the API for the bikes when the page opens', (
-      tester,
-    ) async {
-      final bloc = await pumpProfile(tester);
-
-      verify(() => bloc.add(const BikesLoadRequested())).called(1);
-    });
-
-    testWidgets('shows icon, the number of bikes, and the label', (
-      tester,
-    ) async {
-      await pumpProfile(
-        tester,
-        bikesState: BikesLoaded([bike(1), bike(2), bike(3)]),
-      );
-
-      expect(
-        find.descendant(
-          of: bikeColumn,
-          matching: find.byIcon(Icons.two_wheeler_outlined),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: bikeColumn, matching: find.text('3')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: bikeColumn, matching: find.text('My Bikes')),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('shows 0 when the member has no bikes yet', (tester) async {
-      await pumpProfile(tester);
-
-      expect(
-        find.descendant(of: bikeColumn, matching: find.text('0')),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('shows a spinner while loading, with icon and label already '
-        'in place', (tester) async {
-      await pumpProfile(tester, bikesState: const BikesLoading());
-
-      expect(
-        find.descendant(
-          of: bikeColumn,
-          matching: find.byType(CircularProgressIndicator),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: bikeColumn,
-          matching: find.byIcon(Icons.two_wheeler_outlined),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: bikeColumn, matching: find.text('My Bikes')),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('shows a dash when the bikes fail to load', (tester) async {
-      await pumpProfile(tester, bikesState: const BikesError('boom'));
-
-      expect(
-        find.descendant(of: bikeColumn, matching: find.text('–')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: bikeColumn,
-          matching: find.byType(CircularProgressIndicator),
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets('grows instead of clipping at a large font size', (
+    testWidgets('grow instead of clipping at a large font size', (
       tester,
     ) async {
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      await pumpProfile(tester, bikesState: BikesLoaded([bike(1)]));
+      await pumpProfile(tester);
 
       // A RenderFlex overflow would be reported as a test exception.
       expect(tester.takeException(), isNull);
-      expect(tester.getSize(bikeColumn).height, greaterThan(70));
+      expect(tester.getSize(bikeTile).height, greaterThan(70));
     });
   });
 }

@@ -58,9 +58,8 @@ class ServicesHistoryView extends StatelessWidget {
     return BlocBuilder<ServicesBloc, ServicesState>(
       builder: (context, state) {
         return switch (state) {
-          ServicesInitial() || ServicesLoading() => const Center(
-            child: CircularProgressIndicator(),
-          ),
+          ServicesInitial() ||
+          ServicesLoading() => const Center(child: CircularProgressIndicator()),
           ServicesError(:final message) => Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,

@@ -46,7 +46,8 @@ class UnauthorizedException implements Exception {
   const UnauthorizedException();
 
   @override
-  String toString() => 'UnauthorizedException: session expired or invalid token';
+  String toString() =>
+      'UnauthorizedException: session expired or invalid token';
 }
 
 /// Thrown when credentials were accepted but the membership is not permitted

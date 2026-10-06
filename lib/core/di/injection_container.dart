@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/constants/google_auth_constants.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/theme/theme_cubit.dart';
 
 import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
@@ -314,6 +315,10 @@ Future<void> initDependencies() async {
   // for why this can't be a page-scoped factory. Pair with BlocProvider.value
   // in app.dart for the same reason AuthBloc is paired that way.
   sl.registerLazySingleton(() => SelectedWorkshopCubit());
+
+  // App-scoped for the same reason: an action on one screen has to reach a tab
+  // that is alive but hidden. Holds no data, only the last "reload this" signal.
+  sl.registerLazySingleton(() => DataRefreshCubit());
 
   // App-scoped for the same reason: MaterialApp itself reads it. Provided with
   // BlocProvider.value in app.dart.

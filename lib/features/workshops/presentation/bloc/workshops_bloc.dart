@@ -9,8 +9,8 @@ class WorkshopsBloc extends Bloc<WorkshopsEvent, WorkshopsState> {
   final GetWorkshopsUseCase _getWorkshops;
 
   WorkshopsBloc({required GetWorkshopsUseCase getWorkshops})
-      : _getWorkshops = getWorkshops,
-        super(const WorkshopsInitial()) {
+    : _getWorkshops = getWorkshops,
+      super(const WorkshopsInitial()) {
     on<WorkshopsRequested>(_onRequested);
   }
 

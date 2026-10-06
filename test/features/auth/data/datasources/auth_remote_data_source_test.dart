@@ -71,19 +71,22 @@ void main() {
       expect(user.isGoogleLogin, '1');
     });
 
-    test('keeps the stamp through the cached-session JSON round trip', () async {
-      givenLoginResponds();
+    test(
+      'keeps the stamp through the cached-session JSON round trip',
+      () async {
+        givenLoginResponds();
 
-      final user = await dataSource.login(
-        'member@example.com',
-        'member-google',
-        isGoogleLogin: '1',
-      );
-      final restored = LoginUserModel.fromJson(user.toJson());
-      final entity = restored.toEntity();
+        final user = await dataSource.login(
+          'member@example.com',
+          'member-google',
+          isGoogleLogin: '1',
+        );
+        final restored = LoginUserModel.fromJson(user.toJson());
+        final entity = restored.toEntity();
 
-      expect(entity.loginId, 'member@example.com');
-      expect(entity.isGoogle, '1');
-    });
+        expect(entity.loginId, 'member@example.com');
+        expect(entity.isGoogle, '1');
+      },
+    );
   });
 }

@@ -36,31 +36,31 @@ class HomeRepositoryImpl implements HomeRepository {
     // place that ID exists on the client.
     final currentUserResult = await authRepository.getCurrentUser();
 
-    return currentUserResult.fold(
-      (failure) async => Left(failure),
-      (user) async {
-        if (user == null) {
-          // The router guard makes this screen unreachable while signed out,
-          // so this only fires if the cache was cleared out from under an
-          // already-open Home tab (e.g. a logout on another screen mid-fetch).
-          return const Left(AuthFailure('No signed-in member found'));
-        }
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        // The router guard makes this screen unreachable while signed out,
+        // so this only fires if the cache was cleared out from under an
+        // already-open Home tab (e.g. a logout on another screen mid-fetch).
+        return const Left(AuthFailure('No signed-in member found'));
+      }
 
-        try {
-          final model = await remoteDataSource.getMotorcycleStats(user.id);
-          return Right(model.toEntity());
-        } on UnauthorizedException {
-          return const Left(
-            AuthFailure('Session expired. Please sign in again.'),
-          );
-        } on ForbiddenException catch (e) {
-          return Left(PermissionFailure(e.message));
-        } on NotFoundException catch (e) {
-          return Left(NotFoundFailure(e.message));
-        } on ServerException catch (e) {
-          return Left(ServerFailure(e.message, statusCode: e.statusCode));
-        }
-      },
-    );
+      try {
+        final model = await remoteDataSource.getMotorcycleStats(user.id);
+
+        return Right(model.toEntity());
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+    });
   }
 }

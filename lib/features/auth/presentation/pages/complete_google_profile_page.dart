@@ -28,8 +28,7 @@ class CompleteGoogleProfilePage extends StatefulWidget {
       _CompleteGoogleProfilePageState();
 }
 
-class _CompleteGoogleProfilePageState
-    extends State<CompleteGoogleProfilePage> {
+class _CompleteGoogleProfilePageState extends State<CompleteGoogleProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late final _nameController = TextEditingController(
     // Blank when Google gave no display name, per the widget's own contract —

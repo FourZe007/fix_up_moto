@@ -56,17 +56,17 @@ class DashboardStatsModel {
 
   /// Converts to the Domain entity returned to callers.
   DashboardStatsEntity toEntity() => DashboardStatsEntity(
-        status: status,
-        memberId: memberId,
-        memberName: memberName,
-        emailAddress: emailAddress,
-        phoneNo: phoneNo,
-        active: active,
-        qty: qty,
-        point: point,
-        detail: detail.map((e) => e.toEntity()).toList(),
-        detail2: detail2.map((e) => e.toEntity()).toList(),
-      );
+    status: status,
+    memberId: memberId,
+    memberName: memberName,
+    emailAddress: emailAddress,
+    phoneNo: phoneNo,
+    active: active,
+    qty: qty,
+    point: point,
+    detail: detail.map((e) => e.toEntity()).toList(),
+    detail2: detail2.map((e) => e.toEntity()).toList(),
+  );
 }
 
 /// A single point-earning history entry from the `Detail` list.
@@ -97,11 +97,11 @@ class PointDetailModel {
   Map<String, dynamic> toJson() => _$PointDetailModelToJson(this);
 
   PointDetailEntity toEntity() => PointDetailEntity(
-        transDate: transDate,
-        pointId: pointId,
-        pointName: pointName,
-        pointQty: pointQty,
-      );
+    transDate: transDate,
+    pointId: pointId,
+    pointName: pointName,
+    pointQty: pointQty,
+  );
 }
 
 /// A single voucher entry from the `Detail2` list.
@@ -148,13 +148,13 @@ class VoucherDetailModel {
   Map<String, dynamic> toJson() => _$VoucherDetailModelToJson(this);
 
   VoucherDetailEntity toEntity() => VoucherDetailEntity(
-        redeemDate: redeemDate,
-        expirationDate: expirationDate,
-        voucherNo: voucherNo,
-        statusVoucher: statusVoucher,
-        voucherId: voucherId,
-        voucherName: voucherName,
-        statusVoucherMemo: statusVoucherMemo,
-        voucherAmount: voucherAmount,
-      );
+    redeemDate: redeemDate,
+    expirationDate: expirationDate,
+    voucherNo: voucherNo,
+    statusVoucher: statusVoucher,
+    voucherId: voucherId,
+    voucherName: voucherName,
+    statusVoucherMemo: statusVoucherMemo,
+    voucherAmount: voucherAmount,
+  );
 }

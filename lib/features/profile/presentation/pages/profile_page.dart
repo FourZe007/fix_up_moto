@@ -4,24 +4,27 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
-import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
-import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 
 /// Shows the signed-in member and the sign-out action.
 ///
-/// **Reads from [AuthBloc], not from the network.** The member record returned
-/// by login is already cached and already in memory, so fetching it again would
-/// be redundant — and until `/apiSAMP/BrowseMember` is a verified endpoint, that
-/// fetch simply hung for the full 30-second Dio timeout every time the tab was
-/// opened. `ProfileBloc` stays registered in the DI container for when the
-/// profile endpoints are confirmed.
+/// The member's details come from the dashboard stats record ([HomeBloc]) —
+/// the same `BrowseTrans` record Home and Membership read, which carries the
+/// real phone number — not from the cached login record, which has none.
+/// [AuthBloc] is only used here to sign out. `ProfileBloc` stays registered in
+/// the DI container for when the `BrowseMember` endpoint is confirmed.
 class ProfilePage extends StatelessWidget {
   /// Whether the Settings button is shown. Hidden for now along with the
   /// theme switch it leads to (see [AppConstants.themeSwitchEnabled]); the
@@ -42,6 +45,21 @@ class ProfilePage extends StatelessWidget {
     final theme = Theme.of(context);
     final onSurface = theme.colorScheme.onSurface;
 
+    return BlocProvider(
+      // Page-scoped factory, fetched on mount — same as MembershipPage.
+      create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
+      // This tab stays alive while hidden, so it reloads when something that
+      // changes the stats happens elsewhere (e.g. a bike is added).
+      child: RefreshOn(
+        kind: DataKind.stats,
+        onRefresh: (context) =>
+            context.read<HomeBloc>().add(const HomeStatsRequested()),
+        child: _scaffold(context, theme, onSurface),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, ThemeData theme, Color onSurface) {
     return Scaffold(
       appBar: AppBar(
         // title: const Text('Profile'),
@@ -63,16 +81,25 @@ class ProfilePage extends StatelessWidget {
           ),
         ],
       ),
-      body: BlocBuilder<AuthBloc, AuthState>(
-        builder: (context, state) {
-          // The router's guard makes this tab unreachable while signed out, so
-          // anything other than AuthAuthenticated is defensive only — most
-          // likely the brief moment during sign-out before the redirect lands.
-          if (state is! AuthAuthenticated) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          return _ProfileBody(user: state.user);
+      body: BlocBuilder<HomeBloc, HomeState>(
+        builder: (context, state) => switch (state) {
+          HomeInitial() ||
+          HomeLoading() => const Center(child: CircularProgressIndicator()),
+          HomeError(:final message) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 12,
+              children: [
+                Text(message),
+                ElevatedButton(
+                  onPressed: () =>
+                      context.read<HomeBloc>().add(const HomeStatsRequested()),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          HomeLoaded(:final stats) => _ProfileBody(stats: stats),
         },
       ),
     );
@@ -110,10 +137,16 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-class _ProfileBody extends StatelessWidget {
-  final UserEntity user;
+/// The backend sends `-` (or nothing) for a field the member never filled in.
+bool _hasValue(String value) {
+  final trimmed = value.trim();
+  return trimmed.isNotEmpty && trimmed != '-';
+}
 
-  const _ProfileBody({required this.user});
+class _ProfileBody extends StatelessWidget {
+  final DashboardStatsEntity stats;
+
+  const _ProfileBody({required this.stats});
 
   @override
   Widget build(BuildContext context) {
@@ -129,20 +162,15 @@ class _ProfileBody extends StatelessWidget {
                 spacing: 12,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // User Avatar
+                  // User Avatar — initial only; the stats record has no photo.
                   CircleAvatar(
                     radius: 40,
-                    backgroundImage: user.avatarUrl != null
-                        ? NetworkImage(user.avatarUrl!)
-                        : null,
-                    child: user.avatarUrl == null
-                        ? Text(
-                            user.name.isNotEmpty
-                                ? user.name[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(fontSize: 32),
-                          )
-                        : null,
+                    child: Text(
+                      stats.memberName.isNotEmpty
+                          ? stats.memberName[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(fontSize: 32),
+                    ),
                   ),
 
                   // User profile
@@ -150,11 +178,20 @@ class _ProfileBody extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Username
-                      Text(user.name, style: theme.textTheme.headlineSmall),
-                      if (user.phone == null)
-                        Text('081234567890', style: theme.textTheme.bodyMedium),
-                      if (user.email != null)
-                        Text(user.email!, style: theme.textTheme.bodyMedium),
+                      Text(
+                        stats.memberName,
+                        style: theme.textTheme.headlineSmall,
+                      ),
+                      if (_hasValue(stats.phoneNo))
+                        Text(
+                          '0${stats.phoneNo}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      if (_hasValue(stats.emailAddress))
+                        Text(
+                          stats.emailAddress,
+                          style: theme.textTheme.bodyMedium,
+                        ),
                     ],
                   ),
                 ],
@@ -187,8 +224,15 @@ class _ProfileBody extends StatelessWidget {
             // Total Registered Bikes → My Bikes. push, not go: My Bikes is a
             // top-level route and go would replace the whole back stack.
             Expanded(
-              child: _BikeStatTile(
+              // child: _BikeStatTile(
+              //   onTap: () => context.push(RouteNames.myBikes),
+              // ),
+              child: _StatTile(
+                key: const Key('bike-count-column'),
+                icon: Icons.two_wheeler_outlined,
+                label: 'My Bikes',
                 onTap: () => context.push(RouteNames.myBikes),
+                value: Text('${stats.qty}'),
               ),
             ),
 
@@ -198,9 +242,9 @@ class _ProfileBody extends StatelessWidget {
               child: _StatTile(
                 key: const Key('points-stat-tile'),
                 icon: Icons.star_outline,
-                value: Text('–'),
                 label: 'Points',
                 onTap: () => context.go(RouteNames.membership),
+                value: Text('${stats.point}'),
               ),
             ),
           ],
@@ -222,7 +266,7 @@ class _ProfileBody extends StatelessWidget {
         ),
         const Padding(
           padding: EdgeInsets.all(16),
-          child: Text('No bikes added yet'),
+          child: Text('Belum ada motor terdaftar'),
         ),
       ],
     );
@@ -320,32 +364,32 @@ class _StatTile extends StatelessWidget {
 /// Bikes page shows, so the two can't disagree. It owns a page-scoped
 /// [BikesBloc], the same pattern every other page uses, so [ProfilePage]
 /// itself doesn't need one.
-class _BikeStatTile extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _BikeStatTile({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<BikesBloc>()..add(const BikesLoadRequested()),
-      child: _StatTile(
-        key: const Key('bike-count-column'),
-        icon: Icons.two_wheeler_outlined,
-        label: 'My Bikes',
-        onTap: onTap,
-        value: BlocBuilder<BikesBloc, BikesState>(
-          builder: (context, state) => switch (state) {
-            BikesLoaded(:final bikes) => Text('${bikes.length}'),
-            BikesError() => const Text('–'),
-            BikesInitial() || BikesLoading() || BikesAdded() => const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          },
-        ),
-      ),
-    );
-  }
-}
+// class _BikeStatTile extends StatelessWidget {
+//   final VoidCallback onTap;
+//
+//   const _BikeStatTile({required this.onTap});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return BlocProvider(
+//       create: (_) => sl<BikesBloc>()..add(const BikesLoadRequested()),
+//       child: _StatTile(
+//         key: const Key('bike-count-column'),
+//         icon: Icons.two_wheeler_outlined,
+//         label: 'My Bikes',
+//         onTap: onTap,
+//         value: BlocBuilder<BikesBloc, BikesState>(
+//           builder: (context, state) => switch (state) {
+//             BikesLoaded(:final bikes) => Text('${bikes.length}'),
+//             BikesError() => const Text('–'),
+//             BikesInitial() || BikesLoading() || BikesAdded() => const SizedBox(
+//               width: 16,
+//               height: 16,
+//               child: CircularProgressIndicator(strokeWidth: 2),
+//             ),
+//           },
+//         ),
+//       ),
+//     );
+//   }
+// }

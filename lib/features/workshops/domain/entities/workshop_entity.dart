@@ -40,7 +40,14 @@ class WorkshopEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        branch, shop, bsName, bsAddress,
-        operationalHours, phoneNo, active, lat, lng,
-      ];
+    branch,
+    shop,
+    bsName,
+    bsAddress,
+    operationalHours,
+    phoneNo,
+    active,
+    lat,
+    lng,
+  ];
 }

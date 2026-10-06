@@ -179,7 +179,8 @@ void main() {
         // first — "not registered yet" is what should fall through to the
         // complete-profile form.
         when(() => mockLogin(any())).thenAnswer(
-          (_) async => const Left(AuthFailure('Invalid phone number or password')),
+          (_) async =>
+              const Left(AuthFailure('Invalid phone number or password')),
         );
         return buildBloc();
       },
@@ -279,9 +280,7 @@ void main() {
       expect: () => [
         isA<AuthLoading>(),
         predicate<AuthState>(
-          (s) =>
-              s is AuthGoogleIdentityObtained &&
-              s.email == tIdentity.email,
+          (s) => s is AuthGoogleIdentityObtained && s.email == tIdentity.email,
           'AuthGoogleIdentityObtained as the fallback',
         ),
       ],

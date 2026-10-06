@@ -26,7 +26,7 @@ class RouteNames {
   /// [register], since the user is not authenticated while filling it in.
   static const String completeGoogleProfile = '/complete-google-profile';
 
-  // ── Main tab routes (inside ShellRoute) ───────────────────────────────────
+  // ── Main tab routes (inside the StatefulShellRoute) ───────────────────────
   // These paths are wrapped by [MainShell] which provides the bottom nav bar.
   // Five tabs: Home, Bookings, Membership, Feeds, Profile. Services has no tab
   // of its own — its past-transaction history is a segment inside the

@@ -24,6 +24,7 @@ import 'package:fix_up_moto/features/services/presentation/pages/service_detail_
 import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_page.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
+import 'package:fix_up_moto/core/router/tab_container.dart';
 
 /// Centralised GoRouter configuration for the entire app.
 ///
@@ -31,15 +32,18 @@ import 'package:fix_up_moto/core/router/route_names.dart';
 /// - **Auth guard**: the [redirect] callback inspects [AuthBloc] state before
 ///   every navigation event; unauthenticated users are sent to login,
 ///   authenticated users are prevented from re-entering the login screen.
-/// - **Shell route**: the five main tabs (home, bookings, membership, feeds,
-///   profile) live inside a [ShellRoute] that renders [MainShell], keeping
-///   the bottom navigation bar persistent across tab switches. Services has
-///   no tab of its own — its past-transaction history lives inside the
-///   Bookings tab instead.
+/// - **Shell route**: the five main tabs (home, feeds, membership, bookings,
+///   profile) live inside a [StatefulShellRoute] that renders [MainShell],
+///   keeping the bottom navigation bar persistent across tab switches. Each
+///   tab is built on its first visit and then kept alive while hidden, so
+///   switching back is instant and doesn't refetch (Feeds, which plays
+///   video, is the one tab dropped while hidden). Services has no tab of its
+///   own — its past-transaction history lives inside the Bookings tab
+///   instead.
 /// - **Nested routes**: service detail is a deep child so it inherits the
 ///   shell's scaffold. Create-booking is the opposite on purpose — a
-///   top-level route outside the ShellRoute, so it renders full-screen
-///   without the bottom nav bar attached.
+///   top-level route outside the shell, so it renders full-screen without
+///   the bottom nav bar attached.
 class AppRouter {
   AppRouter._(); // static-only class — never instantiated
 
@@ -173,16 +177,10 @@ class AppRouter {
       ),
       // Opened from Home's "Chat with Mika" button — a focused full-screen
       // task like createBooking/workshops above, so it's top-level too.
-      GoRoute(
-        path: RouteNames.chatbot,
-        builder: (_, _) => const ChatbotPage(),
-      ),
+      GoRoute(path: RouteNames.chatbot, builder: (_, _) => const ChatbotPage()),
       // Opened from Home's "Motor Saya" button — same reasoning as the
       // routes above.
-      GoRoute(
-        path: RouteNames.myBikes,
-        builder: (_, _) => const MyBikesPage(),
-      ),
+      GoRoute(path: RouteNames.myBikes, builder: (_, _) => const MyBikesPage()),
       // Opened from the Profile tab's settings button — a focused full-screen
       // page like the routes above, so it is top-level too.
       GoRoute(
@@ -192,45 +190,84 @@ class AppRouter {
       // Reached from MyBikesPage's FAB — used to be nested under /profile on
       // the assumption only Profile would ever push it, the same mistake
       // /home/workshops made before. Top-level avoids repeating that bug.
-      GoRoute(
-        path: RouteNames.addBike,
-        builder: (_, _) => const AddBikePage(),
-      ),
+      GoRoute(path: RouteNames.addBike, builder: (_, _) => const AddBikePage()),
 
       // ── Shell route: main tabs with persistent bottom nav bar ──────────────
-      ShellRoute(
-        // MainShell wraps every tab page; receives the active tab as [child]
-        builder: (_, _, child) => MainShell(child: child),
-        routes: [
-          GoRoute(
-            path: RouteNames.home,
-            builder: (_, _) => const HomePage(),
-          ),
-          GoRoute(
-            path: RouteNames.bookings,
-            builder: (_, _) => const BookingsPage(),
+      // Stateful, so a tab you leave is kept alive and comes back instantly
+      // with its data, instead of being rebuilt (and refetched) every time.
+      // The branch order must match MainTabs. Each tab is built on its first
+      // visit; Feeds is the exception that is dropped while hidden (see
+      // buildTabContainer).
+      StatefulShellRoute(
+        builder: (_, _, navigationShell) =>
+            MainShell(navigationShell: navigationShell),
+        navigatorContainerBuilder: (context, navigationShell, branches) =>
+            buildTabContainer(
+              context,
+              navigationShell,
+              branches,
+              disposeWhenHidden: const {MainTabs.feeds},
+            ),
+        branches: [
+          // MainTabs.home
+          StatefulShellBranch(
             routes: [
-              // Services has no tab of its own — its history lives in the
-              // "History" segment of this tab instead — but the detail
-              // screen still needs its own route to push to. Nested here
-              // (not under a standalone /services) so it sits above Bookings
-              // in the back stack and stays inside the shell scaffold.
               GoRoute(
-                path:
-                    'services/detail/:id', // full path: /bookings/services/detail/:id
-                builder: (_, state) =>
-                    ServiceDetailPage(serviceId: state.pathParameters['id']!),
+                path: RouteNames.home,
+                builder: (_, _) => const HomePage(),
               ),
             ],
           ),
-          GoRoute(
-            path: RouteNames.membership,
-            builder: (_, _) => const MembershipPage(),
+          // MainTabs.feeds
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteNames.feeds,
+                builder: (_, _) => const FeedsPage(),
+              ),
+            ],
           ),
-          GoRoute(path: RouteNames.feeds, builder: (_, _) => const FeedsPage()),
-          GoRoute(
-            path: RouteNames.profile,
-            builder: (_, _) => const ProfilePage(),
+          // MainTabs.membership
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteNames.membership,
+                builder: (_, _) => const MembershipPage(),
+              ),
+            ],
+          ),
+          // MainTabs.bookings
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteNames.bookings,
+                builder: (_, _) => const BookingsPage(),
+                routes: [
+                  // Services has no tab of its own — its history lives in the
+                  // "History" segment of this tab instead — but the detail
+                  // screen still needs its own route to push to. Nested here
+                  // (not under a standalone /services) so it sits above
+                  // Bookings in the back stack and stays inside the shell
+                  // scaffold.
+                  GoRoute(
+                    path:
+                        'services/detail/:id', // full path: /bookings/services/detail/:id
+                    builder: (_, state) => ServiceDetailPage(
+                      serviceId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          // MainTabs.profile
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteNames.profile,
+                builder: (_, _) => const ProfilePage(),
+              ),
+            ],
           ),
         ],
       ),

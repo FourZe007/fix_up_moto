@@ -9,8 +9,8 @@ class PromosBloc extends Bloc<PromosEvent, PromosState> {
   final GetPromoImagesUseCase _getPromoImages;
 
   PromosBloc({required GetPromoImagesUseCase getPromoImages})
-      : _getPromoImages = getPromoImages,
-        super(const PromosInitial()) {
+    : _getPromoImages = getPromoImages,
+      super(const PromosInitial()) {
     on<PromoImagesRequested>(_onRequested);
   }
 

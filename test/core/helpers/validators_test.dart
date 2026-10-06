@@ -8,17 +8,19 @@ import 'package:fix_up_moto/core/helpers/validators.dart';
 /// entirely", which is easy to get backwards.
 void main() {
   group('Validators.optional', () {
-    test('treats a null value as valid, without calling the wrapped validator',
-        () {
-      var wasCalled = false;
-      final wrapped = Validators.optional((value) {
-        wasCalled = true;
-        return 'should never be seen';
-      });
+    test(
+      'treats a null value as valid, without calling the wrapped validator',
+      () {
+        var wasCalled = false;
+        final wrapped = Validators.optional((value) {
+          wasCalled = true;
+          return 'should never be seen';
+        });
 
-      expect(wrapped(null), isNull);
-      expect(wasCalled, isFalse);
-    });
+        expect(wrapped(null), isNull);
+        expect(wasCalled, isFalse);
+      },
+    );
 
     test('treats an empty or whitespace-only value as valid', () {
       final wrapped = Validators.optional(Validators.email);

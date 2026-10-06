@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/theme/theme_cubit.dart';
@@ -47,6 +48,8 @@ class App extends StatelessWidget {
         // App-scoped and `.value` for the same reason as the two above;
         // MaterialApp below rebuilds from it when the member changes theme.
         BlocProvider<ThemeCubit>.value(value: sl<ThemeCubit>()),
+        // Lets an action on one screen tell a kept-alive tab to reload.
+        BlocProvider<DataRefreshCubit>.value(value: sl<DataRefreshCubit>()),
         // Register additional app-wide BLoCs here as the app grows.
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
@@ -63,7 +66,7 @@ class App extends StatelessWidget {
           themeMode: AppTheme.resolveMode(themeMode),
 
           // GoRouter instance declared in AppRouter handles all navigation,
-          // including the auth redirect guard and ShellRoute tab structure.
+          // including the auth redirect guard and tab structure.
           routerConfig: AppRouter.router,
 
           // Remove the debug banner in all builds — cleaner screenshots/demos.

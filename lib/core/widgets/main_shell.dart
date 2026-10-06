@@ -2,50 +2,54 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fix_up_moto/core/router/route_names.dart';
+import 'package:fix_up_moto/core/router/tab_container.dart';
 
 /// Persistent bottom navigation bar shell shared by the five main tabs.
 ///
-/// Wraps [child] (the active tab page) so the nav bar stays visible during
-/// tab switches. Placed inside a [ShellRoute] in [AppRouter] so GoRouter
-/// handles the actual routing — this widget only renders the chrome.
+/// Wraps [navigationShell] (the stack of tab pages) so the nav bar stays
+/// visible during tab switches. Built by the [StatefulShellRoute] in
+/// [AppRouter], which keeps each tab alive while it is hidden — this widget
+/// only renders the chrome and tells the shell which tab was picked.
 ///
-/// Five tabs: Home, Feeds, Membership, Bookings, Profile. There is
-/// deliberately no Services tab — past service history is a segment inside
-/// Bookings (see [BookingsPage]) instead, alongside current bookings, since
-/// both are about the member's visits to FixUp Moto rather than separate
-/// concerns.
+/// Five tabs, in [MainTabs] order: Home, Feeds, Membership, Bookings,
+/// Profile. There is deliberately no Services tab — past service history is a
+/// segment inside Bookings (see [BookingsPage]) instead, alongside current
+/// bookings, since both are about the member's visits to FixUp Moto rather
+/// than separate concerns.
 class MainShell extends StatelessWidget {
-  /// The active page widget supplied by [ShellRoute].
-  final Widget child;
+  /// The tab pages and which one is showing, supplied by the router.
+  final StatefulNavigationShell navigationShell;
 
-  const MainShell({super.key, required this.child});
+  const MainShell({super.key, required this.navigationShell});
 
   @override
   Widget build(BuildContext context) {
-    final onHome = _selectedIndex(context) == 0;
+    final current = navigationShell.currentIndex;
 
-    // Every tab switch uses context.go(), which *replaces* the current
-    // location instead of pushing on top of it — so there is no back-stack
-    // entry for the system back button to land on. Without this, pressing
-    // back from any non-Home tab (including Home's own "Booking"/"Bikes
-    // List" quick actions, which also use go()) closes the app instead of
+    // Switching tabs does not push anything on a back stack, so without this
+    // the system back button would close the app from any non-Home tab
+    // (including Home's own "Booking"/"Bikes List" quick actions) instead of
     // returning to Home, which is the behaviour every bottom-nav app is
     // expected to have.
     return PopScope(
-      canPop: onHome,
+      canPop: current == MainTabs.home,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return; // already on Home — let the OS handle it (exit)
         log('Return to Home');
-        context.go(RouteNames.home);
+        navigationShell.goBranch(MainTabs.home);
       },
       child: Scaffold(
-        // child is the active tab content — rendered above the nav bar
-        body: child,
+        // the active tab's page, rendered above the nav bar
+        body: navigationShell,
         bottomNavigationBar: NavigationBar(
-          // Determine which tab is active by matching the current route location
-          selectedIndex: _selectedIndex(context),
-          onDestinationSelected: (index) => _onTap(context, index),
+          selectedIndex: current,
+          // Tapping the tab you are already on goes back to its first page
+          // (e.g. out of a service's detail); tapping another switches to it,
+          // keeping whatever it was showing.
+          onDestinationSelected: (index) => navigationShell.goBranch(
+            index,
+            initialLocation: index == current,
+          ),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
@@ -76,35 +80,5 @@ class MainShell extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// Maps the current GoRouter location to a tab index (0–4).
-  /// Defaults to 0 (Home) for any unrecognised path.
-  int _selectedIndex(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
-    // Service browsing/detail now lives under /bookings, so it highlights
-    // the Bookings tab too — there is no separate Services destination to
-    // highlight instead.
-    if (location.startsWith(RouteNames.feeds)) return 1;
-    if (location.startsWith(RouteNames.membership)) return 2;
-    if (location.startsWith(RouteNames.bookings)) return 3;
-    if (location.startsWith(RouteNames.profile)) return 4;
-    return 0; // home is the default tab
-  }
-
-  /// Navigates to the route corresponding to the tapped [index].
-  void _onTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go(RouteNames.home);
-      case 1:
-        context.go(RouteNames.feeds);
-      case 2:
-        context.go(RouteNames.membership);
-      case 3:
-        context.go(RouteNames.bookings);
-      case 4:
-        context.go(RouteNames.profile);
-    }
   }
 }

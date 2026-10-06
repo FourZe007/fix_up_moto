@@ -46,17 +46,14 @@ class StatsCard extends StatelessWidget {
             // Large numeric value
             Text(
               value,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
 
             // Descriptive label in secondary text colour
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            Text(label, style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       ),

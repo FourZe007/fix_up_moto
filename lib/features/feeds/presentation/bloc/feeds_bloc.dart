@@ -8,8 +8,8 @@ class FeedsBloc extends Bloc<FeedsEvent, FeedsState> {
   final GetFeedsUseCase _getFeeds;
 
   FeedsBloc({required GetFeedsUseCase getFeeds})
-      : _getFeeds = getFeeds,
-        super(const FeedsInitial()) {
+    : _getFeeds = getFeeds,
+      super(const FeedsInitial()) {
     on<FeedsRequested>(_onRequested);
   }
 

@@ -54,14 +54,14 @@ class WorkshopModel {
   Map<String, dynamic> toJson() => _$WorkshopModelToJson(this);
 
   WorkshopEntity toEntity() => WorkshopEntity(
-        branch: branch,
-        shop: shop,
-        bsName: bsName,
-        bsAddress: bsAddress,
-        operationalHours: operationalHours,
-        phoneNo: phoneNo,
-        active: active,
-        lat: lat,
-        lng: lng,
-      );
+    branch: branch,
+    shop: shop,
+    bsName: bsName,
+    bsAddress: bsAddress,
+    operationalHours: operationalHours,
+    phoneNo: phoneNo,
+    active: active,
+    lat: lat,
+    lng: lng,
+  );
 }

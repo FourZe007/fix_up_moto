@@ -7,8 +7,13 @@ sealed class ServicesState extends Equatable {
   List<Object?> get props => [];
 }
 
-final class ServicesInitial extends ServicesState { const ServicesInitial(); }
-final class ServicesLoading extends ServicesState { const ServicesLoading(); }
+final class ServicesInitial extends ServicesState {
+  const ServicesInitial();
+}
+
+final class ServicesLoading extends ServicesState {
+  const ServicesLoading();
+}
 
 /// Service list loaded — [services] may be filtered by category.
 final class ServicesLoaded extends ServicesState {

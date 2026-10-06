@@ -11,9 +11,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ProfileBloc({
     required GetProfileUseCase getProfile,
     required UpdateProfileUseCase updateProfile,
-  })  : _getProfile = getProfile,
-        _updateProfile = updateProfile,
-        super(const ProfileInitial()) {
+  }) : _getProfile = getProfile,
+       _updateProfile = updateProfile,
+       super(const ProfileInitial()) {
     on<ProfileLoadRequested>(_onLoadRequested);
     on<ProfileUpdateRequested>(_onUpdateRequested);
   }
@@ -38,12 +38,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final result = await _updateProfile(
       UpdateProfileParams(name: event.name, phone: event.phone),
     );
-    result.fold(
-      (f) => emit(ProfileError(f.message)),
-      (user) {
-        emit(const ProfileActionSuccess('Profile updated successfully'));
-        emit(ProfileLoaded(user: user));
-      },
-    );
+    result.fold((f) => emit(ProfileError(f.message)), (user) {
+      emit(const ProfileActionSuccess('Profile updated successfully'));
+      emit(ProfileLoaded(user: user));
+    });
   }
 }

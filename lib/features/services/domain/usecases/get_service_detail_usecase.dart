@@ -5,7 +5,8 @@ import 'package:fix_up_moto/core/usecases/usecase.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 import 'package:fix_up_moto/features/services/domain/repositories/services_repository.dart';
 
-class GetServiceDetailUseCase extends UseCase<ServiceEntity, ServiceDetailParams> {
+class GetServiceDetailUseCase
+    extends UseCase<ServiceEntity, ServiceDetailParams> {
   final ServicesRepository repository;
   GetServiceDetailUseCase(this.repository);
 

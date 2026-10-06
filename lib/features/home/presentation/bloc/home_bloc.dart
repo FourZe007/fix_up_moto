@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
 import 'home_event.dart';
@@ -9,8 +11,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final GetDashboardStatsUseCase _getDashboardStats;
 
   HomeBloc({required GetDashboardStatsUseCase getDashboardStats})
-      : _getDashboardStats = getDashboardStats,
-        super(const HomeInitial()) {
+    : _getDashboardStats = getDashboardStats,
+      super(const HomeInitial()) {
     on<HomeStatsRequested>(_onStatsRequested);
   }
 
@@ -20,9 +22,11 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     emit(const HomeLoading());
     final result = await _getDashboardStats();
+    log('Home Dashboard Stats: $result', name: '_onStatsRequested');
+
     result.fold(
       (failure) => emit(HomeError(failure.message)),
-      (stats)   => emit(HomeLoaded(stats)),
+      (stats) => emit(HomeLoaded(stats)),
     );
   }
 }

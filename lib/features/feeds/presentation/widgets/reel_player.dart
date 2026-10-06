@@ -113,7 +113,11 @@ class _ReelPlayerState extends State<ReelPlayer> {
               )
             else if (_failed)
               const Center(
-                child: Icon(Icons.error_outline, color: Colors.white54, size: 40),
+                child: Icon(
+                  Icons.error_outline,
+                  color: Colors.white54,
+                  size: 40,
+                ),
               )
             else if (widget.post.isVideo)
               const Center(

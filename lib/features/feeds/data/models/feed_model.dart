@@ -32,12 +32,12 @@ class FeedModel {
   Map<String, dynamic> toJson() => _$FeedModelToJson(this);
 
   FeedEntity toEntity() => FeedEntity(
-        id: id,
-        caption: caption,
-        mediaType: mediaType,
-        mediaUrl: mediaUrl,
-        thumbnailUrl: thumbnailUrl,
-        permalink: permalink,
-        timestamp: timestamp,
-      );
+    id: id,
+    caption: caption,
+    mediaType: mediaType,
+    mediaUrl: mediaUrl,
+    thumbnailUrl: thumbnailUrl,
+    permalink: permalink,
+    timestamp: timestamp,
+  );
 }

@@ -67,7 +67,9 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       if (jsonString == null) return null;
 
       // Decode JSON string → Map → LoginUserModel
-      return LoginUserModel.fromJson(jsonDecode(jsonString) as Map<String, dynamic>);
+      return LoginUserModel.fromJson(
+        jsonDecode(jsonString) as Map<String, dynamic>,
+      );
     } on FormatException catch (e) {
       // The stored JSON was malformed — treat as a corrupted cache
       throw CacheException(message: 'Corrupted user cache: ${e.message}');

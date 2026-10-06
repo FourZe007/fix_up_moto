@@ -33,6 +33,12 @@ class FeedEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        id, caption, mediaType, mediaUrl, thumbnailUrl, permalink, timestamp,
-      ];
+    id,
+    caption,
+    mediaType,
+    mediaUrl,
+    thumbnailUrl,
+    permalink,
+    timestamp,
+  ];
 }

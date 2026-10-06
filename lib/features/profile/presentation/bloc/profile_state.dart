@@ -7,8 +7,13 @@ sealed class ProfileState extends Equatable {
   List<Object?> get props => [];
 }
 
-final class ProfileInitial extends ProfileState { const ProfileInitial(); }
-final class ProfileLoading extends ProfileState { const ProfileLoading(); }
+final class ProfileInitial extends ProfileState {
+  const ProfileInitial();
+}
+
+final class ProfileLoading extends ProfileState {
+  const ProfileLoading();
+}
 
 final class ProfileLoaded extends ProfileState {
   final ProfileEntity user;

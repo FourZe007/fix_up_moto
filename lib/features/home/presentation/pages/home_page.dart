@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -46,21 +48,29 @@ class _HomeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: BlocBuilder<HomeBloc, HomeState>(
-          builder: (context, state) {
-            return switch (state) {
-              HomeInitial() ||
-              HomeLoading() => const Center(child: CircularProgressIndicator()),
-              HomeError(:final message) => _ErrorView(
-                message: message,
-                onRetry: () =>
-                    context.read<HomeBloc>().add(const HomeStatsRequested()),
-              ),
-              HomeLoaded(:final stats) => _HomeBody(stats: stats),
-            };
-          },
+    // This tab stays alive while hidden, so it reloads when something that
+    // changes the stats happens elsewhere (e.g. a bike is added).
+    return RefreshOn(
+      kind: DataKind.stats,
+      onRefresh: (context) =>
+          context.read<HomeBloc>().add(const HomeStatsRequested()),
+      child: Scaffold(
+        body: SafeArea(
+          child: BlocBuilder<HomeBloc, HomeState>(
+            builder: (context, state) {
+              return switch (state) {
+                HomeInitial() || HomeLoading() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                HomeError(:final message) => _ErrorView(
+                  message: message,
+                  onRetry: () =>
+                      context.read<HomeBloc>().add(const HomeStatsRequested()),
+                ),
+                HomeLoaded(:final stats) => _HomeBody(stats: stats),
+              };
+            },
+          ),
         ),
       ),
     );

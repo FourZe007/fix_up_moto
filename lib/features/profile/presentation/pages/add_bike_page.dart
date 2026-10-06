@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
@@ -153,6 +154,11 @@ class _AddBikeViewState extends State<_AddBikeView> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Motor berhasil ditambah!')),
                   );
+
+                  // A new bike can change the member's stats (Home, Membership
+                  // and Profile are alive in the tab stack), so tell them to
+                  // reload. Read before the pop, while this context is active.
+                  context.read<DataRefreshCubit>().invalidate(DataKind.stats);
 
                   // Popping with `true` lets whichever caller pushed this
                   // route (MyBikesPage's FAB) know a bike was actually added,

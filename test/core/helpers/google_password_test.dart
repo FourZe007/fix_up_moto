@@ -10,30 +10,42 @@ import 'package:fix_up_moto/core/helpers/google_password.dart';
 /// editable on the complete-profile form) is what keeps it stable.
 void main() {
   group('GooglePassword.forNameFromEmail', () {
-    test('takes the local part before @, lowercased, with the -google suffix',
-        () {
-      expect(GooglePassword.forNameFromEmail('John.Doe@gmail.com'),
-          'john.doe-google');
-    });
+    test(
+      'takes the local part before @, lowercased, with the -google suffix',
+      () {
+        expect(
+          GooglePassword.forNameFromEmail('John.Doe@gmail.com'),
+          'john.doe-google',
+        );
+      },
+    );
 
-    test('is deterministic — the same email always derives the same password',
-        () {
+    test(
+      'is deterministic — the same email always derives the same password',
+      () {
+        expect(
+          GooglePassword.forNameFromEmail('john@example.com'),
+          GooglePassword.forNameFromEmail('john@example.com'),
+        );
+      },
+    );
+
+    test('is case-insensitive to the source email', () {
+      expect(
+        GooglePassword.forNameFromEmail('JOHN@example.com'),
+        'john-google',
+      );
       expect(
         GooglePassword.forNameFromEmail('john@example.com'),
-        GooglePassword.forNameFromEmail('john@example.com'),
+        'john-google',
       );
     });
 
-    test('is case-insensitive to the source email', () {
-      expect(GooglePassword.forNameFromEmail('JOHN@example.com'),
-          'john-google');
-      expect(GooglePassword.forNameFromEmail('john@example.com'),
-          'john-google');
-    });
-
     test('trims surrounding whitespace before deriving', () {
-      expect(GooglePassword.forNameFromEmail('  john@example.com  '),
-          'john-google');
+      expect(
+        GooglePassword.forNameFromEmail('  john@example.com  '),
+        'john-google',
+      );
     });
 
     test('falls back to "user" for an empty email', () {
