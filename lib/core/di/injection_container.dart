@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/constants/google_auth_constants.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/services/screen_brightness_booster.dart';
+import 'package:fix_up_moto/core/services/share_service.dart';
 import 'package:fix_up_moto/core/theme/theme_cubit.dart';
 
 import 'package:fix_up_moto/features/auth/data/datasources/auth_local_data_source.dart';
@@ -323,4 +325,11 @@ Future<void> initDependencies() async {
   // App-scoped for the same reason: MaterialApp itself reads it. Provided with
   // BlocProvider.value in app.dart.
   sl.registerLazySingleton(() => ThemeCubit(sl<SharedPreferences>()));
+
+  // Stateless; registered (rather than constructed in the widget) so tests can
+  // swap in a fake instead of touching the real screen.
+  sl.registerLazySingleton(() => const ScreenBrightnessBooster());
+
+  // Same reasoning: stateless, and swappable for a fake in tests.
+  sl.registerLazySingleton(() => const ShareService());
 }

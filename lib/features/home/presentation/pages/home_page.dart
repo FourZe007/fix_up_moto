@@ -122,7 +122,7 @@ class _GreetingHeader extends StatelessWidget {
           child: Text(
             // Falls back to a generic greeting if the record ever comes back
             // with a blank name, rather than showing "Hi, ".
-            'Hi, ${name.isNotEmpty ? name : 'Member'}',
+            'Hi, ${name.isNotEmpty ? name : 'Guest'}',
             style: theme.textTheme.headlineSmall,
             overflow: TextOverflow.ellipsis,
           ),

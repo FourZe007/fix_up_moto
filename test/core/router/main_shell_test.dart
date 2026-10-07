@@ -98,10 +98,10 @@ void main() {
   ) async {
     final builds = await pumpShell(tester);
 
-    await openTab(tester, 'Member');
+    await openTab(tester, 'My Point');
     await openTab(tester, 'Booking');
     await openTab(tester, 'Beranda');
-    await openTab(tester, 'Member');
+    await openTab(tester, 'My Point');
 
     // Home and Member were each built once, even though both were left and
     // returned to — that rebuild is what used to refetch.
@@ -113,13 +113,13 @@ void main() {
   testWidgets('a tab keeps its state while hidden', (tester) async {
     await pumpShell(tester);
 
-    await openTab(tester, 'Member');
+    await openTab(tester, 'My Point');
     await tester.tap(find.text('membership taps: 0'));
     await tester.pump();
     expect(find.text('membership taps: 1'), findsOneWidget);
 
     await openTab(tester, 'Booking');
-    await openTab(tester, 'Member');
+    await openTab(tester, 'My Point');
 
     expect(find.text('membership taps: 1'), findsOneWidget);
   });

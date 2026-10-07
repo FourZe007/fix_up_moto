@@ -64,7 +64,7 @@ class MainShell extends StatelessWidget {
             NavigationDestination(
               icon: Icon(Icons.card_membership_outlined),
               selectedIcon: Icon(Icons.card_membership),
-              label: 'Member',
+              label: 'My Point',
             ),
             NavigationDestination(
               icon: Icon(Icons.calendar_month_outlined),

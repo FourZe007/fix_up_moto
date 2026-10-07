@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/services/share_service.dart';
 import 'package:fix_up_moto/features/feeds/domain/entities/feed_entity.dart';
+import 'package:fix_up_moto/features/feeds/presentation/utils/reel_share_text.dart';
 
 /// One full-screen reel. Only initialises its [VideoPlayerController] while
 /// [isActive] is true — the page above/below it in the feed stays a static
@@ -20,7 +23,7 @@ class ReelPlayer extends StatefulWidget {
 
 class _ReelPlayerState extends State<ReelPlayer> {
   VideoPlayerController? _controller;
-  bool _muted = false;
+  bool _muted = true;
   bool _failed = false;
 
   @override
@@ -50,6 +53,7 @@ class _ReelPlayerState extends State<ReelPlayer> {
       if (!mounted) return;
       await controller.setLooping(true);
       await controller.play();
+      await controller.setVolume(0);
       setState(() {});
     } catch (_) {
       if (mounted) setState(() => _failed = true);
@@ -76,6 +80,29 @@ class _ReelPlayerState extends State<ReelPlayer> {
   Future<void> _openOnInstagram() async {
     final uri = Uri.parse(widget.post.permalink);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /// Hands the reel's caption and Instagram link to the phone's share sheet.
+  /// [buttonContext] is the share button's own context, used to anchor the
+  /// share popover on iPads.
+  Future<void> _shareReels(BuildContext buttonContext) async {
+    final text = reelShareText(widget.post);
+    if (text.isEmpty) return; // nothing worth sharing
+
+    final box = buttonContext.findRenderObject();
+    final origin = box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+
+    final shared = await sl<ShareService>().shareText(
+      text,
+      sharePositionOrigin: origin,
+    );
+    if (!shared && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Unable to open sharing')));
+    }
   }
 
   @override
@@ -130,14 +157,14 @@ class _ReelPlayerState extends State<ReelPlayer> {
                 child: Icon(Icons.play_arrow, color: Colors.white70, size: 72),
               ),
 
-            _buildOverlay(),
+            _buildOverlay(widget.post.mediaUrl),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOverlay() {
+  Widget _buildOverlay(String mediaLink) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -145,6 +172,7 @@ class _ReelPlayerState extends State<ReelPlayer> {
           children: [
             const Spacer(),
             Row(
+              spacing: 12,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
@@ -155,18 +183,28 @@ class _ReelPlayerState extends State<ReelPlayer> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 12),
+
                 Column(
+                  spacing: 16,
                   children: [
                     if (widget.post.isVideo)
                       _ActionButton(
                         icon: _muted ? Icons.volume_off : Icons.volume_up,
                         onTap: _toggleMute,
                       ),
-                    const SizedBox(height: 16),
+
                     _ActionButton(
                       icon: Icons.open_in_new,
                       onTap: _openOnInstagram,
+                    ),
+
+                    // Builder: the button's own context, to anchor the share
+                    // popover on tablets.
+                    Builder(
+                      builder: (buttonContext) => _ActionButton(
+                        icon: Icons.share,
+                        onTap: () => _shareReels(buttonContext),
+                      ),
                     ),
                   ],
                 ),

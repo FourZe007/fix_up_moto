@@ -8,8 +8,12 @@ class AssetConstants {
 
   // ── Images ────────────────────────────────────────────────────────────────
 
-  /// App logo shown on the splash/login screens.
-  static const String logo = 'assets/images/logo.png';
+  /// The FixUp Moto logo: a 1600x1600 opaque JPEG (white wordmark on a solid
+  /// red square — no transparency). Shown in the Membership card's badge.
+  ///
+  /// Large for what it is used for, so display it with `cacheWidth` set to the
+  /// size it is drawn at, or it is decoded at full size (~10 MB).
+  static const String logo = 'assets/images/fixupmoto_logo.jpg';
 
   /// Placeholder image displayed while a network image is loading.
   static const String imagePlaceholder = 'assets/images/placeholder.png';

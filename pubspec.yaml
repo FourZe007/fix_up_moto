@@ -81,6 +81,14 @@ dependencies:
   # ── UI ────────────────────────────────────────────────────────────────────
   # sliding_up_panel: the advanced-filter panel on the Bookings tab.
   sliding_up_panel: ^2.0.0+1
+  # qr_flutter: draws the member QR on the Membership page, locally (no network).
+  qr_flutter: ^4.1.0
+  # screen_brightness: raises the screen to full brightness while the member QR
+  # is enlarged, so a cashier's scanner can read it; restored on close.
+  screen_brightness: ^2.1.11
+  # share_plus: the Feeds tab's share button — opens the phone's share sheet with
+  # a reel's caption and Instagram link.
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:
