@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:fix_up_moto/core/constants/api_constants.dart';
@@ -264,7 +265,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       log('Attempt 1st Login');
       final existing = await login(email, password, isGoogleLogin: '1');
       log('Phase 1 login succeeded — account already exists, skipping Phase 2');
-      return existing;
+
+      switch (existing.flag) {
+        case 1:
+          return existing;
+        default:
+          break;
+      }
     }
     // on AccountInactiveException {
     //   log('Account Inactive Exception');

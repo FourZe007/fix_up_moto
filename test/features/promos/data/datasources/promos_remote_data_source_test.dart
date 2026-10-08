@@ -19,12 +19,12 @@ void main() {
   test('requests IMAGEFORAPPS and maps every returned banner', () async {
     when(
       () => dio.post<dynamic>(
-        ApiConstants.promoImages,
+        ApiConstants.master,
         data: any<dynamic>(named: 'data'),
       ),
     ).thenAnswer(
       (_) async => Response<dynamic>(
-        requestOptions: RequestOptions(path: ApiConstants.promoImages),
+        requestOptions: RequestOptions(path: ApiConstants.master),
         data: {
           'Msg': 'Sukses',
           'Code': '100',
@@ -45,7 +45,7 @@ void main() {
     expect(images[1].toEntity().imageBytes, orderedEquals([4, 5, 6]));
     verify(
       () => dio.post<dynamic>(
-        ApiConstants.promoImages,
+        ApiConstants.master,
         data: {'Jenis': 'IMAGEFORAPPS'},
       ),
     ).called(1);

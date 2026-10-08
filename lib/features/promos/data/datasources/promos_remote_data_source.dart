@@ -15,7 +15,7 @@ class PromosRemoteDataSourceImpl implements PromosRemoteDataSource {
   Future<List<PromoImageModel>> getPromoImages() async {
     try {
       final response = await _dio.post(
-        ApiConstants.promoImages,
+        ApiConstants.master,
         data: {'Jenis': 'IMAGEFORAPPS'},
       );
       return SampEnvelope.rows(response).map(PromoImageModel.fromJson).toList();

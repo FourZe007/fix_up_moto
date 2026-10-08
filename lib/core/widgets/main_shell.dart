@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
+import 'package:fix_up_moto/core/theme/app_colors.dart';
 
 /// Persistent bottom navigation bar shell shared by the five main tabs.
 ///
@@ -21,6 +22,37 @@ class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainShell({super.key, required this.navigationShell});
+
+  /// The bar's own theme with only the selected tab restyled: no highlight
+  /// pill behind it, and its filled icon and its label in the brand colour.
+  ///
+  /// The unselected state returns `null` for both the icon and the label,
+  /// which [NavigationBar] reads as "use your default" — so idle tabs look
+  /// exactly as they always did. The label's base style comes from the active
+  /// theme's `labelMedium` (what the bar itself uses), not from
+  /// `AppTextStyles.labelMedium`, whose letter spacing and line height differ
+  /// and would nudge the text each time a tab was selected.
+  ///
+  /// [AppColors.primary] in light and dark mode alike, as the app's
+  /// `bottomNavigationBarTheme` does: the bar is light grey in both.
+  static NavigationBarThemeData _barTheme(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.labelMedium;
+
+    return NavigationBarTheme.of(context).copyWith(
+      // Material 3's tonal pill behind the selected icon — the red circle.
+      indicatorColor: Colors.transparent,
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? const IconThemeData(color: AppColors.primary)
+            : null,
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? labelStyle?.copyWith(color: AppColors.primary)
+            : null,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,42 +73,45 @@ class MainShell extends StatelessWidget {
       child: Scaffold(
         // the active tab's page, rendered above the nav bar
         body: navigationShell,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: current,
-          // Tapping the tab you are already on goes back to its first page
-          // (e.g. out of a service's detail); tapping another switches to it,
-          // keeping whatever it was showing.
-          onDestinationSelected: (index) => navigationShell.goBranch(
-            index,
-            initialLocation: index == current,
+        bottomNavigationBar: NavigationBarTheme(
+          data: _barTheme(context),
+          child: NavigationBar(
+            selectedIndex: current,
+            // Tapping the tab you are already on goes back to its first page
+            // (e.g. out of a service's detail); tapping another switches to
+            // it, keeping whatever it was showing.
+            onDestinationSelected: (index) => navigationShell.goBranch(
+              index,
+              initialLocation: index == current,
+            ),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Beranda',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.play_circle_outline),
+                selectedIcon: Icon(Icons.play_circle),
+                label: 'Feed',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.credit_card_rounded),
+                selectedIcon: Icon(Icons.credit_card_rounded),
+                label: 'My Point',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined),
+                selectedIcon: Icon(Icons.calendar_month),
+                label: 'Booking',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Saya',
+              ),
+            ],
           ),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Beranda',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.play_circle_outline),
-              selectedIcon: Icon(Icons.play_circle),
-              label: 'Feed',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.card_membership_outlined),
-              selectedIcon: Icon(Icons.card_membership),
-              label: 'My Point',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              selectedIcon: Icon(Icons.calendar_month),
-              label: 'Booking',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Saya',
-            ),
-          ],
         ),
       ),
     );

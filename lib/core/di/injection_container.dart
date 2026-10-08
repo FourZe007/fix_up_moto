@@ -38,6 +38,13 @@ import 'package:fix_up_moto/features/home/data/repositories/home_repository_impl
 import 'package:fix_up_moto/features/home/domain/repositories/home_repository.dart';
 import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/membership/data/datasources/rewards_remote_data_source.dart';
+import 'package:fix_up_moto/features/membership/data/repositories/rewards_repository_impl.dart';
+import 'package:fix_up_moto/features/membership/domain/repositories/rewards_repository.dart';
+import 'package:fix_up_moto/features/membership/domain/usecases/get_rewards_usecase.dart';
+import 'package:fix_up_moto/features/membership/domain/usecases/redeem_reward_usecase.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_bloc.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_bloc.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/bikes_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/repositories/bikes_repository_impl.dart';
@@ -312,6 +319,25 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton(() => GetPromoImagesUseCase(sl<PromosRepository>()));
   sl.registerFactory(() => PromosBloc(getPromoImages: sl()));
+
+  // ── Membership Feature ────────────────────────────────────────────────────
+  // Only the voucher list (the Voucher tab) has its own data layer; the balance
+  // and point history still come from Home's dashboard stats.
+
+  sl.registerLazySingleton<RewardsRemoteDataSource>(
+    () => RewardsRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<RewardsRepository>(
+    () => RewardsRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      authRepository: sl(),
+    ),
+  );
+  sl.registerLazySingleton(() => GetRewardsUseCase(sl<RewardsRepository>()));
+  sl.registerLazySingleton(() => RedeemRewardUseCase(sl<RewardsRepository>()));
+  sl.registerFactory(() => RewardsBloc(getRewards: sl()));
+  sl.registerFactory(() => RedeemBloc(redeemReward: sl()));
 
   // App-scoped, like AuthBloc — see SelectedWorkshopCubit's own doc comment
   // for why this can't be a page-scoped factory. Pair with BlocProvider.value

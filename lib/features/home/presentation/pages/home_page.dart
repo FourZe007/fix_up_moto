@@ -106,6 +106,8 @@ class _HomeBody extends StatelessWidget {
 
 /// "Hi, [name]" + point balance — both read straight from [DashboardStatsEntity],
 /// already fetched by [HomeBloc]. No separate request for the greeting.
+///
+/// Both are buttons that open the Profile tab.
 class _GreetingHeader extends StatelessWidget {
   final String name;
   final int points;
@@ -117,36 +119,48 @@ class _GreetingHeader extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Row(
+      spacing: 12,
       children: [
         Expanded(
-          child: Text(
-            // Falls back to a generic greeting if the record ever comes back
-            // with a blank name, rather than showing "Hi, ".
-            'Hi, ${name.isNotEmpty ? name : 'Guest'}',
-            style: theme.textTheme.headlineSmall,
-            overflow: TextOverflow.ellipsis,
+          child: TextButton(
+            onPressed: () => context.go(RouteNames.profile),
+            child: Text(
+              // Falls back to a generic greeting if the record ever comes back
+              // with a blank name, rather than showing "Hi, ".
+              'Hi, ${name.isNotEmpty ? name : 'Guest'}',
+              style: theme.textTheme.headlineSmall,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
-        const SizedBox(width: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
+
+        // A Material + InkWell rather than a decorated Container: a ripple is
+        // painted on the nearest Material, and a Container's own background
+        // would hide it.
+        Material(
+          key: const Key('points-chip'),
+          color: AppColors.primary.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
             borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.star, size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                '$points pts',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+            onTap: () => context.go(RouteNames.profile),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                spacing: 6,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.star, size: 18, color: AppColors.primary),
+                  Text(
+                    '$points pts',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ],

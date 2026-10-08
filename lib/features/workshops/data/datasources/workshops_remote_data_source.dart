@@ -15,7 +15,7 @@ class WorkshopsRemoteDataSourceImpl implements WorkshopsRemoteDataSource {
   Future<List<WorkshopModel>> getWorkshops() async {
     try {
       final response = await _dio.post(
-        ApiConstants.workshops,
+        ApiConstants.master,
         data: {'Jenis': 'BRANCHSHOP'},
       );
 

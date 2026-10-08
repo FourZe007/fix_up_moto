@@ -82,6 +82,11 @@ class ApiConstants {
   ///   }
   /// }
   /// ```
+  /// The same call also carries other writes, picked by `TransID` (always
+  /// `Mode: "1"`, answered with `{ResultMessage}`): `"REGISTERMOTOR"` adds a
+  /// bike, `"RSV"` creates a booking, and `"REDEEMPOINT"` spends a member's
+  /// points on a voucher, with `Data: {MemberID, PointID}`.
+  ///
   /// Manual registration (name/email/password only, no phone collected yet —
   /// see `register_page.dart`) still targets the old placeholder [register]
   /// endpoint below and has not been migrated to this one. The Google
@@ -89,20 +94,21 @@ class ApiConstants {
   /// endpoint directly via `AuthRemoteDataSourceImpl.submitGoogleAccount`.
   static const String modify = '/apiSAMP/Modify';
 
-  /// POST `/apiSAMP/Master` — body: `{Jenis: "BRANCHSHOP"}` → the list of
-  /// workshop/branch locations. See `WorkshopsRemoteDataSource`.
+  /// POST — the shared master-data lookup. One endpoint, many lists: the
+  /// `Jenis` field in the body picks which one comes back, so every list reuses
+  /// this single constant instead of getting a path constant of its own.
   ///
-  /// Named for what this call actually does, not the shared endpoint path —
-  /// `Master` is a discriminated multi-purpose lookup, and `Jenis` is what
-  /// picks "workshops" out of it. A future `Jenis` value for a different kind
-  /// of master data gets its own constant here, not a rename of this one.
-  static const String workshops = '/apiSAMP/Master';
-
-  /// POST `/apiSAMP/Master` — body: `{Jenis: "IMAGEFORAPPS"}` → the home
-  /// promo carousel banners, each record `{Line, Base64Image}` where
-  /// `Base64Image` is the raw image bytes base64-encoded directly in the
-  /// response (no image URL). See `PromosRemoteDataSource`.
-  static const String promoImages = '/apiSAMP/Master';
+  /// `Jenis` values in use:
+  /// - `"BRANCHSHOP"` → the workshop/branch locations. See
+  ///   `WorkshopsRemoteDataSource`.
+  /// - `"IMAGEFORAPPS"` → the home promo carousel banners, each record
+  ///   `{Line, Base64Image}` where `Base64Image` is the raw image bytes
+  ///   base64-encoded directly in the response (no image URL). See
+  ///   `PromosRemoteDataSource`.
+  /// - `"POINTID"` → the rewards a member can get for points, each record
+  ///   `{PointID, PointName, PointQty}` (`PointQty` is the point cost). See
+  ///   `RewardsRemoteDataSource`.
+  static const String master = '/apiSAMP/Master';
 
   // ══════════════════════════════════════════════════════════════════════════
   // UNVERIFIED — the paths below follow the BrowseTrans naming convention but

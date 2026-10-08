@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,9 +17,45 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/membership/domain/entities/reward_entity.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_bloc.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_event.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_state.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_bloc.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_event.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_state.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
 
 class MockHomeBloc extends MockBloc<HomeEvent, HomeState> implements HomeBloc {}
+
+class MockRewardsBloc extends MockBloc<RewardsEvent, RewardsState>
+    implements RewardsBloc {}
+
+class MockRedeemBloc extends MockBloc<RedeemEvent, RedeemState>
+    implements RedeemBloc {}
+
+/// The vouchers the API offers. With [tStats]' 80 points, the first is
+/// available and the other two cost more than the balance.
+const tRewards = [
+  RewardEntity(pointId: 'C00', pointName: 'GRATIS CUCI MOTOR', pointQty: 50),
+  RewardEntity(
+    pointId: 'C01',
+    pointName: 'DISKON JASA SERVICE Rp. 20.000,00',
+    pointQty: 100,
+  ),
+  RewardEntity(pointId: 'C02', pointName: 'GRATIS GANTI OLI', pointQty: 250),
+];
+
+/// Far more vouchers than fit on screen, half affordable with [tStats]' 80
+/// points and half not.
+final tLongRewards = [
+  for (var i = 0; i < 30; i++)
+    RewardEntity(
+      pointId: 'R$i',
+      pointName: 'Reward $i',
+      pointQty: i < 15 ? 10 : 500,
+    ),
+];
 
 const tStats = DashboardStatsEntity(
   status: 'AKTIF',
@@ -110,6 +148,21 @@ class _FakeBrightness implements ScreenBrightnessBooster {
   Future<void> restore() async => restores++;
 }
 
+/// A canvas that only remembers the horizontal extent of every line drawn on it,
+/// to tell a dashed line from a solid one without taking a screenshot.
+class _SegmentRecorder implements Canvas {
+  /// (start x, end x) of each `drawLine`.
+  final List<(double, double)> segments = [];
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) =>
+      segments.add((p1.dx, p2.dx));
+
+  // Nothing else is ever drawn by the painter under test.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 /// An asset bundle where only the logo fails to load (everything else, such as
 /// the asset manifest Flutter needs to resolve images, comes from the real
 /// one), to test the logo's fallback.
@@ -136,6 +189,8 @@ Future<MockHomeBloc> pumpMembership(
     initialState: HomeLoaded(stats),
   );
   sl.registerFactory<HomeBloc>(() => bloc);
+  sl.registerFactory<RewardsBloc>(() => rewardsBloc);
+  sl.registerFactory<RedeemBloc>(() => redeemBloc);
 
   await tester.pumpWidget(
     MaterialApp(
@@ -157,10 +212,49 @@ Future<MockHomeBloc> pumpMembership(
 /// The app-wide "reload this" signal the page listens to; fresh per test.
 late DataRefreshCubit refreshCubit;
 
+/// The rewards bloc the page gets from `sl`; fresh per test, already loaded with
+/// [tRewards] (the Voucher tab is the one the box opens on, and a spinner would
+/// keep `pumpAndSettle` from ever settling). A test that needs another state
+/// calls [givenRewards] before pumping.
+late MockRewardsBloc rewardsBloc;
+
+void givenRewards(RewardsState state) => whenListen(
+  rewardsBloc,
+  const Stream<RewardsState>.empty(),
+  initialState: state,
+);
+
+/// A screen tall enough to build every voucher card. The cards are tall (details
+/// above, Klaim below) and the list only builds what fits, so on the default
+/// 600px test screen a test that looks for the third card would not find it.
+void useTallScreen(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(800, 2000);
+  addTearDown(tester.view.reset);
+}
+
+/// The redeem bloc the page gets from `sl`; fresh per test, idle. A test that
+/// needs another state, or to push states while the page is up, calls
+/// [givenRedeem] before pumping.
+late MockRedeemBloc redeemBloc;
+
+void givenRedeem(RedeemState state, {Stream<RedeemState>? thenEmits}) =>
+    whenListen(
+      redeemBloc,
+      thenEmits ?? const Stream<RedeemState>.empty(),
+      initialState: state,
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => refreshCubit = DataRefreshCubit());
+  setUp(() {
+    refreshCubit = DataRefreshCubit();
+    rewardsBloc = MockRewardsBloc();
+    givenRewards(const RewardsLoaded(tRewards));
+    redeemBloc = MockRedeemBloc();
+    givenRedeem(const RedeemInitial());
+  });
   tearDown(() => sl.reset());
 
   /// The rounded Container, found from a widget inside it.
@@ -182,7 +276,7 @@ void main() {
   ) async {
     await pumpMembership(tester);
 
-    final aroundHistory = roundedBoxAround(find.text('Riwayat Point'));
+    final aroundHistory = roundedBoxAround(find.text('Riwayat'));
     final aroundVouchers = roundedBoxAround(find.text('Voucher'));
 
     expect(aroundHistory, findsOneWidget);
@@ -210,37 +304,44 @@ void main() {
       return material.color == selectedTabColour;
     }
 
-    testWidgets('both tabs are there, history is open first', (tester) async {
+    testWidgets('there are exactly two tabs, and the box opens on Voucher', (
+      tester,
+    ) async {
       await pumpMembership(tester);
 
       expect(historyTab, findsOneWidget);
       expect(vouchersTab, findsOneWidget);
-      expect(isSelected(tester, historyTab), isTrue);
-      expect(isSelected(tester, vouchersTab), isFalse);
+      expect(find.text('Riwayat'), findsOneWidget);
+      expect(find.text('Voucher'), findsOneWidget);
+      // No third tab: only the two pills have a tab- key.
+      expect(find.byKey(const Key('tab-rewards')), findsNothing);
+      expect(find.text('Tukar Point'), findsNothing);
+      expect(isSelected(tester, vouchersTab), isTrue);
+      expect(isSelected(tester, historyTab), isFalse);
     });
 
     testWidgets('only the open tab shows its entries', (tester) async {
       await pumpMembership(tester);
 
-      expect(find.text('Service points'), findsOneWidget);
-      expect(find.text('Free oil change'), findsNothing);
+      expect(find.text('Gratis Cuci Motor'), findsOneWidget);
+      expect(find.text('Service points'), findsNothing);
     });
 
-    testWidgets('tapping Vouchers swaps the list, and History swaps it back', (
+    testWidgets('tapping Riwayat swaps the list, and Voucher swaps it back', (
       tester,
     ) async {
       await pumpMembership(tester);
 
-      await open(tester, vouchersTab);
-      expect(find.text('Free oil change'), findsOneWidget);
-      expect(find.text('Service points'), findsNothing);
-      expect(isSelected(tester, vouchersTab), isTrue);
-      expect(isSelected(tester, historyTab), isFalse);
-
       await open(tester, historyTab);
       expect(find.text('Service points'), findsOneWidget);
-      expect(find.text('Free oil change'), findsNothing);
+      expect(find.text('Gratis Cuci Motor'), findsNothing);
       expect(isSelected(tester, historyTab), isTrue);
+      expect(isSelected(tester, vouchersTab), isFalse);
+
+      await open(tester, vouchersTab);
+      expect(find.text('Gratis Cuci Motor'), findsOneWidget);
+      expect(find.text('Service points'), findsNothing);
+      expect(isSelected(tester, vouchersTab), isTrue);
     });
 
     testWidgets('the entries are inside the box, as rounded cards', (
@@ -251,25 +352,25 @@ void main() {
 
       for (final tab in [historyTab, vouchersTab]) {
         await open(tester, tab);
-        final entry = find.byType(ListTile);
-        expect(find.descendant(of: box, matching: entry), findsOneWidget);
+        final cards = find.descendant(of: box, matching: find.byType(Card));
+        expect(cards, findsWidgets);
 
-        final card = tester.widget<Card>(
-          find.ancestor(of: entry, matching: find.byType(Card)),
-        );
+        final card = tester.widget<Card>(cards.first);
         expect((card.shape! as RoundedRectangleBorder).borderRadius, isNotNull);
       }
     });
 
     testWidgets('each tab has its own empty message', (tester) async {
+      givenRewards(const RewardsLoaded([]));
       await pumpMembership(tester, stats: tEmptyStats);
 
-      expect(find.text('Tidak ada riwayat point'), findsOneWidget);
-      expect(find.text('Tidak ada voucher tersedia'), findsNothing);
-
-      await open(tester, vouchersTab);
+      // The box opens on Voucher.
       expect(find.text('Tidak ada voucher tersedia'), findsOneWidget);
       expect(find.text('Tidak ada riwayat point'), findsNothing);
+
+      await open(tester, historyTab);
+      expect(find.text('Tidak ada riwayat point'), findsOneWidget);
+      expect(find.text('Tidak ada voucher tersedia'), findsNothing);
     });
 
     testWidgets('the tabs share the width equally, side by side', (
@@ -281,11 +382,44 @@ void main() {
       final vouchers = tester.getRect(vouchersTab);
       expect(history.width, closeTo(vouchers.width, 0.5));
       expect(history.top, vouchers.top);
-      expect(vouchers.left, greaterThan(history.right));
+      // Voucher first, Riwayat to its right.
+      expect(history.left, greaterThan(vouchers.right));
     });
 
-    testWidgets('the tabs stay put while the list scrolls', (tester) async {
+    testWidgets('on a narrow 360dp phone every label still fits its tab', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 800);
+      addTearDown(tester.view.reset);
+      await pumpMembership(tester);
+
+      expect(tester.takeException(), isNull);
+      for (final (tab, label) in [
+        (historyTab, 'Riwayat'),
+        (vouchersTab, 'Voucher'),
+      ]) {
+        // getBottomRight/getTopLeft apply the FittedBox's scale, so these are
+        // where the label is actually painted, not its unscaled layout size.
+        final text = find.text(label);
+        expect(
+          tester.getTopLeft(text).dx,
+          greaterThanOrEqualTo(tester.getTopLeft(tab).dx),
+          reason: '$label starts inside its tab',
+        );
+        expect(
+          tester.getBottomRight(text).dx,
+          lessThanOrEqualTo(tester.getBottomRight(tab).dx),
+          reason: '$label ends inside its tab',
+        );
+      }
+    });
+
+    testWidgets('the tabs stay put while the history list scrolls', (
+      tester,
+    ) async {
       await pumpMembership(tester, stats: tLongStats);
+      await open(tester, historyTab);
       final before = tester.getTopLeft(historyTab);
 
       await tester.drag(find.byType(ListView), const Offset(0, -400));
@@ -293,6 +427,20 @@ void main() {
 
       expect(find.text('Service points 0'), findsNothing); // scrolled away
       expect(tester.getTopLeft(historyTab), before);
+    });
+
+    testWidgets('the tabs stay put while the voucher list scrolls', (
+      tester,
+    ) async {
+      givenRewards(RewardsLoaded(tLongRewards));
+      await pumpMembership(tester);
+      final before = tester.getTopLeft(vouchersTab);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Voucher Tersedia'), findsNothing); // scrolled away
+      expect(tester.getTopLeft(vouchersTab), before);
     });
 
     testWidgets('the tab and its list sit above the cards, inside the box', (
@@ -303,7 +451,20 @@ void main() {
       // Tabs first, then the cards under them.
       expect(
         tester.getBottomLeft(historyTab).dy,
-        lessThanOrEqualTo(tester.getTopLeft(find.byType(ListTile)).dy),
+        lessThanOrEqualTo(
+          tester
+              .getTopLeft(
+                // The first card *in the box* — the balance card is a Card too,
+                // but it sits above the tabs.
+                find
+                    .descendant(
+                      of: roundedBoxAround(historyTab),
+                      matching: find.byType(Card),
+                    )
+                    .first,
+              )
+              .dy,
+        ),
       );
     });
   });
@@ -311,7 +472,7 @@ void main() {
   testWidgets('the loyalty points card stays outside the box', (tester) async {
     await pumpMembership(tester);
 
-    final box = roundedBoxAround(find.text('Riwayat Point'));
+    final box = roundedBoxAround(find.text('Riwayat'));
 
     expect(
       find.descendant(of: box, matching: find.text('Point Saya')),
@@ -872,6 +1033,797 @@ void main() {
     });
   });
 
+  group('the Voucher tab (vouchers from the API)', () {
+    final historyTab = find.byKey(const Key('tab-history'));
+    final vouchersTab = find.byKey(const Key('tab-vouchers'));
+    final availableHeader = find.byKey(
+      const Key('vouchers-available-header'),
+    );
+    final unavailableHeader = find.byKey(
+      const Key('vouchers-unavailable-header'),
+    );
+
+    Future<void> open(WidgetTester tester, Finder tab) async {
+      await tester.tap(tab);
+      await tester.pumpAndSettle();
+    }
+
+    /// The card that holds [title].
+    Finder cardWith(String title) => find.ancestor(
+      of: find.text(title),
+      matching: find.byType(Card),
+    );
+
+    group('loading it', () {
+      testWidgets('the box opens on Voucher, which asks for the list', (
+        tester,
+      ) async {
+        givenRewards(const RewardsInitial());
+        await pumpMembership(tester);
+
+        verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
+      });
+
+      testWidgets('an already loaded list is not requested again', (
+        tester,
+      ) async {
+        await pumpMembership(tester); // RewardsLoaded
+
+        verifyNever(() => rewardsBloc.add(const RewardsRequested()));
+      });
+
+      testWidgets('a request already in flight is not doubled', (tester) async {
+        givenRewards(const RewardsLoading());
+        await pumpMembership(tester);
+
+        verifyNever(() => rewardsBloc.add(const RewardsRequested()));
+      });
+
+      testWidgets('flipping between the tabs never requests it again', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        await open(tester, historyTab);
+        await open(tester, vouchersTab);
+        await open(tester, historyTab);
+        await open(tester, vouchersTab);
+
+        verifyNever(() => rewardsBloc.add(const RewardsRequested()));
+      });
+
+      testWidgets('shows a spinner inside the box while it loads', (
+        tester,
+      ) async {
+        givenRewards(const RewardsLoading());
+        await pumpMembership(tester);
+
+        final box = roundedBoxAround(vouchersTab);
+        expect(
+          find.descendant(
+            of: box,
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
+        expect(availableHeader, findsNothing);
+      });
+
+      testWidgets('shows the failure message, and Retry requests again', (
+        tester,
+      ) async {
+        givenRewards(const RewardsError('No internet connection'));
+        await pumpMembership(tester);
+
+        expect(find.text('No internet connection'), findsOneWidget);
+        expect(availableHeader, findsNothing);
+        verifyNever(() => rewardsBloc.add(const RewardsRequested()));
+
+        await tester.tap(find.byKey(const Key('vouchers-retry')));
+        await tester.pump();
+
+        verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
+      });
+    });
+
+    group('available and unavailable', () {
+      testWidgets('both sections are there, each under its own header', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        expect(find.text('Voucher Tersedia'), findsOneWidget);
+        expect(find.text('Voucher Tidak Tersedia'), findsOneWidget);
+      });
+
+      testWidgets('what the balance covers is available, the rest is not', (
+        tester,
+      ) async {
+        // tStats has 80 points: 50 is covered, 100 and 250 are not.
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        final top = tester.getTopLeft;
+        expect(top(availableHeader).dy, lessThan(top(unavailableHeader).dy));
+
+        expect(find.text('Gratis Cuci Motor'), findsOneWidget);
+        expect(find.text('50 pts'), findsOneWidget);
+        expect(
+          top(find.text('Gratis Cuci Motor')).dy,
+          allOf(
+            greaterThan(top(availableHeader).dy),
+            lessThan(top(unavailableHeader).dy),
+          ),
+        );
+
+        for (final name in [
+          'Diskon Jasa Service Rp. 20.000,00',
+          'Gratis Ganti Oli',
+        ]) {
+          expect(
+            top(find.text(name)).dy,
+            greaterThan(top(unavailableHeader).dy),
+            reason: '$name costs more than the 80 points',
+          );
+        }
+        expect(find.text('100 pts'), findsOneWidget);
+        expect(find.text('250 pts'), findsOneWidget);
+      });
+
+      testWidgets('a voucher costing exactly the balance is available', (
+        tester,
+      ) async {
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(pointId: 'X', pointName: 'EXACT', pointQty: 80),
+            RewardEntity(pointId: 'Y', pointName: 'ONE MORE', pointQty: 81),
+          ]),
+        );
+        await pumpMembership(tester);
+
+        final top = tester.getTopLeft;
+        expect(
+          top(find.text('Exact')).dy,
+          lessThan(top(unavailableHeader).dy),
+        );
+        expect(
+          top(find.text('One More')).dy,
+          greaterThan(top(unavailableHeader).dy),
+        );
+      });
+
+      testWidgets('each section keeps the order the API gave', (tester) async {
+        useTallScreen(tester); // all four cards must be built
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(pointId: '1', pointName: 'Low B', pointQty: 20),
+            RewardEntity(pointId: '2', pointName: 'High Z', pointQty: 900),
+            RewardEntity(pointId: '3', pointName: 'Low A', pointQty: 10),
+            RewardEntity(pointId: '4', pointName: 'High Y', pointQty: 800),
+          ]),
+        );
+        await pumpMembership(tester);
+
+        final top = tester.getTopLeft;
+        expect(
+          top(find.text('Low B')).dy,
+          lessThan(top(find.text('Low A')).dy),
+        );
+        expect(
+          top(find.text('High Z')).dy,
+          lessThan(top(find.text('High Y')).dy),
+        );
+      });
+
+      testWidgets('unavailable vouchers are dimmed, available ones are not', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        double opacityOf(String title) {
+          final dimmed = find.ancestor(
+            of: cardWith(title),
+            matching: find.byType(Opacity),
+          );
+          return dimmed.evaluate().isEmpty
+              ? 1.0
+              : tester.widget<Opacity>(dimmed.first).opacity;
+        }
+
+        expect(opacityOf('Gratis Cuci Motor'), 1.0);
+        expect(opacityOf('Gratis Ganti Oli'), lessThan(1.0));
+        expect(opacityOf('Diskon Jasa Service Rp. 20.000,00'), lessThan(1.0));
+      });
+
+      testWidgets('the cards are rounded and sit inside the box', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+        final box = roundedBoxAround(vouchersTab);
+
+        expect(
+          find.descendant(of: box, matching: find.byType(Card)),
+          findsNWidgets(3),
+        );
+        for (final title in ['Gratis Cuci Motor', 'Gratis Ganti Oli']) {
+          final card = tester.widget<Card>(cardWith(title));
+          expect(
+            (card.shape! as RoundedRectangleBorder).borderRadius,
+            isNotNull,
+          );
+        }
+      });
+
+      testWidgets('nothing affordable: available says so, all are unavailable', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester, stats: tEmptyStats); // 0 points
+
+        expect(
+          find.text('Point Anda belum cukup untuk voucher mana pun'),
+          findsOneWidget,
+        );
+        expect(find.text('Semua voucher dapat Anda tukarkan'), findsNothing);
+        // Still listed, below the unavailable header.
+        expect(
+          tester.getTopLeft(find.text('Gratis Cuci Motor')).dy,
+          greaterThan(tester.getTopLeft(unavailableHeader).dy),
+        );
+      });
+
+      testWidgets('everything affordable: unavailable says so', (tester) async {
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(pointId: 'A', pointName: 'CHEAP', pointQty: 5),
+          ]),
+        );
+        await pumpMembership(tester);
+
+        expect(find.text('Semua voucher dapat Anda tukarkan'), findsOneWidget);
+        expect(
+          find.text('Point Anda belum cukup untuk voucher mana pun'),
+          findsNothing,
+        );
+        expect(find.text('Cheap'), findsOneWidget);
+      });
+
+      testWidgets('an empty API answer is one plain empty message', (
+        tester,
+      ) async {
+        givenRewards(const RewardsLoaded([]));
+        await pumpMembership(tester);
+
+        expect(find.text('Tidak ada voucher tersedia'), findsOneWidget);
+        expect(availableHeader, findsNothing);
+        expect(unavailableHeader, findsNothing);
+      });
+
+      testWidgets('the member\'s own Detail2 vouchers are not listed here', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        expect(find.text('Free oil change'), findsNothing);
+      });
+    });
+
+    group('the card layout', () {
+      // C00 is the available one in tRewards: 'GRATIS CUCI MOTOR' (shown as
+      // 'Gratis Cuci Motor'), 50 pts.
+      Finder card(String id) => find.byKey(Key('voucher-card-$id'));
+      Finder details(String id) => find.byKey(Key('voucher-details-$id'));
+      Finder icon(String id) => find.byKey(Key('voucher-icon-$id'));
+      Finder divider(String id) => find.byKey(Key('voucher-divider-$id'));
+      Finder klaim(String id) => find.byKey(Key('klaim-$id'));
+
+      testWidgets('the details are on the left, the icon on the right', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        expect(
+          find.descendant(
+            of: details('C00'),
+            matching: find.text('Gratis Cuci Motor'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: details('C00'), matching: find.text('50 pts')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: icon('C00'),
+            matching: find.byIcon(Icons.card_giftcard),
+          ),
+          findsOneWidget,
+        );
+
+        // Side by side: the details end before the icon begins...
+        expect(
+          tester.getTopRight(details('C00')).dx,
+          lessThan(tester.getTopLeft(icon('C00')).dx),
+        );
+        // ...on the same row, the icon centred against the details.
+        expect(
+          tester.getCenter(icon('C00')).dy,
+          closeTo(tester.getCenter(details('C00')).dy, 1),
+        );
+      });
+
+      testWidgets('the name is shown with only its first letters uppercase', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        // The backend sends them in capitals; the cards tidy them.
+        expect(find.text('Gratis Cuci Motor'), findsOneWidget);
+        expect(find.text('GRATIS CUCI MOTOR'), findsNothing);
+        // "Rp." and the amount inside a name are kept as they were.
+        expect(find.text('Diskon Jasa Service Rp. 20.000,00'), findsOneWidget);
+        expect(find.text('DISKON JASA SERVICE Rp. 20.000,00'), findsNothing);
+      });
+
+      testWidgets('the icon sits at the card\'s right edge, inside its padding', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        expect(
+          tester.getTopRight(icon('C00')).dx,
+          closeTo(tester.getTopRight(card('C00')).dx - 16, 0.5),
+        );
+        expect(
+          tester.getTopLeft(details('C00')).dx,
+          closeTo(tester.getTopLeft(card('C00')).dx + 16, 0.5),
+        );
+      });
+
+      testWidgets('the icon has a rounded box of its own', (tester) async {
+        await pumpMembership(tester);
+
+        final box = tester.widget<Container>(icon('C00'));
+        final decoration = box.decoration! as BoxDecoration;
+        expect(decoration.borderRadius, isNotNull);
+        expect(tester.getSize(icon('C00')), const Size(56, 56));
+      });
+
+      testWidgets('a dashed line crosses the whole card under the details', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        expect(divider('C00'), findsOneWidget);
+        // Edge to edge of the card...
+        expect(
+          tester.getTopLeft(divider('C00')).dx,
+          closeTo(tester.getTopLeft(card('C00')).dx, 0.5),
+        );
+        expect(
+          tester.getTopRight(divider('C00')).dx,
+          closeTo(tester.getTopRight(card('C00')).dx, 0.5),
+        );
+        // ...below both the details and the icon.
+        final top = tester.getTopLeft(divider('C00')).dy;
+        expect(top, greaterThanOrEqualTo(tester.getBottomLeft(details('C00')).dy));
+        expect(top, greaterThanOrEqualTo(tester.getBottomLeft(icon('C00')).dy));
+      });
+
+      testWidgets('the line really is dashed, not solid', (tester) async {
+        await pumpMembership(tester);
+
+        final paint = tester.widget<CustomPaint>(
+          find.descendant(of: divider('C00'), matching: find.byType(CustomPaint)),
+        );
+        expect(paint.painter, isNotNull);
+        // A solid line would be one drawLine; dashes are many, with gaps.
+        final recorder = _SegmentRecorder();
+        paint.painter!.paint(recorder, const Size(100, 1.5));
+        expect(recorder.segments.length, greaterThan(5));
+        for (var i = 1; i < recorder.segments.length; i++) {
+          expect(
+            recorder.segments[i].$1,
+            greaterThan(recorder.segments[i - 1].$2),
+            reason: 'a gap between dash ${i - 1} and $i',
+          );
+        }
+      });
+
+      testWidgets('Klaim is in its own part below the line, not beside the text', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        final line = tester.getBottomLeft(divider('C00')).dy;
+        expect(tester.getTopLeft(klaim('C00')).dy, greaterThanOrEqualTo(line));
+        expect(
+          tester.getTopLeft(klaim('C00')).dy,
+          greaterThan(tester.getBottomLeft(icon('C00')).dy),
+        );
+        expect(
+          tester.getBottomLeft(klaim('C00')).dy,
+          lessThanOrEqualTo(tester.getBottomLeft(card('C00')).dy),
+        );
+      });
+
+      testWidgets('Klaim is pushed to the right and centred in the bottom part', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        // Right: its edge is the card's, less the same 16 as the top part.
+        expect(
+          tester.getTopRight(klaim('C00')).dx,
+          closeTo(tester.getTopRight(card('C00')).dx - 16, 0.5),
+        );
+        // Centre: as much room above it (under the line) as below it.
+        final above =
+            tester.getTopLeft(klaim('C00')).dy -
+            tester.getBottomLeft(divider('C00')).dy;
+        final below =
+            tester.getBottomLeft(card('C00')).dy -
+            tester.getBottomLeft(klaim('C00')).dy;
+        expect(above, closeTo(below, 0.5));
+      });
+
+      testWidgets('a long name wraps beside the icon and never pushes it off', (
+        tester,
+      ) async {
+        const name =
+            'DISKON JASA SERVICE BERKALA DAN GANTI OLI MESIN SEPEDA MOTOR '
+            'MATIC SEMUA TIPE Rp. 150.000,00';
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(pointId: 'LG', pointName: name, pointQty: 10),
+          ]),
+        );
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(360, 900);
+        addTearDown(tester.view.reset);
+        await pumpMembership(tester);
+
+        expect(tester.takeException(), isNull);
+        // Shown tidied, not as the backend shouts it.
+        expect(
+          find.text(
+            'Diskon Jasa Service Berkala Dan Ganti Oli Mesin Sepeda Motor '
+            'Matic Semua Tipe Rp. 150.000,00',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.getTopRight(icon('LG')).dx,
+          closeTo(tester.getTopRight(card('LG')).dx - 16, 0.5),
+        );
+        expect(
+          tester.getTopRight(details('LG')).dx,
+          lessThan(tester.getTopLeft(icon('LG')).dx),
+        );
+        // Taller than a one-line name, and the Klaim is still under all of it.
+        expect(tester.getSize(details('LG')).height, greaterThan(60));
+        expect(
+          tester.getTopLeft(klaim('LG')).dy,
+          greaterThan(tester.getBottomLeft(details('LG')).dy),
+        );
+      });
+
+      testWidgets('the text stays dark on the light card in dark mode', (
+        tester,
+      ) async {
+        await pumpMembership(tester, theme: ThemeData.dark());
+
+        Color colourOf(String text) {
+          final finder = find.text(text);
+          final style = DefaultTextStyle.of(tester.element(finder)).style.merge(
+            tester.widget<Text>(finder).style,
+          );
+          return style.color!;
+        }
+
+        // The card is light grey even in dark mode; white text would vanish.
+        expect(colourOf('Gratis Cuci Motor').computeLuminance(), lessThan(0.4));
+        expect(colourOf('50 pts').computeLuminance(), lessThan(0.4));
+      });
+    });
+
+    group('scrolling', () {
+      testWidgets('both sections are one scrolling list, top to bottom', (
+        tester,
+      ) async {
+        givenRewards(RewardsLoaded(tLongRewards));
+        await pumpMembership(tester);
+        final box = roundedBoxAround(vouchersTab);
+
+        // One list holds the available header, and the unavailable one is
+        // reachable by scrolling that same list.
+        expect(
+          find.descendant(of: box, matching: find.byType(ListView)),
+          findsOneWidget,
+        );
+        expect(availableHeader, findsOneWidget);
+        expect(unavailableHeader, findsNothing); // below the fold
+
+        await tester.dragUntilVisible(
+          unavailableHeader,
+          find.byType(ListView),
+          const Offset(0, -300),
+        );
+        expect(unavailableHeader, findsOneWidget);
+        expect(availableHeader, findsNothing); // scrolled away
+      });
+
+      testWidgets('the very last voucher is reachable', (tester) async {
+        givenRewards(RewardsLoaded(tLongRewards));
+        await pumpMembership(tester);
+
+        expect(find.text('Reward 29'), findsNothing);
+        await tester.dragUntilVisible(
+          find.text('Reward 29'),
+          find.byType(ListView),
+          const Offset(0, -300),
+        );
+        expect(find.text('Reward 29'), findsOneWidget);
+      });
+
+      testWidgets('a short list does not need to scroll but still can be pulled', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ListView), findsOneWidget);
+      });
+    });
+  });
+
+  group('the Klaim button', () {
+    // tStats has 80 points: C00 (50) is available, C01 (100) and C02 (250) are
+    // not.
+    Finder klaim(String pointId) => find.byKey(Key('klaim-$pointId'));
+
+    bool isOn(WidgetTester tester, String pointId) =>
+        tester.widget<ElevatedButton>(klaim(pointId)).onPressed != null;
+
+    setUpAll(() {
+      registerFallbackValue(
+        const RedeemRequested(pointId: '', voucherName: ''),
+      );
+    });
+
+    Future<void> tapKlaim(WidgetTester tester, String pointId) async {
+      await tester.tap(klaim(pointId));
+      await tester.pumpAndSettle();
+    }
+
+    group('on the cards', () {
+      testWidgets('every voucher has one, available or not', (tester) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        expect(find.text('Klaim'), findsNWidgets(3));
+        for (final id in ['C00', 'C01', 'C02']) {
+          expect(klaim(id), findsOneWidget, reason: '$id has a Klaim button');
+        }
+      });
+
+      testWidgets('it is on for an available voucher, off for the others', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        expect(isOn(tester, 'C00'), isTrue);
+        expect(isOn(tester, 'C01'), isFalse);
+        expect(isOn(tester, 'C02'), isFalse);
+      });
+
+      testWidgets('a voucher costing exactly the balance can be claimed', (
+        tester,
+      ) async {
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(pointId: 'EX', pointName: 'EXACT', pointQty: 80),
+            RewardEntity(pointId: 'ON', pointName: 'ONE MORE', pointQty: 81),
+          ]),
+        );
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        expect(isOn(tester, 'EX'), isTrue);
+        expect(isOn(tester, 'ON'), isFalse);
+      });
+
+      testWidgets('tapping an off one does nothing at all', (tester) async {
+        await pumpMembership(tester);
+
+        await tester.tap(klaim('C01'), warnIfMissed: false);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        verifyNever(() => redeemBloc.add(any()));
+      });
+
+      testWidgets('it fits beside the name on a narrow 360dp phone', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(360, 800);
+        addTearDown(tester.view.reset);
+        await pumpMembership(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getBottomRight(klaim('C00')).dx,
+          lessThanOrEqualTo(360),
+        );
+      });
+    });
+
+    group('claiming', () {
+      testWidgets('asks first, naming the voucher, its cost and what is left', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+
+        await tapKlaim(tester, 'C00');
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.textContaining('Gratis Cuci Motor'), findsWidgets);
+        // Tidied here too, so the dialog never contradicts the card.
+        expect(find.textContaining('GRATIS CUCI MOTOR'), findsNothing);
+        expect(find.textContaining('50 pts'), findsWidgets);
+        expect(find.textContaining('Sisa point Anda: 30 pts'), findsOneWidget);
+        // Nothing has been sent just by asking.
+        verifyNever(() => redeemBloc.add(any()));
+      });
+
+      testWidgets('Batal closes it and sends nothing', (tester) async {
+        await pumpMembership(tester);
+        await tapKlaim(tester, 'C00');
+
+        await tester.tap(find.byKey(const Key('klaim-cancel')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        verifyNever(() => redeemBloc.add(any()));
+      });
+
+      testWidgets('Ya, Klaim sends that one voucher\'s claim, once', (
+        tester,
+      ) async {
+        await pumpMembership(tester);
+        await tapKlaim(tester, 'C00');
+
+        await tester.tap(find.byKey(const Key('klaim-confirm')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(
+          () => redeemBloc.add(
+            const RedeemRequested(
+              pointId: 'C00',
+              voucherName: 'GRATIS CUCI MOTOR',
+            ),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('while one is on its way every Klaim is off, one spins', (
+        tester,
+      ) async {
+        givenRedeem(const RedeemInProgress('C00'));
+        useTallScreen(tester);
+        await pumpMembership(tester);
+        await tester.pump(); // not settled: the spinner never stops
+
+        for (final id in ['C00', 'C01', 'C02']) {
+          expect(isOn(tester, id), isFalse, reason: '$id is off during a claim');
+        }
+        // The spinner is on the claimed card only; the others keep their label.
+        expect(
+          find.descendant(
+            of: klaim('C00'),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: klaim('C00'), matching: find.text('Klaim')),
+          findsNothing,
+        );
+        expect(
+          find.descendant(of: klaim('C01'), matching: find.text('Klaim')),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('the outcome', () {
+      /// Pumps the page with a stream the test can push redeem states into.
+      Future<(MockHomeBloc, StreamController<RedeemState>)> pumpWithRedeemStream(
+        WidgetTester tester,
+      ) async {
+        final controller = StreamController<RedeemState>();
+        addTearDown(controller.close);
+        givenRedeem(const RedeemInitial(), thenEmits: controller.stream);
+        final home = await pumpMembership(tester);
+        return (home, controller);
+      }
+
+      testWidgets('success says so, naming the voucher, and reloads the points', (
+        tester,
+      ) async {
+        final (home, redeem) = await pumpWithRedeemStream(tester);
+
+        redeem.add(
+          const RedeemSuccess(
+            voucherName: 'GRATIS CUCI MOTOR',
+            message: 'Berhasil',
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(
+          find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
+          findsOneWidget,
+        );
+        // Once when the page opened, once because the points changed.
+        verify(() => home.add(const HomeStatsRequested())).called(2);
+      });
+
+      testWidgets('a refusal shows the server\'s words and keeps the points', (
+        tester,
+      ) async {
+        final (home, redeem) = await pumpWithRedeemStream(tester);
+
+        redeem.add(const RedeemFailure('Point tidak cukup'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.text('Point tidak cukup'), findsOneWidget);
+        // Nothing was spent, so no reload beyond the one on open.
+        verify(() => home.add(const HomeStatsRequested())).called(1);
+      });
+
+      testWidgets('a claim that finishes while Riwayat is showing is still reported', (
+        tester,
+      ) async {
+        final (home, redeem) = await pumpWithRedeemStream(tester);
+        await tester.tap(find.byKey(const Key('tab-history')));
+        await tester.pumpAndSettle();
+        expect(find.text('Service points'), findsOneWidget); // on Riwayat now
+
+        redeem.add(
+          const RedeemSuccess(voucherName: 'GRATIS CUCI MOTOR', message: 'ok'),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(
+          find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
+          findsOneWidget,
+        );
+        verify(() => home.add(const HomeStatsRequested())).called(2);
+      });
+
+      testWidgets('merely idle or in flight shows nothing', (tester) async {
+        final (_, redeem) = await pumpWithRedeemStream(tester);
+
+        redeem.add(const RedeemInProgress('C00'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(SnackBar), findsNothing);
+      });
+    });
+  });
+
   group('reloads when the stats go out of date elsewhere', () {
     testWidgets('invalidate(stats) sends HomeStatsRequested again', (
       tester,
@@ -911,7 +1863,7 @@ void main() {
 
       expect(find.byType(RefreshIndicator), findsOneWidget);
       // It is above both the balance card and the box, not inside the box.
-      for (final text in ['Point Saya', 'Riwayat Point']) {
+      for (final text in ['Point Saya', 'Riwayat']) {
         expect(
           find.descendant(
             of: find.byType(RefreshIndicator),
@@ -936,7 +1888,7 @@ void main() {
     ) async {
       final bloc = await pumpMembership(tester);
 
-      await pullDown(tester, find.text('Riwayat Point'));
+      await pullDown(tester, find.text('Riwayat'));
 
       verify(() => bloc.add(const HomeStatsRequested())).called(2);
     });
@@ -946,7 +1898,7 @@ void main() {
     ) async {
       final bloc = await pumpMembership(tester, stats: tLongStats);
 
-      await pullDown(tester, find.text('Riwayat Point'));
+      await pullDown(tester, find.text('Riwayat'));
 
       verify(() => bloc.add(const HomeStatsRequested())).called(2);
     });
@@ -954,7 +1906,9 @@ void main() {
     testWidgets('pulling down mid-list scrolls back up instead of refreshing', (
       tester,
     ) async {
-      final bloc = await pumpMembership(tester, stats: tLongStats);
+      // The box opens on Voucher, so this is the voucher list that scrolls.
+      givenRewards(RewardsLoaded(tLongRewards));
+      final bloc = await pumpMembership(tester);
 
       // Scroll the box's list down, away from its top...
       await tester.drag(find.byType(ListView), const Offset(0, -400));
@@ -965,6 +1919,48 @@ void main() {
 
       verify(() => bloc.add(const HomeStatsRequested())).called(1);
     });
+
+    /// Like [pullDown], but never waits for the screen to settle: with the
+    /// vouchers still loading a spinner runs forever, so it never would.
+    Future<void> pullDownWithoutSettling(WidgetTester tester) async {
+      await tester.drag(find.text('Point Saya'), const Offset(0, 300));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    testWidgets('also reloads the vouchers once they have loaded', (
+      tester,
+    ) async {
+      await pumpMembership(tester); // RewardsLoaded
+
+      await pullDown(tester, find.text('Point Saya'));
+
+      verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
+    });
+
+    testWidgets('does not pile a second request on vouchers not yet asked for', (
+      tester,
+    ) async {
+      givenRewards(const RewardsInitial());
+      await pumpMembership(tester);
+
+      await pullDownWithoutSettling(tester);
+
+      // Only the box's own first request when it opened — none from the pull.
+      verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
+    });
+
+    testWidgets('does not pile a second request on one still in flight', (
+      tester,
+    ) async {
+      givenRewards(const RewardsLoading());
+      await pumpMembership(tester);
+
+      await pullDownWithoutSettling(tester);
+
+      verifyNever(() => rewardsBloc.add(const RewardsRequested()));
+    });
   });
 
   group('the box fills the rest of the page', () {
@@ -973,7 +1969,7 @@ void main() {
     ) async {
       await pumpMembership(tester, stats: tEmptyStats);
 
-      final box = roundedBoxAround(find.text('Riwayat Point'));
+      final box = roundedBoxAround(find.text('Riwayat'));
 
       // 20px of page padding below it, and nothing else — so it is as low as
       // the body goes, i.e. just above the navigation bar.
@@ -986,7 +1982,7 @@ void main() {
     testWidgets('with a few entries it reaches the bottom too', (tester) async {
       await pumpMembership(tester);
 
-      final box = roundedBoxAround(find.text('Riwayat Point'));
+      final box = roundedBoxAround(find.text('Riwayat'));
 
       expect(
         tester.getBottomLeft(box).dy,
@@ -997,9 +1993,10 @@ void main() {
     testWidgets('with many entries it stays on the page and scrolls inside', (
       tester,
     ) async {
+      givenRewards(RewardsLoaded(tLongRewards));
       await pumpMembership(tester, stats: tLongStats);
 
-      final box = roundedBoxAround(find.text('Riwayat Point'));
+      final box = roundedBoxAround(find.text('Riwayat'));
 
       // It does not grow past the bottom of the page...
       expect(tester.takeException(), isNull);
@@ -1014,18 +2011,27 @@ void main() {
         findsOneWidget,
       );
 
-      // The last voucher (on the Vouchers tab) is reachable by scrolling it.
-      // The box's list is the page's only ListView (the page itself is a
+      // The last voucher (the box opens on Voucher) is reachable by scrolling
+      // it. The box's list is the page's only ListView (the page itself is a
       // CustomScrollView), so it is found directly.
-      await tester.tap(find.byKey(const Key('tab-vouchers')));
-      await tester.pumpAndSettle();
-      expect(find.text('Voucher 29'), findsNothing);
+      expect(find.text('Reward 29'), findsNothing);
       await tester.dragUntilVisible(
-        find.text('Voucher 29'),
+        find.text('Reward 29'),
         find.byType(ListView),
         const Offset(0, -300),
       );
-      expect(find.text('Voucher 29'), findsOneWidget);
+      expect(find.text('Reward 29'), findsOneWidget);
+
+      // The same goes for the history on the other tab.
+      await tester.tap(find.byKey(const Key('tab-history')));
+      await tester.pumpAndSettle();
+      expect(find.text('Service points 29'), findsNothing);
+      await tester.dragUntilVisible(
+        find.text('Service points 29'),
+        find.byType(ListView),
+        const Offset(0, -300),
+      );
+      expect(find.text('Service points 29'), findsOneWidget);
     });
   });
 }

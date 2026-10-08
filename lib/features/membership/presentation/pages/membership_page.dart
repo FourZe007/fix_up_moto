@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:fix_up_moto/core/constants/asset_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/services/screen_brightness_booster.dart';
@@ -12,23 +13,47 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/membership/domain/entities/reward_entity.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_bloc.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_event.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_state.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_bloc.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_event.dart';
+import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_state.dart';
 
-/// Loyalty status: points, point-earning history, and vouchers.
+/// Loyalty status: points, point-earning history, and the vouchers points can
+/// be exchanged for.
 ///
-/// **No new domain or data layer needed.** [DashboardStatsEntity] — already
-/// fetched by [HomeBloc] for Home's greeting header — already carries
-/// `point`, `detail` (point history), and `detail2` (vouchers). This page
-/// gets its own [HomeBloc] instance and fires its own fetch on mount, the
-/// same page-scoped-factory pattern every tab uses, rather than sharing
-/// Home's instance — the two tabs' data lifecycles are independent even
-/// though the shape is identical.
+/// The balance and point history need no data layer of their own:
+/// [DashboardStatsEntity] — already fetched by [HomeBloc] for Home's greeting
+/// header — carries `point` and `detail` (point history). This page gets its
+/// own [HomeBloc] instance and fires its own fetch on mount, the same
+/// page-scoped-factory pattern every tab uses, rather than sharing Home's
+/// instance — the two tabs' data lifecycles are independent even though the
+/// shape is identical.
+///
+/// The Voucher tab is the exception: its list is a separate API call
+/// ([RewardsBloc]), fetched the first time that tab is shown, and its Klaim
+/// buttons spend points through [RedeemBloc]. Both blocs are provided here,
+/// above the stats `BlocBuilder`, because [HomeBloc] emits a loading state on
+/// every refresh and that unmounts everything below it — a claim that finishes
+/// meanwhile must still be reported and still reload the balance.
 class MembershipPage extends StatelessWidget {
   const MembershipPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
+        ),
+        // No initial event: the Voucher tab asks for its list when it first
+        // appears (see _HistoryVouchersBoxState).
+        BlocProvider(create: (_) => sl<RewardsBloc>()),
+        // Idle until a Klaim is confirmed.
+        BlocProvider(create: (_) => sl<RedeemBloc>()),
+      ],
       child: const _MembershipView(),
     );
   }
@@ -37,15 +62,44 @@ class MembershipPage extends StatelessWidget {
 class _MembershipView extends StatelessWidget {
   const _MembershipView();
 
+  /// Reports how a claim ended. Lives here, not in the voucher list, because
+  /// the list can be unmounted (the member switches tab, or the stats reload)
+  /// before the server answers.
+  void _onRedeemResult(BuildContext context, RedeemState state) {
+    final messenger = ScaffoldMessenger.of(context);
+
+    switch (state) {
+      case RedeemSuccess(:final voucherName):
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Voucher "${TextFormatter.fromUppercase(voucherName)}" '
+              'berhasil diklaim',
+            ),
+          ),
+        );
+        // The points are spent: reload the balance (and so which vouchers are
+        // still affordable) here, and on Home and Profile too.
+        context.read<DataRefreshCubit>().invalidate(DataKind.stats);
+      case RedeemFailure(:final message):
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      case RedeemInitial() || RedeemInProgress():
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // This tab stays alive while hidden, so it reloads when something that
     // changes the stats happens elsewhere (e.g. a bike is added).
-    return RefreshOn(
-      kind: DataKind.stats,
-      onRefresh: (context) =>
-          context.read<HomeBloc>().add(const HomeStatsRequested()),
-      child: _scaffold(),
+    return BlocListener<RedeemBloc, RedeemState>(
+      listener: _onRedeemResult,
+      child: RefreshOn(
+        kind: DataKind.stats,
+        onRefresh: (context) =>
+            context.read<HomeBloc>().add(const HomeStatsRequested()),
+        child: _scaffold(),
+      ),
     );
   }
 
@@ -280,8 +334,8 @@ enum _MembershipTab { history, vouchers }
 /// tabs never move.
 ///
 /// Which tab is open is plain UI state, so it lives here rather than in a BLoC.
-/// It survives the page's data reloads (the same State is kept while the stats
-/// change underneath it).
+/// It does not survive a stats reload: [HomeBloc]'s loading state unmounts this
+/// box, so the tab falls back to the one it opens on (Voucher).
 class _HistoryVouchersBox extends StatefulWidget {
   final DashboardStatsEntity stats;
 
@@ -292,7 +346,24 @@ class _HistoryVouchersBox extends StatefulWidget {
 }
 
 class _HistoryVouchersBoxState extends State<_HistoryVouchersBox> {
-  _MembershipTab _tab = _MembershipTab.history;
+  _MembershipTab _tab = _MembershipTab.vouchers;
+
+  @override
+  void initState() {
+    super.initState();
+    // The box opens on the Voucher tab, so its list is wanted straight away.
+    if (_tab == _MembershipTab.vouchers) _loadVouchersOnce();
+  }
+
+  /// Asks for the voucher list the first time only — [RewardsBloc] outlives
+  /// this box, so flipping between tabs (or a stats reload that rebuilds the
+  /// box) reuses what is already loaded instead of fetching again.
+  void _loadVouchersOnce() {
+    final rewards = context.read<RewardsBloc>();
+    if (rewards.state is RewardsInitial) {
+      rewards.add(const RewardsRequested());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -312,18 +383,21 @@ class _HistoryVouchersBoxState extends State<_HistoryVouchersBox> {
               children: [
                 Expanded(
                   child: _TabPill(
-                    key: const Key('tab-history'),
-                    label: 'Riwayat Point',
-                    selected: _tab == _MembershipTab.history,
-                    onTap: () => setState(() => _tab = _MembershipTab.history),
+                    key: const Key('tab-vouchers'),
+                    label: 'Voucher',
+                    selected: _tab == _MembershipTab.vouchers,
+                    onTap: () {
+                      setState(() => _tab = _MembershipTab.vouchers);
+                      _loadVouchersOnce();
+                    },
                   ),
                 ),
                 Expanded(
                   child: _TabPill(
-                    key: const Key('tab-vouchers'),
-                    label: 'Voucher',
-                    selected: _tab == _MembershipTab.vouchers,
-                    onTap: () => setState(() => _tab = _MembershipTab.vouchers),
+                    key: const Key('tab-history'),
+                    label: 'Riwayat',
+                    selected: _tab == _MembershipTab.history,
+                    onTap: () => setState(() => _tab = _MembershipTab.history),
                   ),
                 ),
               ],
@@ -345,7 +419,7 @@ class _HistoryVouchersBoxState extends State<_HistoryVouchersBox> {
                 ),
                 _MembershipTab.vouchers => _VoucherList(
                   key: const ValueKey(_MembershipTab.vouchers),
-                  vouchers: widget.stats.detail2,
+                  balance: widget.stats.point,
                 ),
               },
             ),
@@ -387,15 +461,20 @@ class _TabPill extends StatelessWidget {
           customBorder: shape,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                // Dark red (not the orange) on the light box: it reads better.
-                color: AppColors.textPrimary,
+            // On a narrow phone or with a large system font a label can be
+            // wider than its pill: shrink it to fit instead of cutting it off.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  // Dark red (not the orange) on the light box: it reads better.
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
           ),
@@ -464,15 +543,16 @@ class _PointHistoryList extends StatelessWidget {
         for (final entry in entries)
           _EntryCard(
             child: ListTile(
-              leading: const Icon(Icons.history),
-              title: Text(entry.pointName),
+              // leading: const Icon(Icons.history),
+              title: Text(TextFormatter.fromUppercase(entry.pointName)),
               subtitle: Text(entry.transDate),
               trailing: Text(
-                '+${entry.pointQty}',
+                entry.pointQty.toString(),
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(color: Colors.green),
               ),
+              contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 20),
             ),
           ),
       ],
@@ -480,37 +560,375 @@ class _PointHistoryList extends StatelessWidget {
   }
 }
 
+/// The Voucher tab: the vouchers points can be exchanged for, loaded by
+/// [RewardsBloc], in two sections stacked vertically inside one scrolling list.
+///
+/// A voucher is *available* when the member's [balance] covers its point cost
+/// and *unavailable* when it does not. Each section keeps the order the API
+/// gave, and both headers are always shown, so an empty "available" section
+/// tells the member they cannot afford anything yet instead of vanishing.
 class _VoucherList extends StatelessWidget {
-  final List<VoucherDetailEntity> vouchers;
+  /// The member's current point balance, which decides the split.
+  final int balance;
 
-  const _VoucherList({super.key, required this.vouchers});
+  const _VoucherList({super.key, required this.balance});
 
   @override
   Widget build(BuildContext context) {
-    if (vouchers.isEmpty) {
-      return Container(
-        alignment: Alignment.topCenter,
-        margin: EdgeInsets.symmetric(vertical: 20),
-        child: const Text('Tidak ada voucher tersedia'),
-      );
-    }
-
-    return _TabList(
-      children: [
-        for (final voucher in vouchers)
-          _EntryCard(
-            child: ListTile(
-              leading: const Icon(Icons.card_giftcard),
-              title: Text(voucher.voucherName),
-              subtitle: Text(
-                '${voucher.statusVoucherMemo} · expires ${voucher.expirationDate}',
-              ),
-              trailing: Text('Rp${voucher.voucherAmount.toStringAsFixed(0)}'),
+    return BlocBuilder<RewardsBloc, RewardsState>(
+      builder: (context, state) => switch (state) {
+        RewardsInitial() || RewardsLoading() => Column(
+          spacing: 20,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [CircularProgressIndicator(), Text('Loading...')],
+        ),
+        RewardsError(:final message) => LightSurfaceScope(
+          child: Container(
+            alignment: Alignment.topCenter,
+            margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(message, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  key: const Key('vouchers-retry'),
+                  onPressed: () =>
+                      context.read<RewardsBloc>().add(const RewardsRequested()),
+                  child: const Text('Retry'),
+                ),
+              ],
             ),
           ),
+        ),
+        RewardsLoaded(:final rewards) when rewards.isEmpty => Container(
+          alignment: Alignment.topCenter,
+          margin: const EdgeInsets.symmetric(vertical: 20),
+          child: const Text('Tidak ada voucher tersedia'),
+        ),
+        RewardsLoaded(:final rewards) => _sections(
+          context,
+          available: [
+            for (final reward in rewards)
+              if (reward.pointQty <= balance) reward,
+          ],
+          unavailable: [
+            for (final reward in rewards)
+              if (reward.pointQty > balance) reward,
+          ],
+        ),
+      },
+    );
+  }
+
+  /// One list, so both sections scroll together under the fixed tabs.
+  Widget _sections(
+    BuildContext context, {
+    required List<RewardEntity> available,
+    required List<RewardEntity> unavailable,
+  }) {
+    return _TabList(
+      children: [
+        const _SectionHeader(
+          key: Key('vouchers-available-header'),
+          'Voucher Tersedia',
+        ),
+        if (available.isEmpty)
+          const _SectionEmpty('Point Anda belum cukup untuk voucher mana pun')
+        else
+          for (final reward in available)
+            _VoucherCard(
+              reward: reward,
+              onClaim: () => _confirmClaim(context, reward),
+            ),
+        const _SectionHeader(
+          key: Key('vouchers-unavailable-header'),
+          'Voucher Tidak Tersedia',
+        ),
+        if (unavailable.isEmpty)
+          const _SectionEmpty('Semua voucher dapat Anda tukarkan')
+        else
+          // Shown with a Klaim button too, but the card keeps it off: the
+          // balance does not cover them.
+          for (final reward in unavailable)
+            _VoucherCard(
+              reward: reward,
+              available: false,
+              onClaim: () => _confirmClaim(context, reward),
+            ),
       ],
     );
   }
+
+  /// Asks before spending points, then hands the claim to [RedeemBloc].
+  ///
+  /// Spending is not undoable from the app, so a mis-tap must not go straight
+  /// through. The bloc is read *before* the dialog opens: it outlives this
+  /// list, so the claim still goes out if the list is rebuilt meanwhile.
+  Future<void> _confirmClaim(BuildContext context, RewardEntity reward) async {
+    final redeem = context.read<RedeemBloc>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Klaim voucher?'),
+        content: Text(
+          'Tukarkan ${reward.pointQty} pts untuk '
+          '"${TextFormatter.fromUppercase(reward.pointName)}".\n'
+          'Sisa point Anda: ${balance - reward.pointQty} pts.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('klaim-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            key: const Key('klaim-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Ya, Klaim'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      redeem.add(
+        RedeemRequested(pointId: reward.pointId, voucherName: reward.pointName),
+      );
+    }
+  }
+}
+
+/// Title of one voucher section, sitting on the grey box above its cards.
+///
+/// Colours are fixed rather than read from the theme: the box is light grey in
+/// dark mode too, where the theme's own text colour would be white on it.
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader(this.title, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+}
+
+/// The one-line note shown in a section that has no vouchers.
+class _SectionEmpty extends StatelessWidget {
+  final String message;
+
+  const _SectionEmpty(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+      child: Text(
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppColors.grey600),
+      ),
+    );
+  }
+}
+
+/// A voucher the member can (or cannot yet) afford, in two parts split by a
+/// dashed line:
+///
+/// ```
+/// ┌────────────────────────────────┐
+/// │ name                      ┌──┐ │   top: the details on the left,
+/// │ 50 pts                    │🎁│ │        the voucher icon on the right
+/// │                           └──┘ │
+/// ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┤
+/// │                       [ Klaim ]│   bottom: the Klaim button, centred
+/// └────────────────────────────────┘        vertically and pushed right
+/// ```
+///
+/// An unavailable one is dimmed so it reads as out of reach at a glance, and its
+/// Klaim button is off.
+class _VoucherCard extends StatelessWidget {
+  final RewardEntity reward;
+  final bool available;
+
+  /// Called when the (enabled) Klaim button is pressed.
+  final VoidCallback onClaim;
+
+  const _VoucherCard({
+    required this.reward,
+    required this.onClaim,
+    this.available = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = _EntryCard(
+      // A Builder so the text styles come from the theme _EntryCard scopes
+      // around its child (the light one, even in dark mode), not from the outer
+      // theme this method sees — otherwise the text would be white on white.
+      child: Builder(
+        builder: (context) {
+          final textTheme = Theme.of(context).textTheme;
+
+          return Column(
+            key: Key('voucher-card-${reward.pointId}'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Top: details left, icon right ───────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  spacing: 12,
+                  children: [
+                    // Takes all the width the icon leaves, so a long name wraps
+                    // here instead of pushing the icon off the card.
+                    Expanded(
+                      child: Column(
+                        key: Key('voucher-details-${reward.pointId}'),
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 4,
+                        children: [
+                          Text(
+                            // The backend sends names in capitals.
+                            TextFormatter.fromUppercase(reward.pointName),
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${reward.pointQty} pts',
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      key: Key('voucher-icon-${reward.pointId}'),
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.card_giftcard,
+                        size: 28,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              _DashedDivider(key: Key('voucher-divider-${reward.pointId}')),
+
+              // ── Bottom: Klaim, centred vertically and pushed to the right ───
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: BlocBuilder<RedeemBloc, RedeemState>(
+                    builder: (context, state) {
+                      // One claim at a time: while any is on its way every
+                      // Klaim is off, so a second tap cannot spend the points
+                      // twice.
+                      final claiming = state is RedeemInProgress;
+                      final claimingThis =
+                          claiming && state.pointId == reward.pointId;
+
+                      return ElevatedButton(
+                        key: Key('klaim-${reward.pointId}'),
+                        onPressed: available && !claiming ? onClaim : null,
+                        style: ElevatedButton.styleFrom(
+                          // The theme's buttons are full-width; this one sits
+                          // in the card's bottom row and must size to its label.
+                          minimumSize: const Size(72, 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        child: claimingThis
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.textOnPrimary,
+                                ),
+                              )
+                            : const Text(
+                                'Klaim',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return available ? card : Opacity(opacity: 0.5, child: card);
+  }
+}
+
+/// A thin dashed line across the full width of its parent — the tear-off line
+/// between a voucher's details and its Klaim button.
+class _DashedDivider extends StatelessWidget {
+  const _DashedDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: double.infinity,
+      height: 1.5,
+      child: CustomPaint(painter: _DashedLinePainter()),
+    );
+  }
+}
+
+class _DashedLinePainter extends CustomPainter {
+  const _DashedLinePainter();
+
+  static const double _dash = 6;
+  static const double _gap = 4;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.grey400
+      ..strokeWidth = size.height;
+    final y = size.height / 2;
+
+    for (var x = 0.0; x < size.width; x += _dash + _gap) {
+      final end = x + _dash > size.width ? size.width : x + _dash;
+      canvas.drawLine(Offset(x, y), Offset(end, y), paint);
+    }
+  }
+
+  // Nothing about it ever changes.
+  @override
+  bool shouldRepaint(_DashedLinePainter oldDelegate) => false;
 }
 
 class _MembershipBody extends StatelessWidget {
@@ -537,8 +955,17 @@ class _MembershipBody extends StatelessWidget {
       // notifications arrive one level deeper; the default (depth 0 only) would
       // ignore pulls that start inside the box.
       notificationPredicate: (notification) => notification.depth <= 1,
-      onRefresh: () async =>
-          context.read<HomeBloc>().add(const HomeStatsRequested()),
+      onRefresh: () async {
+        context.read<HomeBloc>().add(const HomeStatsRequested());
+
+        // The voucher list is fetched lazily, so only refresh it once it has
+        // been requested — and not while it is already loading.
+        final rewards = context.read<RewardsBloc>();
+        if (rewards.state is! RewardsInitial &&
+            rewards.state is! RewardsLoading) {
+          rewards.add(const RewardsRequested());
+        }
+      },
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
