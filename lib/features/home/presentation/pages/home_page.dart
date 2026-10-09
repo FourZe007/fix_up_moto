@@ -122,14 +122,17 @@ class _GreetingHeader extends StatelessWidget {
       spacing: 12,
       children: [
         Expanded(
-          child: TextButton(
-            onPressed: () => context.go(RouteNames.profile),
-            child: Text(
-              // Falls back to a generic greeting if the record ever comes back
-              // with a blank name, rather than showing "Hi, ".
-              'Hi, ${name.isNotEmpty ? name : 'Guest'}',
-              style: theme.textTheme.headlineSmall,
-              overflow: TextOverflow.ellipsis,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => context.go(RouteNames.profile),
+              child: Text(
+                // Falls back to a generic greeting if the record ever comes back
+                // with a blank name, rather than showing "Hi, ".
+                'Hi, ${name.isNotEmpty ? name : 'Guest'}',
+                style: theme.textTheme.headlineSmall,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ),
@@ -143,7 +146,7 @@ class _GreetingHeader extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () => context.go(RouteNames.profile),
+            onTap: () => context.go(RouteNames.membership),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
@@ -434,7 +437,7 @@ class _ChatWithMikaButton extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Chat with Fima',
+                      'Chat dengan Fima',
                       style: Theme.of(scopedContext).textTheme.bodyMedium
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
