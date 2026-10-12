@@ -16,6 +16,7 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
@@ -55,6 +56,9 @@ class Mocks {
 /// The app-wide "reload this" signal the page listens to; fresh per test.
 late DataRefreshCubit refreshCubit;
 
+/// The unread count the Notifikasi row reads; fresh (0) per test.
+late NotificationCountCubit notificationCount;
+
 /// The page builds its own HomeBloc through GetIt, so each test registers a
 /// mock one in the state it wants to see.
 Future<Mocks> pumpProfile(
@@ -83,11 +87,18 @@ Future<Mocks> pumpProfile(
         path: '/',
         builder: (_, _) => BlocProvider<DataRefreshCubit>.value(
           value: refreshCubit,
-          child: BlocProvider<AuthBloc>.value(
-            value: authBloc,
-            child: const ProfilePage(),
+          child: BlocProvider<NotificationCountCubit>.value(
+            value: notificationCount,
+            child: BlocProvider<AuthBloc>.value(
+              value: authBloc,
+              child: const ProfilePage(),
+            ),
           ),
         ),
+      ),
+      GoRoute(
+        path: RouteNames.notification,
+        builder: (_, _) => const Scaffold(body: Text('notification-page')),
       ),
       GoRoute(
         path: RouteNames.myBikes,
@@ -104,7 +115,10 @@ Future<Mocks> pumpProfile(
 }
 
 void main() {
-  setUp(() => refreshCubit = DataRefreshCubit());
+  setUp(() {
+    refreshCubit = DataRefreshCubit();
+    notificationCount = NotificationCountCubit();
+  });
   tearDown(() => sl.reset());
 
   final settingsButton = find.widgetWithIcon(
@@ -114,6 +128,122 @@ void main() {
   final logoutButton = find.widgetWithIcon(IconButton, Icons.logout);
   final bikeTile = find.byKey(const Key('bike-count-column'));
   final pointsTile = find.byKey(const Key('points-stat-tile'));
+
+  group('the Notifikasi row', () {
+    final row = find.byKey(const Key('notification-row'));
+    final badge = find.descendant(of: row, matching: find.byType(Badge));
+
+    testWidgets('is there, with its label, a bell and a chevron', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('Notifikasi')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byIcon(Icons.notifications_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('sits between the stat tiles and the divider', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(row).dy,
+        greaterThan(tester.getBottomLeft(pointsTile).dy),
+      );
+      expect(
+        tester.getBottomLeft(row).dy,
+        lessThan(tester.getTopLeft(find.byType(Divider)).dy),
+      );
+    });
+
+    testWidgets('shows no count while nothing is unread', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Badge>(badge).isLabelVisible, isFalse);
+    });
+
+    testWidgets('shows the unread count', (tester) async {
+      notificationCount.set(2);
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
+      expect(
+        find.descendant(of: row, matching: find.text('2')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows 99+ for a big count', (tester) async {
+      notificationCount.set(150);
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: row, matching: find.text('99+')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('follows the count live', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      // A cubit emits through an async stream: the first pump lets the new
+      // count arrive, the second builds the frame that shows it.
+      notificationCount.set(4);
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.descendant(of: row, matching: find.text('4')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pressing it opens the notification page', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(find.text('notification-page'), findsOneWidget);
+    });
+
+    testWidgets('back from the notification page returns to Profile', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      // The stand-in page has no app bar, so pop the route like the system
+      // back button does.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('notification-page'), findsNothing);
+      expect(row, findsOneWidget);
+    });
+  });
 
   testWidgets('shows the Settings and Sign out buttons', (tester) async {
     await pumpProfile(tester);

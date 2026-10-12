@@ -16,6 +16,7 @@ import 'package:fix_up_moto/features/chatbot/presentation/pages/chatbot_page.dar
 import 'package:fix_up_moto/features/feeds/presentation/pages/feeds_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
+import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
@@ -178,6 +179,12 @@ class AppRouter {
       // Opened from Home's "Chat with Mika" button — a focused full-screen
       // task like createBooking/workshops above, so it's top-level too.
       GoRoute(path: RouteNames.chatbot, builder: (_, _) => const ChatbotPage()),
+      // Opened from Home's notification bell — a focused full-screen page like
+      // the chatbot above, so it is top-level too and has no bottom nav bar.
+      GoRoute(
+        path: RouteNames.notification,
+        builder: (_, _) => const NotificationPage(),
+      ),
       // Opened from Home's "Motor Saya" button — same reasoning as the
       // routes above.
       GoRoute(path: RouteNames.myBikes, builder: (_, _) => const MyBikesPage()),

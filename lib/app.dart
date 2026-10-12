@@ -8,6 +8,7 @@ import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/theme/theme_cubit.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
+import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 
 /// Root widget of the application.
@@ -50,6 +51,11 @@ class App extends StatelessWidget {
         BlocProvider<ThemeCubit>.value(value: sl<ThemeCubit>()),
         // Lets an action on one screen tell a kept-alive tab to reload.
         BlocProvider<DataRefreshCubit>.value(value: sl<DataRefreshCubit>()),
+        // The unread-notification count shown by Home's bell and Profile's
+        // row. App-scoped and `.value` for the same reason as the above.
+        BlocProvider<NotificationCountCubit>.value(
+          value: sl<NotificationCountCubit>(),
+        ),
         // Register additional app-wide BLoCs here as the app grows.
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(

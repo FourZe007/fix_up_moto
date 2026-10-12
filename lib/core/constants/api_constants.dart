@@ -52,9 +52,11 @@ class ApiConstants {
   /// Body varies by `Jenis`: `{Jenis, MemberID, MemberName, PlateNo, PhoneNo,
   /// Status}` for the dashboard/bike-list projections, or
   /// `{Jenis: "SERVICEBOOKINGHISTORYBYMEMBER", MemberID, BeginDate, EndDate}`
-  /// for a member's booking history. Backs the home dashboard stats, My
-  /// Bikes' list, and My Bookings; `Jenis` selects which projection is
-  /// returned.
+  /// for a member's booking history, or
+  /// `{Jenis: "NOTIFICATION", MemberID, IsSent, IsRead}` for the member's
+  /// inbox (`IsSent: "1"` = already sent, `IsRead: "1"` = read, `""` = no
+  /// filter). Backs the home dashboard stats, My Bikes' list, My Bookings and
+  /// the notification inbox; `Jenis` selects which projection is returned.
   static const String browseTrans = '/apiSAMP/BrowseTrans';
 
   /// POST — body: `{PhoneNo, DecryptedPassword}` → envelope carrying

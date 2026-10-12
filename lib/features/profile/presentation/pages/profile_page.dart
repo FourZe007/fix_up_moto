@@ -14,6 +14,7 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
@@ -250,6 +251,12 @@ class _ProfileBody extends StatelessWidget {
           ],
         ),
 
+        const SizedBox(height: 12),
+
+        // Notifications, as a labelled row: the same page Home's bell opens,
+        // with the same unread count. push, so back returns to Profile.
+        _NotificationRow(onTap: () => context.push(RouteNames.notification)),
+
         const SizedBox(height: 20),
 
         const Divider(),
@@ -342,6 +349,79 @@ class _StatTile extends StatelessWidget {
                           ),
                           Text(label, style: theme.textTheme.bodySmall),
                         ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppColors.grey400,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A full-width shortcut to the notification page, in the same style as
+/// [_StatTile]: a bell, the label, the unread count (hidden at 0) and a chevron.
+///
+/// Shows the same count as Home's bell — both read [NotificationCountCubit].
+class _NotificationRow extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _NotificationRow({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    // Same surface as the stat tiles above, so in dark mode the text needs the
+    // light theme's dark colours too.
+    return LightSurfaceScope(
+      child: Builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+
+          return Material(
+            key: const Key('notification-row'),
+            color: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.grey200),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                child: Row(
+                  spacing: 10,
+                  children: [
+                    const Icon(
+                      Icons.notifications_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Kotak Masuk',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    // Hidden at 0, so the row is just a label and a chevron
+                    // until there is something unread.
+                    BlocBuilder<NotificationCountCubit, int>(
+                      builder: (context, count) => Badge(
+                        isLabelVisible: count > 0,
+                        label: Text(NotificationCountCubit.label(count)),
                       ),
                     ),
                     const Icon(

@@ -796,28 +796,35 @@ class _VoucherCard extends StatelessWidget {
                     // Takes all the width the icon leaves, so a long name wraps
                     // here instead of pushing the icon off the card.
                     Expanded(
-                      child: Column(
-                        key: Key('voucher-details-${reward.pointId}'),
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 4,
-                        children: [
-                          Text(
-                            // The backend sends names in capitals.
-                            TextFormatter.fromUppercase(reward.pointName),
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '${reward.pointQty} pts',
-                            style: textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryDark,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        // The backend sends names in capitals.
+                        TextFormatter.fromUppercase(reward.pointName),
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                      // child: Column(
+                      //   key: Key('voucher-details-${reward.pointId}'),
+                      //   mainAxisSize: MainAxisSize.min,
+                      //   crossAxisAlignment: CrossAxisAlignment.start,
+                      //   spacing: 4,
+                      //   children: [
+                      //     Text(
+                      //       // The backend sends names in capitals.
+                      //       TextFormatter.fromUppercase(reward.pointName),
+                      //       style: textTheme.titleMedium?.copyWith(
+                      //         fontWeight: FontWeight.w600,
+                      //       ),
+                      //     ),
+                      //     Text(
+                      //       '${reward.pointQty} pts',
+                      //       style: textTheme.titleSmall?.copyWith(
+                      //         fontWeight: FontWeight.w700,
+                      //         color: AppColors.primaryDark,
+                      //       ),
+                      //     ),
+                      //   ],
+                      // ),
                     ),
                     Container(
                       key: Key('voucher-icon-${reward.pointId}'),
@@ -845,41 +852,57 @@ class _VoucherCard extends StatelessWidget {
                   horizontal: 16,
                   vertical: 10,
                 ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: BlocBuilder<RedeemBloc, RedeemState>(
-                    builder: (context, state) {
-                      // One claim at a time: while any is on its way every
-                      // Klaim is off, so a second tap cannot spend the points
-                      // twice.
-                      final claiming = state is RedeemInProgress;
-                      final claimingThis =
-                          claiming && state.pointId == reward.pointId;
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${reward.pointQty} pts',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
 
-                      return ElevatedButton(
-                        key: Key('klaim-${reward.pointId}'),
-                        onPressed: available && !claiming ? onClaim : null,
-                        style: ElevatedButton.styleFrom(
-                          // The theme's buttons are full-width; this one sits
-                          // in the card's bottom row and must size to its label.
-                          minimumSize: const Size(72, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        child: claimingThis
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.textOnPrimary,
-                                ),
-                              )
-                            : const Text(
-                                'Klaim',
-                                style: TextStyle(fontSize: 14),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: BlocBuilder<RedeemBloc, RedeemState>(
+                        builder: (context, state) {
+                          // One claim at a time: while any is on its way every
+                          // Klaim is off, so a second tap cannot spend the points
+                          // twice.
+                          final claiming = state is RedeemInProgress;
+                          final claimingThis =
+                              claiming && state.pointId == reward.pointId;
+
+                          return ElevatedButton(
+                            key: Key('klaim-${reward.pointId}'),
+                            onPressed: available && !claiming ? onClaim : null,
+                            style: ElevatedButton.styleFrom(
+                              // The theme's buttons are full-width; this one sits
+                              // in the card's bottom row and must size to its label.
+                              minimumSize: const Size(72, 36),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
                               ),
-                      );
-                    },
-                  ),
+                            ),
+                            child: claimingThis
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.textOnPrimary,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Klaim',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

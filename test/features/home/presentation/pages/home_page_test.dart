@@ -13,6 +13,7 @@ import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
+import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_bloc.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_event.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_state.dart';
@@ -37,6 +38,9 @@ const tStats = DashboardStatsEntity(
 );
 
 late DataRefreshCubit refreshCubit;
+
+/// The unread count the bell reads; fresh (0) per test, so a test sets it.
+late NotificationCountCubit notificationCount;
 
 /// Pumped in the loading state, which is just a spinner: the reload wiring
 /// doesn't depend on what the loaded page contains, and the loaded page pulls
@@ -88,6 +92,10 @@ Future<void> pumpLoadedHome(WidgetTester tester) async {
         path: '/profile',
         builder: (_, _) => const Scaffold(body: Text('profile-tab')),
       ),
+      GoRoute(
+        path: '/notification',
+        builder: (_, _) => const Scaffold(body: Text('notification-page')),
+      ),
     ],
   );
 
@@ -95,6 +103,7 @@ Future<void> pumpLoadedHome(WidgetTester tester) async {
     MultiBlocProvider(
       providers: [
         BlocProvider.value(value: refreshCubit),
+        BlocProvider.value(value: notificationCount),
         BlocProvider(create: (_) => SelectedWorkshopCubit()),
       ],
       child: MaterialApp.router(routerConfig: router),
@@ -104,7 +113,10 @@ Future<void> pumpLoadedHome(WidgetTester tester) async {
 }
 
 void main() {
-  setUp(() => refreshCubit = DataRefreshCubit());
+  setUp(() {
+    refreshCubit = DataRefreshCubit();
+    notificationCount = NotificationCountCubit();
+  });
   tearDown(() => sl.reset());
 
   testWidgets('asks for the stats when the page opens', (tester) async {
@@ -132,6 +144,76 @@ void main() {
     await tester.pump();
 
     verify(() => home.add(const HomeStatsRequested())).called(1);
+  });
+
+  group('the notification bell', () {
+    final bell = find.byKey(const Key('notification-chip'));
+    final badge = find.descendant(of: bell, matching: find.byType(Badge));
+
+    /// Whether the bell's badge is showing, and what it says.
+    ({bool visible, String? text}) badgeState(WidgetTester tester) {
+      final widget = tester.widget<Badge>(badge);
+      return (
+        visible: widget.isLabelVisible,
+        text: widget.label is Text ? (widget.label! as Text).data : null,
+      );
+    }
+
+    testWidgets('shows no badge while nothing is unread', (tester) async {
+      await pumpLoadedHome(tester);
+
+      expect(bell, findsOneWidget);
+      expect(badgeState(tester).visible, isFalse);
+    });
+
+    testWidgets('shows the unread count on the bell', (tester) async {
+      notificationCount.set(2);
+      await pumpLoadedHome(tester);
+
+      expect(badgeState(tester).visible, isTrue);
+      expect(badgeState(tester).text, '2');
+      expect(
+        find.descendant(of: bell, matching: find.text('2')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows 99+ for a big count', (tester) async {
+      notificationCount.set(150);
+      await pumpLoadedHome(tester);
+
+      expect(badgeState(tester).text, '99+');
+    });
+
+    testWidgets('follows the count live, and disappears when it clears', (
+      tester,
+    ) async {
+      await pumpLoadedHome(tester);
+      expect(badgeState(tester).visible, isFalse);
+
+      // A cubit emits through an async stream: the first pump lets the new
+      // count arrive, the second builds the frame that shows it.
+      notificationCount.set(3);
+      await tester.pump();
+      await tester.pump();
+      expect(badgeState(tester).visible, isTrue);
+      expect(badgeState(tester).text, '3');
+
+      notificationCount.set(0);
+      await tester.pump();
+      await tester.pump();
+      expect(badgeState(tester).visible, isFalse);
+    });
+
+    testWidgets('pressing it opens the notification page', (tester) async {
+      notificationCount.set(2);
+      await pumpLoadedHome(tester);
+
+      await tester.tap(find.descendant(of: bell, matching: find.byType(IconButton)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('notification-page'), findsOneWidget);
+    });
   });
 
   group('the points chip', () {

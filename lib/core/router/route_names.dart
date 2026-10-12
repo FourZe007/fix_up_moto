@@ -82,4 +82,9 @@ class RouteNames {
   /// AI-powered virtual customer service chat — opened from Home's "Chat
   /// with Mika" button. Currently an empty placeholder page.
   static const String chatbot = '/chatbot';
+
+  /// The member's notifications. A focused full-screen page like [chatbot],
+  /// so it is top-level too, without the bottom nav bar. Currently an empty
+  /// placeholder page.
+  static const String notification = '/notification';
 }

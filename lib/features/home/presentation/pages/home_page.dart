@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,7 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/promos/domain/entities/promo_image_entity.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_bloc.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_event.dart';
@@ -140,31 +142,64 @@ class _GreetingHeader extends StatelessWidget {
         // A Material + InkWell rather than a decorated Container: a ripple is
         // painted on the nearest Material, and a Container's own background
         // would hide it.
-        Material(
-          key: const Key('points-chip'),
-          color: AppColors.primary.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => context.go(RouteNames.membership),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Row(
-                spacing: 6,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.star, size: 18, color: AppColors.primary),
-                  Text(
-                    '$points pts',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
+        Row(
+          children: [
+            Material(
+              key: const Key('points-chip'),
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => context.go(RouteNames.membership),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
                   ),
-                ],
+                  child: Row(
+                    spacing: 6,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                      Text(
+                        '$points pts',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+
+            Material(
+              key: const Key('notification-chip'),
+              color: Colors.transparent,
+              child: IconButton(
+                onPressed: () => context.push(RouteNames.notification),
+                // The same unread count Profile's row shows (one shared cubit).
+                // The badge stays hidden at 0, so nothing changes until
+                // something sets a count.
+                icon: BlocBuilder<NotificationCountCubit, int>(
+                  builder: (context, count) => Badge(
+                    isLabelVisible: count > 0,
+                    label: Text(NotificationCountCubit.label(count)),
+                    child: const Icon(Icons.notifications_sharp),
+                  ),
+                ),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

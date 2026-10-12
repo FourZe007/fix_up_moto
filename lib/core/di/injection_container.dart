@@ -45,6 +45,12 @@ import 'package:fix_up_moto/features/membership/domain/usecases/get_rewards_usec
 import 'package:fix_up_moto/features/membership/domain/usecases/redeem_reward_usecase.dart';
 import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_bloc.dart';
 import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_bloc.dart';
+import 'package:fix_up_moto/features/notification/data/datasources/notification_remote_data_source.dart';
+import 'package:fix_up_moto/features/notification/data/repositories/notification_repository_impl.dart';
+import 'package:fix_up_moto/features/notification/domain/repositories/notification_repository.dart';
+import 'package:fix_up_moto/features/notification/domain/usecases/get_notifications_usecase.dart';
+import 'package:fix_up_moto/features/notification/presentation/bloc/notification_bloc.dart';
+import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/bikes_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/repositories/bikes_repository_impl.dart';
@@ -339,6 +345,25 @@ Future<void> initDependencies() async {
   sl.registerFactory(() => RewardsBloc(getRewards: sl()));
   sl.registerFactory(() => RedeemBloc(redeemReward: sl()));
 
+  // ── Notification Feature ──────────────────────────────────────────────────
+  // The inbox. (The unread count shown on the bell and the Profile row is a
+  // separate app-scoped cubit, registered below.)
+
+  sl.registerLazySingleton<NotificationRemoteDataSource>(
+    () => NotificationRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<NotificationRepository>(
+    () => NotificationRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      authRepository: sl(),
+    ),
+  );
+  sl.registerLazySingleton(
+    () => GetNotificationsUseCase(sl<NotificationRepository>()),
+  );
+  sl.registerFactory(() => NotificationBloc(getNotifications: sl()));
+
   // App-scoped, like AuthBloc — see SelectedWorkshopCubit's own doc comment
   // for why this can't be a page-scoped factory. Pair with BlocProvider.value
   // in app.dart for the same reason AuthBloc is paired that way.
@@ -347,6 +372,10 @@ Future<void> initDependencies() async {
   // App-scoped for the same reason: an action on one screen has to reach a tab
   // that is alive but hidden. Holds no data, only the last "reload this" signal.
   sl.registerLazySingleton(() => DataRefreshCubit());
+
+  // App-scoped for the same reason: Home's bell and Profile's row show one
+  // shared unread count, and both live on tabs that stay alive while hidden.
+  sl.registerLazySingleton(() => NotificationCountCubit());
 
   // App-scoped for the same reason: MaterialApp itself reads it. Provided with
   // BlocProvider.value in app.dart.
