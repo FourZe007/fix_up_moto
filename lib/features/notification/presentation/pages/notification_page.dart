@@ -463,64 +463,39 @@ class _NotificationCard extends StatelessWidget {
       color: unread
           ? AppColors.primary.withValues(alpha: 0.5)
           : AppColors.backgroundLight,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
+        spacing: 4,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: unread
-                ? Container(
-                    key: Key('unread-dot-${notification.id}'),
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      // White: the row itself is the brand colour.
-                      color: AppColors.textOnPrimary,
-                      shape: BoxShape.circle,
-                    ),
-                  )
-                : const SizedBox(width: 10),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 4,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        // The backend sends the type in English.
-                        TranslationConstants.translate(notification.type),
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: textColor,
-                          fontWeight: unread
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    if (date.isNotEmpty)
-                      Text(
-                        date,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: unread
-                              ? AppColors.textOnPrimary.withValues(alpha: 0.85)
-                              : AppColors.grey600,
-                        ),
-                      ),
-                  ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: [
+              Expanded(
+                child: Text(
+                  // The backend sends the type in English.
+                  TranslationConstants.translate(notification.type),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: textColor,
+                    fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
+              ),
+              if (date.isNotEmpty)
                 Text(
-                  notification.message,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+                  date,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: unread
+                        ? AppColors.textOnPrimary.withValues(alpha: 0.85)
+                        : AppColors.grey600,
+                  ),
                 ),
-              ],
-            ),
+            ],
+          ),
+          Text(
+            notification.message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
           ),
         ],
       ),

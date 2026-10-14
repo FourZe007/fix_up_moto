@@ -1,6 +1,7 @@
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
@@ -160,7 +161,7 @@ class _ProfileBody extends StatelessWidget {
           child: Column(
             children: [
               Row(
-                spacing: 12,
+                spacing: 20,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User Avatar — initial only; the stats record has no photo.
@@ -254,27 +255,91 @@ class _ProfileBody extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Notifications, as a labelled row: the same page Home's bell opens,
-        // with the same unread count. push, so back returns to Profile.
-        _NotificationRow(onTap: () => context.push(RouteNames.notification)),
+        // with the same unread count (both read NotificationCountCubit). push,
+        // so back returns to Profile.
+        _ActionCard(
+          key: const Key('notification-card'),
+          name: 'Kotak Masuk',
+          icon: Icon(
+            Icons.notifications_outlined,
+            color: AppColors.primary,
+            size: 20,
+          ),
+          onPressed: () => context.push(RouteNames.notification),
+          // Hidden at 0, so the row is just a label and a chevron until there
+          // is something unread.
+          trailing: BlocBuilder<NotificationCountCubit, int>(
+            builder: (context, count) => Badge(
+              isLabelVisible: count > 0,
+              label: Text(NotificationCountCubit.label(count)),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        _ActionCard(
+          key: const Key('edit-profile'),
+          name: 'Edit Profile',
+          icon: Icon(Icons.edit, color: AppColors.primary, size: 20),
+          onPressed: () {},
+        ),
+
+        const SizedBox(height: 8),
+
+        _ActionCard(
+          key: const Key('whatsapp-service'),
+          name: 'Layanan Whatsapp',
+          icon: FaIcon(
+            FontAwesomeIcons.whatsapp,
+            color: AppColors.primary,
+            size: 20,
+          ),
+          onPressed: () {},
+        ),
+
+        const SizedBox(height: 8),
+
+        _ActionCard(
+          key: const Key('privacy-policy'),
+          name: 'Kebijakan Privasi',
+          icon: Icon(Icons.menu_book_sharp, color: AppColors.primary, size: 20),
+          onPressed: () {},
+        ),
+
+        const SizedBox(height: 8),
+
+        _ActionCard(
+          key: const Key('terms-of-service'),
+          name: 'Ketentuan Layanan',
+          icon: Icon(
+            Icons.info_outline_rounded,
+            color: AppColors.primary,
+            size: 20,
+          ),
+          onPressed: () {},
+        ),
 
         const SizedBox(height: 20),
 
-        const Divider(),
+        Center(child: Text('Versi Aplikasi 2.0.0')),
 
-        // This section is just a shortcut into the dedicated MyBikesPage now
-        // (see its own BikesBloc) — this placeholder never loaded a real list
-        // itself.
-        ListTile(
-          title: Text('My Bikes', style: theme.textTheme.titleMedium),
-          trailing: IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => context.push(RouteNames.addBike),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Belum ada motor terdaftar'),
-        ),
+        // const Divider(),
+
+        // // This section is just a shortcut into the dedicated MyBikesPage now
+        // // (see its own BikesBloc) — this placeholder never loaded a real list
+        // // itself.
+        // ListTile(
+        //   title: Text('My Bikes', style: theme.textTheme.titleMedium),
+        //   trailing: IconButton(
+        //     icon: const Icon(Icons.add),
+        //     onPressed: () => context.push(RouteNames.addBike),
+        //   ),
+        // ),
+        // const Padding(
+        //   padding: EdgeInsets.all(16),
+        //   child: Text('Belum ada motor terdaftar'),
+        // ),
       ],
     );
   }
@@ -367,14 +432,24 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-/// A full-width shortcut to the notification page, in the same style as
-/// [_StatTile]: a bell, the label, the unread count (hidden at 0) and a chevron.
-///
-/// Shows the same count as Home's bell — both read [NotificationCountCubit].
-class _NotificationRow extends StatelessWidget {
-  final VoidCallback onTap;
+/// A full-width, reusable shortcut row in the same style as [_StatTile]: an
+/// [icon], the [name], an optional [trailing] widget (e.g. a count badge) and a
+/// chevron — the whole row is the tap target.
+class _ActionCard extends StatelessWidget {
+  final String name;
+  final Icon icon;
+  final VoidCallback onPressed;
 
-  const _NotificationRow({required this.onTap});
+  /// Shown between the name and the chevron; nothing by default.
+  final Widget? trailing;
+
+  const _ActionCard({
+    super.key,
+    required this.name,
+    required this.icon,
+    required this.onPressed,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +461,6 @@ class _NotificationRow extends StatelessWidget {
           final theme = Theme.of(context);
 
           return Material(
-            key: const Key('notification-row'),
             color: theme.colorScheme.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -394,36 +468,26 @@ class _NotificationRow extends StatelessWidget {
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
+              onTap: onPressed,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 14,
                 ),
                 child: Row(
-                  spacing: 10,
+                  spacing: 12,
                   children: [
-                    const Icon(
-                      Icons.notifications_outlined,
-                      color: AppColors.primary,
-                      size: 22,
-                    ),
+                    icon,
                     Expanded(
                       child: Text(
-                        'Kotak Masuk',
+                        name,
                         style: theme.textTheme.titleMedium?.copyWith(
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                    // Hidden at 0, so the row is just a label and a chevron
-                    // until there is something unread.
-                    BlocBuilder<NotificationCountCubit, int>(
-                      builder: (context, count) => Badge(
-                        isLabelVisible: count > 0,
-                        label: Text(NotificationCountCubit.label(count)),
-                      ),
-                    ),
+                    ?trailing,
                     const Icon(
                       Icons.chevron_right,
                       size: 18,

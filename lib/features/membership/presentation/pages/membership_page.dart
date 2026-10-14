@@ -413,13 +413,13 @@ class _HistoryVouchersBoxState extends State<_HistoryVouchersBox> {
                 children: [...previous, ?current],
               ),
               child: switch (_tab) {
-                _MembershipTab.history => _PointHistoryList(
-                  key: const ValueKey(_MembershipTab.history),
-                  entries: widget.stats.detail,
-                ),
                 _MembershipTab.vouchers => _VoucherList(
                   key: const ValueKey(_MembershipTab.vouchers),
                   balance: widget.stats.point,
+                ),
+                _MembershipTab.history => _PointHistoryList(
+                  key: const ValueKey(_MembershipTab.history),
+                  entries: widget.stats.detail,
                 ),
               },
             ),
@@ -548,9 +548,11 @@ class _PointHistoryList extends StatelessWidget {
               subtitle: Text(entry.transDate),
               trailing: Text(
                 entry.pointQty.toString(),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: Colors.green),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: entry.pointQty.toString().trim().contains('-')
+                      ? Colors.red
+                      : Colors.green,
+                ),
               ),
               contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 20),
             ),
@@ -631,7 +633,7 @@ class _VoucherList extends StatelessWidget {
       children: [
         const _SectionHeader(
           key: Key('vouchers-available-header'),
-          'Voucher Tersedia',
+          'Bisa Ditukar',
         ),
         if (available.isEmpty)
           const _SectionEmpty('Point Anda belum cukup untuk voucher mana pun')
@@ -643,7 +645,7 @@ class _VoucherList extends StatelessWidget {
             ),
         const _SectionHeader(
           key: Key('vouchers-unavailable-header'),
-          'Voucher Tidak Tersedia',
+          'Belum Cukup Point',
         ),
         if (unavailable.isEmpty)
           const _SectionEmpty('Semua voucher dapat Anda tukarkan')

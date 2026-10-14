@@ -183,6 +183,7 @@ class _GreetingHeader extends StatelessWidget {
               color: Colors.transparent,
               child: IconButton(
                 onPressed: () => context.push(RouteNames.notification),
+                tooltip: 'Kotak Masuk',
                 // The same unread count Profile's row shows (one shared cubit).
                 // The badge stays hidden at 0, so nothing changes until
                 // something sets a count.

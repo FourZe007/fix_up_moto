@@ -56,7 +56,7 @@ class Mocks {
 /// The app-wide "reload this" signal the page listens to; fresh per test.
 late DataRefreshCubit refreshCubit;
 
-/// The unread count the Notifikasi row reads; fresh (0) per test.
+/// The unread count the Kotak Masuk row reads; fresh (0) per test.
 late NotificationCountCubit notificationCount;
 
 /// The page builds its own HomeBloc through GetIt, so each test registers a
@@ -129,8 +129,8 @@ void main() {
   final bikeTile = find.byKey(const Key('bike-count-column'));
   final pointsTile = find.byKey(const Key('points-stat-tile'));
 
-  group('the Notifikasi row', () {
-    final row = find.byKey(const Key('notification-row'));
+  group('the Kotak Masuk row', () {
+    final row = find.byKey(const Key('notification-card'));
     final badge = find.descendant(of: row, matching: find.byType(Badge));
 
     testWidgets('is there, with its label, a bell and a chevron', (
@@ -141,7 +141,7 @@ void main() {
 
       expect(row, findsOneWidget);
       expect(
-        find.descendant(of: row, matching: find.text('Notifikasi')),
+        find.descendant(of: row, matching: find.text('Kotak Masuk')),
         findsOneWidget,
       );
       expect(
@@ -157,7 +157,9 @@ void main() {
       );
     });
 
-    testWidgets('sits between the stat tiles and the divider', (tester) async {
+    testWidgets('sits between the stat tiles and the Edit Profile card', (
+      tester,
+    ) async {
       await pumpProfile(tester);
       await tester.pumpAndSettle();
 
@@ -167,7 +169,9 @@ void main() {
       );
       expect(
         tester.getBottomLeft(row).dy,
-        lessThan(tester.getTopLeft(find.byType(Divider)).dy),
+        lessThan(
+          tester.getTopLeft(find.byKey(const Key('edit-profile'))).dy,
+        ),
       );
     });
 
