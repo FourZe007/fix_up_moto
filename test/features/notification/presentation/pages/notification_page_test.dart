@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
@@ -19,21 +20,29 @@ class MockNotificationBloc
     implements NotificationBloc {}
 
 final tUnread = NotificationEntity(
+  memberId: '0101202300000003',
   id: 'N1',
   type: 'Service Booking Confirmed',
   message: 'Booking Service Anda Telah Dikonfirmasi.\nTerima Kasih',
   date: DateTime(2023, 12, 12),
   isSent: true,
   isRead: false,
+  numberOfNotifications: 0,
+  image: '',
+  link: '',
 );
 
 final tRead = NotificationEntity(
+  memberId: '0101202300000003',
   id: 'N2',
   type: 'Service Reminder',
   message: 'Jangan lupa servis motor Anda',
   date: DateTime(2023, 12, 5),
   isSent: true,
   isRead: true,
+  numberOfNotifications: 0,
+  image: '',
+  link: '',
 );
 
 /// The colour [text] is actually drawn in (the page's default text style with
@@ -48,12 +57,30 @@ Color colourOf(WidgetTester tester, String text) {
 extension on NotificationEntity {
   /// The same message under another id, so a list can hold several.
   NotificationEntity copyWithId(String newId) => NotificationEntity(
+    memberId: memberId,
     id: newId,
     type: type,
     message: message,
     date: date,
     isSent: isSent,
     isRead: isRead,
+    numberOfNotifications: numberOfNotifications,
+    image: image,
+    link: link,
+  );
+
+  /// The same message carrying [newLink].
+  NotificationEntity copyWithLink(String newLink) => NotificationEntity(
+    memberId: memberId,
+    id: id,
+    type: type,
+    message: message,
+    date: date,
+    isSent: isSent,
+    isRead: isRead,
+    numberOfNotifications: numberOfNotifications,
+    image: image,
+    link: newLink,
   );
 }
 
@@ -118,6 +145,174 @@ void main() {
     }
   });
 
+  group('the Lihat Detail button', () {
+    const address = 'https://fixupmoto.com/promo';
+    final button = find.text('Lihat Detail');
+
+    testWidgets('is there when the message has a web link', (tester) async {
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([tUnread.copyWithLink(address)]),
+      );
+
+      expect(button, findsOneWidget);
+      expect(find.byKey(const Key('notification-link-N1')), findsOneWidget);
+      // The address itself is never printed.
+      expect(find.text(address), findsNothing);
+    });
+
+    testWidgets('reads Lihat Detail for an ordinary page', (tester) async {
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([tUnread.copyWithLink(address)]),
+      );
+
+      expect(find.text('Lihat Detail'), findsOneWidget);
+      expect(find.text('Isi Formulir'), findsNothing);
+      expect(find.byIcon(Icons.open_in_new), findsOneWidget);
+    });
+
+    testWidgets('reads Isi Formulir for a Google Form', (tester) async {
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([
+          tUnread.copyWithLink('https://forms.gle/AbCdEf123'),
+        ]),
+      );
+
+      expect(find.text('Isi Formulir'), findsOneWidget);
+      expect(find.text('Lihat Detail'), findsNothing);
+      expect(find.byIcon(Icons.edit_note), findsOneWidget);
+      expect(find.byIcon(Icons.open_in_new), findsNothing);
+    });
+
+    testWidgets('each message gets the wording of its own link', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([
+          tUnread.copyWithLink('https://forms.gle/AbCdEf123'),
+          tRead.copyWithLink(address),
+        ]),
+      );
+
+      Finder inRow(String id, String text) => find.descendant(
+        of: find.byKey(Key('notification-$id')),
+        matching: find.text(text),
+      );
+
+      expect(inRow('N1', 'Isi Formulir'), findsOneWidget);
+      expect(inRow('N2', 'Lihat Detail'), findsOneWidget);
+    });
+
+    for (final link in [
+      '',
+      '   ',
+      '-',
+      'fixupmoto.com/promo',
+      'ftp://fixupmoto.com/file',
+      'not a link',
+    ]) {
+      testWidgets('is not there for the link "$link"', (tester) async {
+        await pumpPage(
+          tester,
+          state: NotificationLoaded([tUnread.copyWithLink(link)]),
+        );
+
+        expect(button, findsNothing);
+      });
+    }
+
+    testWidgets('sits at the bottom right, under the message', (tester) async {
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([tRead.copyWithLink(address)]),
+      );
+
+      final row = find.byKey(const Key('notification-N2'));
+      final message = find.text('Jangan lupa servis motor Anda');
+
+      expect(
+        tester.getTopLeft(button).dy,
+        greaterThan(tester.getBottomLeft(message).dy - 1),
+      );
+      expect(
+        tester.getBottomRight(button).dx,
+        lessThan(tester.getTopRight(row).dx),
+      );
+      expect(
+        tester.getTopLeft(button).dx,
+        greaterThan(tester.getSize(row).width / 2),
+      );
+    });
+
+    testWidgets('follows the row: white on unread, brand colour on read', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([
+          tUnread.copyWithLink(address),
+          tRead.copyWithLink(address),
+        ]),
+      );
+
+      Color colourOfButton(String id) => tester
+          .widget<TextButton>(find.byKey(Key('notification-link-$id')))
+          .style!
+          .foregroundColor!
+          .resolve({})!;
+
+      expect(colourOfButton('N1'), AppColors.textOnPrimary);
+      expect(colourOfButton('N2'), AppColors.primary);
+    });
+
+    /// Stands in for the url_launcher plugin: answers every launch with
+    /// [opens] and records the calls it received.
+    List<MethodCall> mockLauncher({required bool opens}) {
+      final calls = <MethodCall>[];
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return opens;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      return calls;
+    }
+
+    testWidgets('opens the address outside the app', (tester) async {
+      final calls = mockLauncher(opens: true);
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([tUnread.copyWithLink(address)]),
+      );
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      expect(calls, hasLength(1));
+      expect(calls.single.method, 'launch');
+      expect((calls.single.arguments as Map)['url'], address);
+      expect(find.text('Tautan tidak dapat dibuka'), findsNothing);
+    });
+
+    testWidgets('says so when the address cannot be opened', (tester) async {
+      mockLauncher(opens: false);
+      await pumpPage(
+        tester,
+        state: NotificationLoaded([tUnread.copyWithLink(address)]),
+      );
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tautan tidak dapat dibuka'), findsOneWidget);
+    });
+  });
+
   group('the inbox', () {
     testWidgets('shows each message\'s type, text and date', (tester) async {
       await pumpPage(tester, state: NotificationLoaded([tUnread, tRead]));
@@ -176,12 +371,16 @@ void main() {
       tester,
     ) async {
       final undated = NotificationEntity(
+        memberId: '0101202300000003',
         id: 'N3',
         type: 'Promo',
         message: 'Hemat banyak',
         date: null,
         isSent: true,
         isRead: true,
+        numberOfNotifications: 0,
+        image: '',
+        link: '',
       );
       await pumpPage(tester, state: NotificationLoaded([undated]));
 
@@ -384,6 +583,7 @@ void main() {
       tester,
     ) async {
       final long = NotificationEntity(
+        memberId: '0101202300000003',
         id: 'N9',
         type:
             'Pengingat Servis Berkala Sepeda Motor Matic Anda Yang Sudah Jatuh Tempo',
@@ -391,6 +591,9 @@ void main() {
         date: DateTime(2023, 12, 12),
         isSent: true,
         isRead: true,
+        numberOfNotifications: 0,
+        image: '',
+        link: '',
       );
       await pumpPage(tester, state: NotificationLoaded([long]));
 
@@ -711,12 +914,16 @@ void main() {
           final many = [
             for (var i = 0; i < 20; i++)
               NotificationEntity(
+                memberId: '0101202300000003',
                 id: 'L$i',
                 type: 'Service Reminder',
                 message: 'Pesan $i',
                 date: DateTime(2023, 12, 1),
                 isSent: true,
                 isRead: true,
+                numberOfNotifications: 0,
+                image: '',
+                link: '',
               ),
           ];
           await pumpPage(tester, state: NotificationLoaded(many));

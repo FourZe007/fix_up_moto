@@ -18,12 +18,16 @@ void main() {
 
   final tNotifications = [
     NotificationEntity(
+      memberId: '0101202300000003',
       id: 'N1',
       type: 'Service Booking Confirmed',
       message: 'Halo',
       date: DateTime(2023, 12, 12),
       isSent: true,
       isRead: false,
+      numberOfNotifications: 0,
+      image: '',
+      link: '',
     ),
   ];
 

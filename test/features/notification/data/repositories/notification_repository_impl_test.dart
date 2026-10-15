@@ -31,12 +31,16 @@ void main() {
   );
 
   const tModel = NotificationModel(
+    memberId: '0101202300000003',
     notificationId: 'N1',
     notificationType: 'Service Booking Confirmed',
     notification: 'Halo\r\nDunia',
     sysDate: '2023-12-12',
     isSent: true,
     isRead: false,
+    numberOfNotifications: 0,
+    image: '',
+    link: '',
   );
 
   setUp(() {
@@ -71,12 +75,16 @@ void main() {
   test('returns the inbox as entities, in the order received', () async {
     givenOnlineAndSignedIn();
     const second = NotificationModel(
+      memberId: '0101202300000003',
       notificationId: 'N2',
       notificationType: 'Promo',
       notification: 'x',
       sysDate: '2023-01-01',
       isSent: true,
       isRead: true,
+      numberOfNotifications: 0,
+      image: '',
+      link: '',
     );
     givenRemote(() async => [tModel, second]);
 

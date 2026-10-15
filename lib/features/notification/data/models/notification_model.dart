@@ -17,6 +17,9 @@ part 'notification_model.g.dart';
 /// one record with a missing key.
 @JsonSerializable()
 class NotificationModel {
+  @JsonKey(name: 'MemberID', defaultValue: '')
+  final String memberId;
+
   @JsonKey(name: 'NotificationID', defaultValue: '')
   final String notificationId;
 
@@ -37,13 +40,26 @@ class NotificationModel {
   @JsonKey(name: 'IsRead', fromJson: _flagFromJson)
   final bool isRead;
 
+  @JsonKey(name: 'Q', fromJson: _intFromJson)
+  final int numberOfNotifications;
+
+  @JsonKey(name: 'Base64Image', defaultValue: '')
+  final String image;
+
+  @JsonKey(name: 'UrlLink', defaultValue: '')
+  final String link;
+
   const NotificationModel({
+    required this.memberId,
     required this.notificationId,
     required this.notificationType,
     required this.notification,
     required this.sysDate,
     required this.isSent,
     required this.isRead,
+    required this.numberOfNotifications,
+    required this.image,
+    required this.link,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) =>
@@ -53,6 +69,7 @@ class NotificationModel {
 
   /// Converts to the Domain entity returned to callers.
   NotificationEntity toEntity() => NotificationEntity(
+    memberId: memberId,
     id: notificationId,
     type: notificationType.trim(),
     message: _plainLineBreaks(notification),
@@ -61,6 +78,9 @@ class NotificationModel {
     date: DateTime.tryParse(sysDate),
     isSent: isSent,
     isRead: isRead,
+    numberOfNotifications: numberOfNotifications,
+    image: image,
+    link: link,
   );
 }
 
@@ -78,6 +98,14 @@ bool _flagFromJson(dynamic value) {
     return text == '1' || text == 'true';
   }
   return false;
+}
+
+/// Reads a count whether the backend sends it as a number (`0`) or a string
+/// (`"0"`). Anything else, including a missing value, is 0.
+int _intFromJson(dynamic value) {
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim()) ?? 0;
+  return 0;
 }
 
 /// The backend's `\r\n` (and any lone `\r`) as plain `\n`, so the text lays

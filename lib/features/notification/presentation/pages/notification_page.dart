@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:fix_up_moto/core/constants/translation_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
@@ -12,6 +13,7 @@ import 'package:fix_up_moto/features/notification/presentation/bloc/notification
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_event.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_state.dart';
 import 'package:fix_up_moto/features/notification/presentation/models/notification_filter.dart';
+import 'package:fix_up_moto/features/notification/presentation/models/notification_link.dart';
 
 /// The member's inbox.
 ///
@@ -170,9 +172,10 @@ class _NotificationViewState extends State<_NotificationView> {
                     ? const _EmptyInbox()
                     // No padding and no separators: the rows run edge to edge and
                     // touch each other, like Gmail's list.
-                    : ListView.builder(
+                    : ListView.separated(
                         // Always scrollable, so a short list can still be pulled.
                         physics: const AlwaysScrollableScrollPhysics(),
+                        separatorBuilder: (_, _) => const SizedBox(height: 1),
                         itemCount: notifications.length,
                         itemBuilder: (_, index) => _NotificationCard(
                           notification: notifications[index],
@@ -435,6 +438,7 @@ class _ErrorView extends StatelessWidget {
 /// ┌──────────────────────────────────────────┐
 /// │ ●  Booking Service Terkonfirmasi  12 Des │   title (translated) + date
 /// │    Booking Service Anda Telah ...        │   the message
+/// │                        [ Lihat Detail ↗ ]│   only when it has a link
 /// └──────────────────────────────────────────┘
 /// ```
 ///
@@ -453,6 +457,7 @@ class _NotificationCard extends StatelessWidget {
     final theme = Theme.of(context);
     final unread = !notification.isRead;
     final date = DateTimeFormatter.toShortDate(notification.date);
+    final link = NotificationLink.tryParse(notification.link);
 
     // White on the brand colour; on the light row, whatever the theme says.
     final Color? textColor = unread ? AppColors.textOnPrimary : null;
@@ -497,8 +502,63 @@ class _NotificationCard extends StatelessWidget {
             notification.message,
             style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
           ),
+          // A labelled button rather than the raw address: a URL is long and
+          // unreadable, and a link hidden in the text would never be found.
+          // What it says follows what the link leads to.
+          if (link != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: Key('notification-link-${notification.id}'),
+                onPressed: () => _openLink(context, link.uri),
+                style: TextButton.styleFrom(
+                  foregroundColor: unread
+                      ? AppColors.textOnPrimary
+                      : AppColors.primary,
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: Icon(_iconOf(link.kind), size: 16),
+                iconAlignment: IconAlignment.end,
+                label: Text(
+                  _labelOf(link.kind),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
         ],
       ),
+    );
+  }
+}
+
+/// The button's wording for each kind of link. Exhaustive, so a new [LinkKind]
+/// cannot be added without deciding how its button reads.
+String _labelOf(LinkKind kind) => switch (kind) {
+  LinkKind.googleForm => 'Isi Formulir',
+  LinkKind.other => 'Lihat Detail',
+};
+
+IconData _iconOf(LinkKind kind) => switch (kind) {
+  LinkKind.googleForm => Icons.edit_note,
+  LinkKind.other => Icons.open_in_new,
+};
+
+/// Opens [uri] in the browser or the app that handles it; says so if nothing
+/// could.
+Future<void> _openLink(BuildContext context, Uri uri) async {
+  // Resolved before the await, so the context is not used across the gap.
+  final messenger = ScaffoldMessenger.of(context);
+
+  var opened = false;
+  try {
+    opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    // No handler for the address: reported below, same as a `false` result.
+  }
+
+  if (!opened) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Tautan tidak dapat dibuka')),
     );
   }
 }

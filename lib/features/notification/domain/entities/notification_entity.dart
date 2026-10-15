@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 
 /// One inbox message from `BrowseTrans` (`Jenis: "NOTIFICATION"`).
 class NotificationEntity extends Equatable {
+  final String memberId;
+
   /// The message's identifier, e.g. "3101RSV23120023".
   final String id;
 
@@ -21,15 +23,36 @@ class NotificationEntity extends Equatable {
   /// Whether the member has read it. An unread message is highlighted.
   final bool isRead;
 
+  final int numberOfNotifications;
+
+  final String image;
+
+  final String link;
+
   const NotificationEntity({
+    required this.memberId,
     required this.id,
     required this.type,
     required this.message,
     required this.date,
     required this.isSent,
     required this.isRead,
+    required this.numberOfNotifications,
+    required this.image,
+    required this.link,
   });
 
   @override
-  List<Object?> get props => [id, type, message, date, isSent, isRead];
+  List<Object?> get props => [
+    memberId,
+    id,
+    type,
+    message,
+    date,
+    isSent,
+    isRead,
+    numberOfNotifications,
+    image,
+    link,
+  ];
 }
