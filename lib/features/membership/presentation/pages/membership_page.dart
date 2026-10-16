@@ -1,9 +1,11 @@
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:fix_up_moto/core/constants/asset_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
@@ -211,7 +213,6 @@ class _MemberQrDialog extends StatefulWidget {
 
 class _MemberQrDialogState extends State<_MemberQrDialog> {
   static const double _logoSize = 48;
-  static const double _qrSize = 240;
 
   final ScreenBrightnessBooster _brightness = sl<ScreenBrightnessBooster>();
 
@@ -284,34 +285,9 @@ class _MemberQrDialogState extends State<_MemberQrDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Always dark on white, whatever the app theme: that is what
-            // scanners read best.
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.grey200),
-              ),
-              child: QrImageView(
-                // The payload is the raw member ID and nothing else (no prefix,
-                // no URL): whatever scans this has to expect exactly that.
-                data: widget.memberId,
-                size: _qrSize,
-                backgroundColor: Colors.white,
-                // M (not the default L) survives a scuffed or glared screen.
-                errorCorrectionLevel: QrErrorCorrectLevel.M,
-                eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.square,
-                  color: Colors.black,
-                ),
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.square,
-                  color: Colors.black,
-                ),
-                semanticsLabel: 'Member QR code',
-              ),
-            ),
+            // The payload is the raw member ID and nothing else (no prefix,
+            // no URL): whatever scans this has to expect exactly that.
+            _QrFrame(data: widget.memberId, semanticsLabel: 'Member QR code'),
             const SizedBox(height: 16),
             Text(widget.memberId, style: textTheme.titleSmall),
             const SizedBox(height: 4),
@@ -322,6 +298,47 @@ class _MemberQrDialogState extends State<_MemberQrDialog> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A QR code in the form scanners read best, shared by the member popup and the
+/// voucher popup so the two can never drift apart.
+///
+/// Always dark on white, whatever the app theme. [data] is encoded as is.
+class _QrFrame extends StatelessWidget {
+  static const double _qrSize = 240;
+
+  final String data;
+  final String semanticsLabel;
+
+  const _QrFrame({required this.data, required this.semanticsLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: QrImageView(
+        data: data,
+        size: _qrSize,
+        backgroundColor: Colors.white,
+        // M (not the default L) survives a scuffed or glared screen.
+        errorCorrectionLevel: QrErrorCorrectLevel.M,
+        eyeStyle: const QrEyeStyle(
+          eyeShape: QrEyeShape.square,
+          color: Colors.black,
+        ),
+        dataModuleStyle: const QrDataModuleStyle(
+          dataModuleShape: QrDataModuleShape.square,
+          color: Colors.black,
+        ),
+        semanticsLabel: semanticsLabel,
       ),
     );
   }
@@ -416,6 +433,7 @@ class _HistoryVouchersBoxState extends State<_HistoryVouchersBox> {
                 _MembershipTab.vouchers => _VoucherList(
                   key: const ValueKey(_MembershipTab.vouchers),
                   balance: widget.stats.point,
+                  owned: _ownedVouchers(),
                 ),
                 _MembershipTab.history => _PointHistoryList(
                   key: const ValueKey(_MembershipTab.history),
@@ -562,18 +580,24 @@ class _PointHistoryList extends StatelessWidget {
   }
 }
 
-/// The Voucher tab: the vouchers points can be exchanged for, loaded by
-/// [RewardsBloc], in two sections stacked vertically inside one scrolling list.
+/// The Voucher tab: what the member already holds ("Voucher Saya"), then the
+/// vouchers points can be exchanged for, loaded by [RewardsBloc], in one
+/// scrolling list.
 ///
-/// A voucher is *available* when the member's [balance] covers its point cost
-/// and *unavailable* when it does not. Each section keeps the order the API
-/// gave, and both headers are always shown, so an empty "available" section
-/// tells the member they cannot afford anything yet instead of vanishing.
+/// The exchangeable vouchers are a single section. A voucher is *available*
+/// when the member's [balance] covers its point cost and *unavailable* when it
+/// does not; each card shows which (see [_VoucherCard]), and the order does the
+/// rest: the available ones first, in the order the API gave, then the
+/// unavailable ones, the nearest to affordable first.
 class _VoucherList extends StatelessWidget {
   /// The member's current point balance, which decides the split.
   final int balance;
 
-  const _VoucherList({super.key, required this.balance});
+  /// Vouchers the member already holds, shown above the exchangeable ones as
+  /// "Voucher Saya". Empty means the section is left out.
+  final List<VoucherDetailEntity> owned;
+
+  const _VoucherList({super.key, required this.balance, this.owned = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -623,7 +647,7 @@ class _VoucherList extends StatelessWidget {
     );
   }
 
-  /// One list, so both sections scroll together under the fixed tabs.
+  /// One list, so everything scrolls together under the fixed tabs.
   Widget _sections(
     BuildContext context, {
     required List<RewardEntity> available,
@@ -631,35 +655,40 @@ class _VoucherList extends StatelessWidget {
   }) {
     return _TabList(
       children: [
-        const _SectionHeader(
-          key: Key('vouchers-available-header'),
-          'Bisa Ditukar',
+        if (owned.isNotEmpty) ...[
+          _SectionHeader(
+            key: const Key('vouchers-owned-header'),
+            'Voucher Saya (${owned.length})',
+          ),
+          _OwnedVoucherCarousel(vouchers: owned),
+        ],
+        _ExchangeHeader(
+          key: const Key('vouchers-exchange-header'),
+          balance: balance,
+          claimable: available.length,
+          locked: unavailable.length,
         ),
-        if (available.isEmpty)
-          const _SectionEmpty('Point Anda belum cukup untuk voucher mana pun')
-        else
-          for (final reward in available)
-            _VoucherCard(
-              reward: reward,
-              onClaim: () => _confirmClaim(context, reward),
-            ),
-        const _SectionHeader(
-          key: Key('vouchers-unavailable-header'),
-          'Belum Cukup Point',
-        ),
-        if (unavailable.isEmpty)
-          const _SectionEmpty('Semua voucher dapat Anda tukarkan')
-        else
-          // Shown with a Klaim button too, but the card keeps it off: the
-          // balance does not cover them.
-          for (final reward in unavailable)
-            _VoucherCard(
-              reward: reward,
-              available: false,
-              onClaim: () => _confirmClaim(context, reward),
-            ),
+        for (final reward in [...available, ..._nearestFirst(unavailable)])
+          _VoucherCard(
+            reward: reward,
+            balance: balance,
+            onClaim: () => _confirmClaim(context, reward),
+          ),
       ],
     );
+  }
+
+  /// [rewards] cheapest first — for vouchers the balance does not cover, that is
+  /// the smallest shortfall first. Equal prices keep the API's order, which
+  /// `List.sort` alone does not promise, so the cards never swap places between
+  /// two rebuilds.
+  List<RewardEntity> _nearestFirst(List<RewardEntity> rewards) {
+    final indexed = rewards.indexed.toList()
+      ..sort((a, b) {
+        final byPrice = a.$2.pointQty.compareTo(b.$2.pointQty);
+        return byPrice != 0 ? byPrice : a.$1.compareTo(b.$1);
+      });
+    return [for (final (_, reward) in indexed) reward];
   }
 
   /// Asks before spending points, then hands the claim to [RedeemBloc].
@@ -726,199 +755,284 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// The one-line note shown in a section that has no vouchers.
-class _SectionEmpty extends StatelessWidget {
-  final String message;
+/// Title of the one section of vouchers points can buy: the point balance on
+/// the right, and under the title a line saying how many of them the balance
+/// covers.
+///
+/// Colours are fixed for the same reason as in [_SectionHeader].
+class _ExchangeHeader extends StatelessWidget {
+  /// The member's point balance.
+  final int balance;
 
-  const _SectionEmpty(this.message);
+  /// How many of the vouchers the balance covers...
+  final int claimable;
+
+  /// ...and how many it does not yet.
+  final int locked;
+
+  const _ExchangeHeader({
+    super.key,
+    required this.balance,
+    required this.claimable,
+    required this.locked,
+  });
+
+  String get _summary {
+    if (claimable == 0) return 'Point Anda belum cukup untuk voucher mana pun';
+    if (locked == 0) return 'Semua voucher dapat Anda tukarkan';
+    return '$claimable bisa ditukar • $locked belum cukup';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-      child: Text(
-        message,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: AppColors.grey600),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 2,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Tukar dengan Point',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                '$balance pts',
+                key: const Key('vouchers-balance'),
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            _summary,
+            key: const Key('vouchers-summary'),
+            style: textTheme.bodySmall?.copyWith(color: AppColors.grey600),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// A voucher the member can (or cannot yet) afford, in two parts split by a
-/// dashed line:
+/// A voucher points can buy, in two parts split by a dashed line. When the
+/// member's balance covers it, the bottom holds the Klaim button:
 ///
 /// ```
 /// ┌────────────────────────────────┐
-/// │ name                      ┌──┐ │   top: the details on the left,
-/// │ 50 pts                    │🎁│ │        the voucher icon on the right
+/// │ name                      ┌──┐ │   top: the name on the left,
+/// │                           │🎁│ │        the voucher icon on the right
 /// │                           └──┘ │
 /// ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┤
-/// │                       [ Klaim ]│   bottom: the Klaim button, centred
-/// └────────────────────────────────┘        vertically and pushed right
+/// │ 50 pts                [ Klaim ]│   bottom: the price, and Klaim
+/// └────────────────────────────────┘
 /// ```
 ///
-/// An unavailable one is dimmed so it reads as out of reach at a glance, and its
-/// Klaim button is off.
+/// When it does not, the top is faded so the card reads as out of reach at a
+/// glance, and the bottom shows how far off the member is instead of a Klaim
+/// button that could only ever be off:
+///
+/// ```
+/// ┌────────────────────────────────┐
+/// │ name (faded)              ┌──┐ │
+/// │                           └──┘ │
+/// ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┤
+/// │ 250 pts          Kurang 130 pts│
+/// │ ▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱ │   points collected so far
+/// └────────────────────────────────┘
+/// ```
 class _VoucherCard extends StatelessWidget {
   final RewardEntity reward;
-  final bool available;
+
+  /// The member's point balance, which decides which bottom the card has.
+  final int balance;
 
   /// Called when the (enabled) Klaim button is pressed.
   final VoidCallback onClaim;
 
   const _VoucherCard({
     required this.reward,
+    required this.balance,
     required this.onClaim,
-    this.available = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final card = _EntryCard(
+    final available = reward.pointQty <= balance;
+
+    return _EntryCard(
       // A Builder so the text styles come from the theme _EntryCard scopes
       // around its child (the light one, even in dark mode), not from the outer
       // theme this method sees — otherwise the text would be white on white.
       child: Builder(
         builder: (context) {
           final textTheme = Theme.of(context).textTheme;
+          final pointsStyle = textTheme.titleSmall?.copyWith(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: available
+                ? AppColors.primaryDark
+                : AppColors.primaryDark.withValues(alpha: 0.5),
+          );
 
           return Column(
             key: Key('voucher-card-${reward.pointId}'),
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Top: details left, icon right ───────────────────────────────
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  spacing: 12,
-                  children: [
-                    // Takes all the width the icon leaves, so a long name wraps
-                    // here instead of pushing the icon off the card.
-                    Expanded(
-                      child: Text(
-                        // The backend sends names in capitals.
-                        TextFormatter.fromUppercase(reward.pointName),
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+              // ── Top: name left, icon right ──────────────────────────────────
+              Opacity(
+                key: Key('voucher-top-${reward.pointId}'),
+                opacity: available ? 1 : 0.5,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    spacing: 12,
+                    children: [
+                      // Takes all the width the icon leaves, so a long name
+                      // wraps here instead of pushing the icon off the card.
+                      Expanded(
+                        child: Text(
+                          // The backend sends names in capitals.
+                          TextFormatter.fromUppercase(reward.pointName),
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      // child: Column(
-                      //   key: Key('voucher-details-${reward.pointId}'),
-                      //   mainAxisSize: MainAxisSize.min,
-                      //   crossAxisAlignment: CrossAxisAlignment.start,
-                      //   spacing: 4,
-                      //   children: [
-                      //     Text(
-                      //       // The backend sends names in capitals.
-                      //       TextFormatter.fromUppercase(reward.pointName),
-                      //       style: textTheme.titleMedium?.copyWith(
-                      //         fontWeight: FontWeight.w600,
-                      //       ),
-                      //     ),
-                      //     Text(
-                      //       '${reward.pointQty} pts',
-                      //       style: textTheme.titleSmall?.copyWith(
-                      //         fontWeight: FontWeight.w700,
-                      //         color: AppColors.primaryDark,
-                      //       ),
-                      //     ),
-                      //   ],
-                      // ),
-                    ),
-                    Container(
-                      key: Key('voucher-icon-${reward.pointId}'),
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(12),
+                      Container(
+                        key: Key('voucher-icon-${reward.pointId}'),
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.card_giftcard,
+                          size: 28,
+                          color: AppColors.primary,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.card_giftcard,
-                        size: 28,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
               _DashedDivider(key: Key('voucher-divider-${reward.pointId}')),
 
-              // ── Bottom: Klaim, centred vertically and pushed to the right ───
+              // ── Bottom: Klaim, or how far off the member still is ───────────
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${reward.pointQty} pts',
-                      style: textTheme.titleSmall?.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: BlocBuilder<RedeemBloc, RedeemState>(
-                        builder: (context, state) {
-                          // One claim at a time: while any is on its way every
-                          // Klaim is off, so a second tap cannot spend the points
-                          // twice.
-                          final claiming = state is RedeemInProgress;
-                          final claimingThis =
-                              claiming && state.pointId == reward.pointId;
-
-                          return ElevatedButton(
-                            key: Key('klaim-${reward.pointId}'),
-                            onPressed: available && !claiming ? onClaim : null,
-                            style: ElevatedButton.styleFrom(
-                              // The theme's buttons are full-width; this one sits
-                              // in the card's bottom row and must size to its label.
-                              minimumSize: const Size(72, 36),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                            ),
-                            child: claimingThis
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.textOnPrimary,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Klaim',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                child: available
+                    ? _claimRow(pointsStyle)
+                    : _shortfallRow(textTheme, pointsStyle),
               ),
             ],
           );
         },
       ),
     );
+  }
 
-    return available ? card : Opacity(opacity: 0.5, child: card);
+  Widget _claimRow(TextStyle? pointsStyle) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('${reward.pointQty} pts', style: pointsStyle),
+        BlocBuilder<RedeemBloc, RedeemState>(
+          builder: (context, state) {
+            // One claim at a time: while any is on its way every Klaim is off,
+            // so a second tap cannot spend the points twice.
+            final claiming = state is RedeemInProgress;
+            final claimingThis = claiming && state.pointId == reward.pointId;
+
+            return ElevatedButton(
+              key: Key('klaim-${reward.pointId}'),
+              onPressed: claiming ? null : onClaim,
+              style: ElevatedButton.styleFrom(
+                // The theme's buttons are full-width; this one sits in the
+                // card's bottom row and must size to its label.
+                minimumSize: const Size(72, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: claimingThis
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.textOnPrimary,
+                      ),
+                    )
+                  : const Text('Klaim', style: TextStyle(fontSize: 14)),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _shortfallRow(TextTheme textTheme, TextStyle? pointsStyle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 8,
+      children: [
+        Row(
+          spacing: 8,
+          children: [
+            Text('${reward.pointQty} pts', style: pointsStyle),
+            // Takes the width the price leaves and wraps, so a narrow phone or
+            // a large font never pushes it off the card.
+            Expanded(
+              child: Text(
+                'Kurang ${reward.pointQty - balance} pts',
+                key: Key('shortfall-${reward.pointId}'),
+                textAlign: TextAlign.end,
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.grey700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            key: Key('progress-${reward.pointId}'),
+            // The share of the price the member has already collected.
+            value: reward.pointQty <= 0
+                ? 0
+                : (balance / reward.pointQty).clamp(0.0, 1.0).toDouble(),
+            minHeight: 6,
+            // Darker than the card's border, so the track still shows on the
+            // light-grey card dark mode uses.
+            backgroundColor: AppColors.grey400.withValues(alpha: 0.5),
+            color: AppColors.primary,
+            semanticsLabel: 'Point terkumpul $balance dari ${reward.pointQty}',
+          ),
+        ),
+      ],
+    );
   }
 }
 
 /// A thin dashed line across the full width of its parent — the tear-off line
-/// between a voucher's details and its Klaim button.
+/// between a voucher's details and what is under it (its Klaim button, or how
+/// far off the member still is).
 class _DashedDivider extends StatelessWidget {
   const _DashedDivider({super.key});
 
@@ -954,6 +1068,384 @@ class _DashedLinePainter extends CustomPainter {
   // Nothing about it ever changes.
   @override
   bool shouldRepaint(_DashedLinePainter oldDelegate) => false;
+}
+
+// ── Voucher Saya (prototype) ─────────────────────────────────────────────────
+// The vouchers the member already holds, shown above the claimable ones. This is
+// a DESIGN PROTOTYPE: the section is fed by one made-up voucher, not by
+// `stats.detail2`. Wiring it to the real list (and deleting the dummy) comes
+// after the design is accepted.
+
+/// Shows the made-up voucher. On in debug and profile builds so the design can
+/// be judged by simply running the app, and never on in a release build. Set it
+/// to `false` to hide the section. The page's tests turn it off so they see the
+/// page as it really is.
+@visibleForTesting
+bool showDummyVoucher = !kReleaseMode;
+
+/// Deliberately not a real voucher rule id (those look like "B01") and not a
+/// real serial number, so it can never be mistaken for, or redeemed as, a real
+/// voucher.
+const String _dummyVoucherId = 'DUMMY';
+const String _dummyVoucherNo = 'DUMMY-DEMO-0001';
+
+/// Days until the made-up voucher expires. Set it to 7 or less to preview the
+/// "Sisa N hari" warning on the card.
+const int _dummyDaysLeft = 30;
+
+/// A voucher is flagged as running out when this many days or fewer are left.
+const int _expiringSoonDays = 7;
+
+/// What "Voucher Saya" lists: nothing yet but the made-up voucher.
+List<VoucherDetailEntity> _ownedVouchers() {
+  if (!showDummyVoucher) return const [];
+
+  final now = DateTime.now();
+  return [
+    VoucherDetailEntity(
+      redeemDate: DateTimeFormatter.fromUtcToDate(now),
+      expirationDate: DateTimeFormatter.fromUtcToDate(
+        now.add(const Duration(days: _dummyDaysLeft)),
+      ),
+      voucherNo: _dummyVoucherNo,
+      statusVoucher: 1,
+      voucherId: _dummyVoucherId,
+      voucherName: 'CONTOH DISKON JASA SERVICE Rp. 20.000,00',
+      statusVoucherMemo: 'AKTIF',
+      voucherAmount: 20000,
+    ),
+  ];
+}
+
+bool _isDummy(VoucherDetailEntity voucher) =>
+    voucher.voucherId == _dummyVoucherId;
+
+/// Whole days from today until [expiry]'s date; negative once it has passed.
+int _daysUntil(DateTime expiry) {
+  final now = DateTime.now();
+  // UTC midnights, so a daylight-saving change can never make a day 23 hours.
+  return DateTime.utc(
+    expiry.year,
+    expiry.month,
+    expiry.day,
+  ).difference(DateTime.utc(now.year, now.month, now.day)).inDays;
+}
+
+/// "Berlaku s/d 15 Nov 2026", or "Sisa 3 hari" in the final week. Falls back to
+/// the raw text when the server's date cannot be read.
+({String label, bool urgent}) _expiryNote(VoucherDetailEntity voucher) {
+  final expiry = DateTime.tryParse(voucher.expirationDate);
+  if (expiry == null) {
+    return (label: 'Berlaku s/d ${voucher.expirationDate}', urgent: false);
+  }
+
+  final daysLeft = _daysUntil(expiry);
+  if (daysLeft <= _expiringSoonDays) {
+    return (
+      label: daysLeft <= 0 ? 'Berakhir hari ini' : 'Sisa $daysLeft hari',
+      urgent: true,
+    );
+  }
+  // Non-breaking spaces in the date, so in a narrow card the label wraps after
+  // "s/d" and never between the day and the year.
+  final date = DateTimeFormatter.toShortDate(expiry).replaceAll(' ', ' ');
+  return (label: 'Berlaku s/d $date', urgent: false);
+}
+
+/// The member's vouchers as a row of cards that swipes sideways, so any number
+/// of them take the height of one card and the sections below stay in reach.
+/// A single voucher takes the full width instead of looking lost in a carousel.
+class _OwnedVoucherCarousel extends StatelessWidget {
+  final List<VoucherDetailEntity> vouchers;
+
+  const _OwnedVoucherCarousel({required this.vouchers});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // More than one: leave a slice of the next card showing, which is what
+        // tells the member the row swipes.
+        final cardWidth = vouchers.length == 1
+            ? constraints.maxWidth
+            : constraints.maxWidth * 0.82;
+
+        return SingleChildScrollView(
+          key: const Key('vouchers-owned-carousel'),
+          scrollDirection: Axis.horizontal,
+          // Every card as tall as the tallest, whatever its name's length.
+          child: IntrinsicHeight(
+            child: Row(
+              spacing: 10,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final voucher in vouchers)
+                  SizedBox(
+                    width: cardWidth,
+                    child: _OwnedVoucherCard(voucher: voucher),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One voucher the member holds, in the same two parts as [_VoucherCard] so the
+/// tab reads as one family:
+///
+/// ```
+/// ┌────────────────────────────────┐
+/// │ [CONTOH]                  ┌──┐ │   top: name, icon on the right
+/// │ Diskon Jasa Service …     │🎟│ │
+/// │                           └──┘ │
+/// ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┤
+/// │ Berlaku s/d 15 Nov [Tampilkan QR]
+/// └────────────────────────────────┘   bottom: expiry, then the QR button
+/// ```
+///
+/// Unlike [_VoucherCard] the icon box is solid brand colour: these are the
+/// member's own, so they are the strongest thing on the tab.
+class _OwnedVoucherCard extends StatelessWidget {
+  final VoucherDetailEntity voucher;
+
+  const _OwnedVoucherCard({required this.voucher});
+
+  @override
+  Widget build(BuildContext context) {
+    final note = _expiryNote(voucher);
+
+    return _EntryCard(
+      // A Builder so the text styles come from the light theme _EntryCard
+      // scopes around its child — see _VoucherCard.
+      child: Builder(
+        builder: (context) {
+          final textTheme = Theme.of(context).textTheme;
+
+          return Column(
+            key: Key('owned-voucher-${voucher.voucherNo}'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Top: name left, icon right ──────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  spacing: 10,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 6,
+                        children: [
+                          if (_isDummy(voucher)) const _DummyChip(),
+                          Text(
+                            // The backend sends names in capitals.
+                            TextFormatter.fromUppercase(voucher.voucherName),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.confirmation_number_outlined,
+                        size: 24,
+                        color: AppColors.textOnPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const _DashedDivider(),
+
+              // ── Bottom: expiry left, QR button right ────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        note.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          fontWeight: note.urgent
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: note.urgent
+                              ? AppColors.error
+                              : AppColors.grey600,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      key: Key('owned-voucher-qr-${voucher.voucherNo}'),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => _VoucherQrDialog(voucher: voucher),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        // The theme's buttons are full-width; this one sits in
+                        // the card's bottom row and must size to its label.
+                        minimumSize: const Size(72, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      icon: const Icon(Icons.qr_code_2, size: 18),
+                      label: const Text(
+                        'Tampilkan QR',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The "CONTOH" (example) tag that marks the made-up voucher wherever it shows.
+class _DummyChip extends StatelessWidget {
+  const _DummyChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('dummy-voucher-chip'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.warningBackground,
+        border: Border.all(color: AppColors.warning),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        'CONTOH',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppColors.warning,
+        ),
+      ),
+    );
+  }
+}
+
+/// The enlarged voucher QR for the store admin, with the screen at full
+/// brightness while it is open — the same popup as [_MemberQrDialog], for the
+/// same reasons (see there): brightness is raised in [initState] and restored in
+/// [dispose], so every way of closing the popup puts it back.
+class _VoucherQrDialog extends StatefulWidget {
+  final VoucherDetailEntity voucher;
+
+  const _VoucherQrDialog({required this.voucher});
+
+  @override
+  State<_VoucherQrDialog> createState() => _VoucherQrDialogState();
+}
+
+class _VoucherQrDialogState extends State<_VoucherQrDialog> {
+  final ScreenBrightnessBooster _brightness = sl<ScreenBrightnessBooster>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Never throws (it swallows its own errors), so it is safe to not await.
+    _brightness.boost();
+  }
+
+  @override
+  void dispose() {
+    _brightness.restore();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final voucher = widget.voucher;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      // Scrolls instead of overflowing on a short screen or a large font.
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                key: const Key('voucher-qr-close'),
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+            Text(
+              TextFormatter.fromUppercase(voucher.voucherName),
+              style: textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (_isDummy(voucher)) ...[
+              const SizedBox(height: 8),
+              const _DummyChip(),
+              const SizedBox(height: 4),
+              Text(
+                'Voucher contoh untuk melihat tampilan, bukan voucher asli',
+                style: textTheme.bodySmall?.copyWith(color: AppColors.warning),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 16),
+
+            // The payload is the raw voucher number and nothing else (no
+            // prefix, no URL): whatever scans this has to expect exactly that.
+            _QrFrame(
+              data: voucher.voucherNo,
+              semanticsLabel: 'Voucher QR code',
+            ),
+            const SizedBox(height: 16),
+            // Selectable, so the cashier can be given the code to type when a
+            // scan will not read.
+            SelectableText(voucher.voucherNo, style: textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              _expiryNote(voucher).label,
+              style: textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tunjukkan kode ini ke kasir bengkel',
+              style: textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _MembershipBody extends StatelessWidget {

@@ -249,6 +249,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    // The made-up "Voucher Saya" voucher is a design prototype; every test but
+    // its own group sees the page without it.
+    showDummyVoucher = false;
     refreshCubit = DataRefreshCubit();
     rewardsBloc = MockRewardsBloc();
     givenRewards(const RewardsLoaded(tRewards));
@@ -670,6 +673,134 @@ void main() {
     });
   });
 
+  group('Voucher Saya (design prototype with a made-up voucher)', () {
+    final ownedHeader = find.byKey(const Key('vouchers-owned-header'));
+    final exchangeHeader = find.byKey(const Key('vouchers-exchange-header'));
+    final qrButton = find.byKey(const Key('owned-voucher-qr-DUMMY-DEMO-0001'));
+    late _FakeBrightness brightness;
+
+    setUp(() {
+      showDummyVoucher = true;
+      brightness = _FakeBrightness();
+      sl.registerSingleton<ScreenBrightnessBooster>(brightness);
+    });
+
+    Future<void> pumpTall(WidgetTester tester) async {
+      useTallScreen(tester);
+      await pumpMembership(tester);
+    }
+
+    /// The pixels drawn for [painter]: QrImageView does not expose the data it
+    /// was given, so the member popup's tests compare pixels too.
+    Future<List<int>> pixelsOf(WidgetTester tester, QrPainter painter) async {
+      final bytes = await tester.runAsync(() => painter.toImageData(200));
+      return bytes!.buffer.asUint8List();
+    }
+
+    QrPainter painterFor(String data) => QrPainter(
+      data: data,
+      version: QrVersions.auto,
+      errorCorrectionLevel: QrErrorCorrectLevel.M,
+      gapless: true,
+      eyeStyle: const QrEyeStyle(
+        eyeShape: QrEyeShape.square,
+        color: Colors.black,
+      ),
+      dataModuleStyle: const QrDataModuleStyle(
+        dataModuleShape: QrDataModuleShape.square,
+        color: Colors.black,
+      ),
+    );
+
+    testWidgets('is left out when the made-up voucher is switched off', (
+      tester,
+    ) async {
+      showDummyVoucher = false;
+      await pumpTall(tester);
+
+      expect(ownedHeader, findsNothing);
+      expect(exchangeHeader, findsOneWidget);
+    });
+
+    testWidgets('sits above the vouchers to claim, with its count', (
+      tester,
+    ) async {
+      await pumpTall(tester);
+
+      expect(find.text('Voucher Saya (1)'), findsOneWidget);
+      expect(
+        tester.getTopLeft(ownedHeader).dy,
+        lessThan(tester.getTopLeft(exchangeHeader).dy),
+      );
+    });
+
+    testWidgets('the card says plainly that it is an example', (tester) async {
+      await pumpTall(tester);
+
+      expect(find.byKey(const Key('dummy-voucher-chip')), findsOneWidget);
+      expect(
+        find.text('Contoh Diskon Jasa Service Rp. 20.000,00'),
+        findsOneWidget,
+      );
+      // 30 days out, so not yet in the final week's "Sisa N hari" warning.
+      expect(find.textContaining('Berlaku s/d'), findsOneWidget);
+    });
+
+    testWidgets('Tampilkan QR opens a bright popup with the voucher number '
+        'as the QR', (tester) async {
+      await pumpTall(tester);
+
+      await tester.tap(qrButton);
+      await tester.pumpAndSettle();
+
+      final shown = tester
+          .widgetList<CustomPaint>(
+            find.descendant(
+              of: find.byType(QrImageView),
+              matching: find.byType(CustomPaint),
+            ),
+          )
+          .map((paint) => paint.painter)
+          .whereType<QrPainter>()
+          .single;
+      expect(
+        await pixelsOf(tester, shown),
+        await pixelsOf(tester, painterFor('DUMMY-DEMO-0001')),
+      );
+      expect(
+        tester.widget<QrImageView>(find.byType(QrImageView)).backgroundColor,
+        Colors.white,
+      );
+      expect(find.text('DUMMY-DEMO-0001'), findsOneWidget);
+      expect(find.text('Tunjukkan kode ini ke kasir bengkel'), findsOneWidget);
+      expect(brightness.boosts, 1);
+    });
+
+    testWidgets('closing the popup gives the brightness back', (tester) async {
+      await pumpTall(tester);
+      await tester.tap(qrButton);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('voucher-qr-close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QrImageView), findsNothing);
+      expect(brightness.restores, 1);
+    });
+
+    testWidgets('claiming still works with the section above it', (
+      tester,
+    ) async {
+      await pumpTall(tester);
+
+      // tRewards[0] costs less than the 80 points tStats holds.
+      await tester.tap(find.byKey(Key('klaim-${tRewards.first.pointId}')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Klaim voucher?'), findsOneWidget);
+    });
+  });
+
   group('the member QR popup', () {
     final qrButton = find.byKey(const Key('member-qr-button'));
     final qrImage = find.byType(QrImageView);
@@ -1036,12 +1167,7 @@ void main() {
   group('the Voucher tab (vouchers from the API)', () {
     final historyTab = find.byKey(const Key('tab-history'));
     final vouchersTab = find.byKey(const Key('tab-vouchers'));
-    final availableHeader = find.byKey(
-      const Key('vouchers-available-header'),
-    );
-    final unavailableHeader = find.byKey(
-      const Key('vouchers-unavailable-header'),
-    );
+    final exchangeHeader = find.byKey(const Key('vouchers-exchange-header'));
 
     Future<void> open(WidgetTester tester, Finder tab) async {
       await tester.tap(tab);
@@ -1106,7 +1232,7 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(availableHeader, findsNothing);
+        expect(exchangeHeader, findsNothing);
       });
 
       testWidgets('shows the failure message, and Retry requests again', (
@@ -1116,7 +1242,7 @@ void main() {
         await pumpMembership(tester);
 
         expect(find.text('No internet connection'), findsOneWidget);
-        expect(availableHeader, findsNothing);
+        expect(exchangeHeader, findsNothing);
         verifyNever(() => rewardsBloc.add(const RewardsRequested()));
 
         await tester.tap(find.byKey(const Key('vouchers-retry')));
@@ -1127,16 +1253,23 @@ void main() {
     });
 
     group('available and unavailable', () {
-      testWidgets('both sections are there, each under its own header', (
+      testWidgets('one section, with the balance and how many it covers', (
         tester,
       ) async {
         await pumpMembership(tester);
 
-        expect(find.text('Voucher Tersedia'), findsOneWidget);
-        expect(find.text('Voucher Tidak Tersedia'), findsOneWidget);
+        expect(find.text('Tukar dengan Point'), findsOneWidget);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('vouchers-balance'))).data,
+          '80 pts',
+        );
+        expect(find.text('1 bisa ditukar • 2 belum cukup'), findsOneWidget);
+        // The two old headers are gone.
+        expect(find.text('Bisa Ditukar'), findsNothing);
+        expect(find.text('Belum Cukup Point'), findsNothing);
       });
 
-      testWidgets('what the balance covers is available, the rest is not', (
+      testWidgets('what the balance covers comes first, with a Klaim', (
         tester,
       ) async {
         // tStats has 80 points: 50 is covered, 100 and 250 are not.
@@ -1144,33 +1277,56 @@ void main() {
         await pumpMembership(tester);
 
         final top = tester.getTopLeft;
-        expect(top(availableHeader).dy, lessThan(top(unavailableHeader).dy));
-
-        expect(find.text('Gratis Cuci Motor'), findsOneWidget);
-        expect(find.text('50 pts'), findsOneWidget);
         expect(
-          top(find.text('Gratis Cuci Motor')).dy,
-          allOf(
-            greaterThan(top(availableHeader).dy),
-            lessThan(top(unavailableHeader).dy),
-          ),
+          top(exchangeHeader).dy,
+          lessThan(top(find.text('Gratis Cuci Motor')).dy),
         );
-
         for (final name in [
           'Diskon Jasa Service Rp. 20.000,00',
           'Gratis Ganti Oli',
         ]) {
           expect(
-            top(find.text(name)).dy,
-            greaterThan(top(unavailableHeader).dy),
+            top(find.text('Gratis Cuci Motor')).dy,
+            lessThan(top(find.text(name)).dy),
             reason: '$name costs more than the 80 points',
           );
         }
+        expect(find.text('50 pts'), findsOneWidget);
         expect(find.text('100 pts'), findsOneWidget);
         expect(find.text('250 pts'), findsOneWidget);
       });
 
-      testWidgets('a voucher costing exactly the balance is available', (
+      testWidgets('one the balance does not cover says how far off it is', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        String shortfall(String id) =>
+            tester.widget<Text>(find.byKey(Key('shortfall-$id'))).data!;
+
+        expect(shortfall('C01'), 'Kurang 20 pts'); // 100 - 80
+        expect(shortfall('C02'), 'Kurang 170 pts'); // 250 - 80
+        expect(find.byKey(const Key('shortfall-C00')), findsNothing);
+      });
+
+      testWidgets('its progress bar shows how much of the price is collected', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        await pumpMembership(tester);
+
+        double? progress(String id) => tester
+            .widget<LinearProgressIndicator>(find.byKey(Key('progress-$id')))
+            .value;
+
+        expect(progress('C01'), closeTo(80 / 100, 0.001));
+        expect(progress('C02'), closeTo(80 / 250, 0.001));
+        // A covered voucher has no bar: it has a Klaim instead.
+        expect(find.byKey(const Key('progress-C00')), findsNothing);
+      });
+
+      testWidgets('a voucher costing exactly the balance is covered', (
         tester,
       ) async {
         givenRewards(
@@ -1184,15 +1340,18 @@ void main() {
         final top = tester.getTopLeft;
         expect(
           top(find.text('Exact')).dy,
-          lessThan(top(unavailableHeader).dy),
+          lessThan(top(find.text('One More')).dy),
         );
+        expect(find.byKey(const Key('klaim-X')), findsOneWidget);
+        expect(find.byKey(const Key('shortfall-X')), findsNothing);
         expect(
-          top(find.text('One More')).dy,
-          greaterThan(top(unavailableHeader).dy),
+          tester.widget<Text>(find.byKey(const Key('shortfall-Y'))).data,
+          'Kurang 1 pts',
         );
       });
 
-      testWidgets('each section keeps the order the API gave', (tester) async {
+      testWidgets('the covered ones keep the API order, the rest go nearest '
+          'first', (tester) async {
         useTallScreen(tester); // all four cards must be built
         givenRewards(
           const RewardsLoaded([
@@ -1205,35 +1364,52 @@ void main() {
         await pumpMembership(tester);
 
         final top = tester.getTopLeft;
+        final order = ['Low B', 'Low A', 'High Y', 'High Z'];
+        for (var i = 1; i < order.length; i++) {
+          expect(
+            top(find.text(order[i - 1])).dy,
+            lessThan(top(find.text(order[i])).dy),
+            reason: '${order[i - 1]} is listed before ${order[i]}',
+          );
+        }
+      });
+
+      testWidgets('vouchers with the same price keep the API order', (
+        tester,
+      ) async {
+        useTallScreen(tester);
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(pointId: 'f', pointName: 'Far', pointQty: 900),
+            RewardEntity(pointId: 't1', pointName: 'Tie First', pointQty: 500),
+            RewardEntity(pointId: 't2', pointName: 'Tie Second', pointQty: 500),
+          ]),
+        );
+        await pumpMembership(tester);
+
+        final top = tester.getTopLeft;
         expect(
-          top(find.text('Low B')).dy,
-          lessThan(top(find.text('Low A')).dy),
+          top(find.text('Tie First')).dy,
+          lessThan(top(find.text('Tie Second')).dy),
         );
         expect(
-          top(find.text('High Z')).dy,
-          lessThan(top(find.text('High Y')).dy),
+          top(find.text('Tie Second')).dy,
+          lessThan(top(find.text('Far')).dy),
         );
       });
 
-      testWidgets('unavailable vouchers are dimmed, available ones are not', (
+      testWidgets('out of reach vouchers are dimmed, covered ones are not', (
         tester,
       ) async {
         useTallScreen(tester);
         await pumpMembership(tester);
 
-        double opacityOf(String title) {
-          final dimmed = find.ancestor(
-            of: cardWith(title),
-            matching: find.byType(Opacity),
-          );
-          return dimmed.evaluate().isEmpty
-              ? 1.0
-              : tester.widget<Opacity>(dimmed.first).opacity;
-        }
+        double opacityOf(String id) =>
+            tester.widget<Opacity>(find.byKey(Key('voucher-top-$id'))).opacity;
 
-        expect(opacityOf('Gratis Cuci Motor'), 1.0);
-        expect(opacityOf('Gratis Ganti Oli'), lessThan(1.0));
-        expect(opacityOf('Diskon Jasa Service Rp. 20.000,00'), lessThan(1.0));
+        expect(opacityOf('C00'), 1.0);
+        expect(opacityOf('C01'), lessThan(1.0));
+        expect(opacityOf('C02'), lessThan(1.0));
       });
 
       testWidgets('the cards are rounded and sit inside the box', (
@@ -1256,9 +1432,8 @@ void main() {
         }
       });
 
-      testWidgets('nothing affordable: available says so, all are unavailable', (
-        tester,
-      ) async {
+      testWidgets('nothing affordable: the summary says so, every card shows '
+          'its shortfall', (tester) async {
         useTallScreen(tester);
         await pumpMembership(tester, stats: tEmptyStats); // 0 points
 
@@ -1267,11 +1442,14 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Semua voucher dapat Anda tukarkan'), findsNothing);
-        // Still listed, below the unavailable header.
-        expect(
-          tester.getTopLeft(find.text('Gratis Cuci Motor')).dy,
-          greaterThan(tester.getTopLeft(unavailableHeader).dy),
-        );
+        expect(find.text('Klaim'), findsNothing);
+        // Still all listed, each with how far off it is (the full price).
+        for (final (id, price) in [('C00', 50), ('C01', 100), ('C02', 250)]) {
+          expect(
+            tester.widget<Text>(find.byKey(Key('shortfall-$id'))).data,
+            'Kurang $price pts',
+          );
+        }
       });
 
       testWidgets('everything affordable: unavailable says so', (tester) async {
@@ -1297,8 +1475,7 @@ void main() {
         await pumpMembership(tester);
 
         expect(find.text('Tidak ada voucher tersedia'), findsOneWidget);
-        expect(availableHeader, findsNothing);
-        expect(unavailableHeader, findsNothing);
+        expect(exchangeHeader, findsNothing);
       });
 
       testWidgets('the member\'s own Detail2 vouchers are not listed here', (
@@ -1532,29 +1709,29 @@ void main() {
     });
 
     group('scrolling', () {
-      testWidgets('both sections are one scrolling list, top to bottom', (
+      testWidgets('everything is one scrolling list, top to bottom', (
         tester,
       ) async {
         givenRewards(RewardsLoaded(tLongRewards));
         await pumpMembership(tester);
         final box = roundedBoxAround(vouchersTab);
 
-        // One list holds the available header, and the unavailable one is
+        // One list holds the header and the first cards, and the last card is
         // reachable by scrolling that same list.
         expect(
           find.descendant(of: box, matching: find.byType(ListView)),
           findsOneWidget,
         );
-        expect(availableHeader, findsOneWidget);
-        expect(unavailableHeader, findsNothing); // below the fold
+        expect(exchangeHeader, findsOneWidget);
+        expect(find.text('Reward 29'), findsNothing); // below the fold
 
         await tester.dragUntilVisible(
-          unavailableHeader,
+          find.text('Reward 29'),
           find.byType(ListView),
           const Offset(0, -300),
         );
-        expect(unavailableHeader, findsOneWidget);
-        expect(availableHeader, findsNothing); // scrolled away
+        expect(find.text('Reward 29'), findsOneWidget);
+        expect(exchangeHeader, findsNothing); // scrolled away
       });
 
       testWidgets('the very last voucher is reachable', (tester) async {
@@ -1601,25 +1778,22 @@ void main() {
     }
 
     group('on the cards', () {
-      testWidgets('every voucher has one, available or not', (tester) async {
+      testWidgets('only a voucher the balance covers has one', (tester) async {
         useTallScreen(tester);
         await pumpMembership(tester);
 
-        expect(find.text('Klaim'), findsNWidgets(3));
-        for (final id in ['C00', 'C01', 'C02']) {
-          expect(klaim(id), findsOneWidget, reason: '$id has a Klaim button');
-        }
+        expect(find.text('Klaim'), findsOneWidget);
+        expect(klaim('C00'), findsOneWidget);
+        // The others have no Klaim to tap, off or otherwise: they say how far
+        // off the member is instead.
+        expect(klaim('C01'), findsNothing);
+        expect(klaim('C02'), findsNothing);
       });
 
-      testWidgets('it is on for an available voucher, off for the others', (
-        tester,
-      ) async {
-        useTallScreen(tester);
+      testWidgets('it is on for the voucher the balance covers', (tester) async {
         await pumpMembership(tester);
 
         expect(isOn(tester, 'C00'), isTrue);
-        expect(isOn(tester, 'C01'), isFalse);
-        expect(isOn(tester, 'C02'), isFalse);
       });
 
       testWidgets('a voucher costing exactly the balance can be claimed', (
@@ -1635,13 +1809,16 @@ void main() {
         await pumpMembership(tester);
 
         expect(isOn(tester, 'EX'), isTrue);
-        expect(isOn(tester, 'ON'), isFalse);
+        expect(klaim('ON'), findsNothing);
       });
 
-      testWidgets('tapping an off one does nothing at all', (tester) async {
+      testWidgets('a voucher out of reach cannot be tapped into a claim', (
+        tester,
+      ) async {
+        useTallScreen(tester);
         await pumpMembership(tester);
 
-        await tester.tap(klaim('C01'), warnIfMissed: false);
+        await tester.tap(find.byKey(const Key('voucher-card-C01')));
         await tester.pumpAndSettle();
 
         expect(find.byType(AlertDialog), findsNothing);
@@ -1716,15 +1893,30 @@ void main() {
       testWidgets('while one is on its way every Klaim is off, one spins', (
         tester,
       ) async {
+        // Two the 80 points cover, so there are two Klaim buttons to check.
+        givenRewards(
+          const RewardsLoaded([
+            RewardEntity(
+              pointId: 'C00',
+              pointName: 'GRATIS CUCI MOTOR',
+              pointQty: 50,
+            ),
+            RewardEntity(
+              pointId: 'C03',
+              pointName: 'GRATIS PARKIR',
+              pointQty: 30,
+            ),
+          ]),
+        );
         givenRedeem(const RedeemInProgress('C00'));
         useTallScreen(tester);
         await pumpMembership(tester);
         await tester.pump(); // not settled: the spinner never stops
 
-        for (final id in ['C00', 'C01', 'C02']) {
+        for (final id in ['C00', 'C03']) {
           expect(isOn(tester, id), isFalse, reason: '$id is off during a claim');
         }
-        // The spinner is on the claimed card only; the others keep their label.
+        // The spinner is on the claimed card only; the other keeps its label.
         expect(
           find.descendant(
             of: klaim('C00'),
@@ -1737,7 +1929,7 @@ void main() {
           findsNothing,
         );
         expect(
-          find.descendant(of: klaim('C01'), matching: find.text('Klaim')),
+          find.descendant(of: klaim('C03'), matching: find.text('Klaim')),
           findsOneWidget,
         );
       });

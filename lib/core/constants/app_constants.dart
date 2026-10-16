@@ -22,6 +22,11 @@ class AppConstants {
   /// Maximum characters allowed in a booking notes field.
   static const int maxBookingNotesLength = 500;
 
+  /// The WhatsApp chat of the customer service line. A `wa.me` link opens the
+  /// WhatsApp app when it is installed and the same chat in the browser when
+  /// it is not.
+  static const String whatsappServiceUrl = 'https://wa.me/6285179798961';
+
   /// Whether members can choose light/dark mode.
   ///
   /// Off for now, so the app always uses the light theme even when the phone

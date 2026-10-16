@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -245,6 +246,81 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('notification-page'), findsNothing);
+      expect(row, findsOneWidget);
+    });
+  });
+
+  group('the Layanan Whatsapp row', () {
+    final row = find.byKey(const Key('whatsapp-service'));
+
+    /// Stands in for the url_launcher plugin: answers every launch with
+    /// [opens] (or fails it, when [throws]) and records the calls it received.
+    List<MethodCall> mockLauncher({required bool opens, bool throws = false}) {
+      final calls = <MethodCall>[];
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        if (throws) throw PlatformException(code: 'ACTIVITY_NOT_FOUND');
+        return opens;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      return calls;
+    }
+
+    /// Opens the page and presses the row, which sits below the fold on the
+    /// default test screen.
+    Future<void> pressRow(WidgetTester tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('pressing it opens the service chat outside the app', (
+      tester,
+    ) async {
+      final calls = mockLauncher(opens: true);
+
+      await pressRow(tester);
+
+      expect(calls, hasLength(1));
+      expect(calls.single.method, 'launch');
+      final arguments = calls.single.arguments as Map;
+      expect(arguments['url'], 'https://wa.me/6285179798961');
+      // Handed to WhatsApp (or the browser), not shown in an in-app web view.
+      expect(arguments['useWebView'], isFalse);
+      expect(find.text('WhatsApp tidak dapat dibuka'), findsNothing);
+    });
+
+    testWidgets('says so when nothing can open the link', (tester) async {
+      mockLauncher(opens: false);
+
+      await pressRow(tester);
+
+      expect(find.text('WhatsApp tidak dapat dibuka'), findsOneWidget);
+    });
+
+    testWidgets('says so, instead of crashing, when the launch fails', (
+      tester,
+    ) async {
+      mockLauncher(opens: true, throws: true);
+
+      await pressRow(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('WhatsApp tidak dapat dibuka'), findsOneWidget);
+    });
+
+    testWidgets('does not leave the page when it is pressed', (tester) async {
+      mockLauncher(opens: true);
+
+      await pressRow(tester);
+
       expect(row, findsOneWidget);
     });
   });

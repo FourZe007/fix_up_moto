@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
@@ -295,7 +296,7 @@ class _ProfileBody extends StatelessWidget {
             color: AppColors.primary,
             size: 20,
           ),
-          onPressed: () {},
+          onPressed: () => _openWhatsApp(context),
         ),
 
         const SizedBox(height: 8),
@@ -341,6 +342,32 @@ class _ProfileBody extends StatelessWidget {
         //   child: Text('Belum ada motor terdaftar'),
         // ),
       ],
+    );
+  }
+}
+
+/// Opens the customer service chat ([AppConstants.whatsappServiceUrl]) in the
+/// WhatsApp app, or in the browser when the app is not installed; says so if
+/// neither could.
+Future<void> _openWhatsApp(BuildContext context) async {
+  // Resolved before the await, so the context is not used across the gap.
+  final messenger = ScaffoldMessenger.of(context);
+
+  var opened = false;
+  try {
+    opened = await launchUrl(
+      Uri.parse(AppConstants.whatsappServiceUrl),
+      // Hands the link to WhatsApp (or the browser) rather than showing it in
+      // an in-app web view, which cannot open the WhatsApp app.
+      mode: LaunchMode.externalApplication,
+    );
+  } catch (_) {
+    // No handler for the address: reported below, same as a `false` result.
+  }
+
+  if (!opened) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('WhatsApp tidak dapat dibuka')),
     );
   }
 }
