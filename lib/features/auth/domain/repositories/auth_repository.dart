@@ -73,6 +73,14 @@ abstract class AuthRepository {
   /// Invalidates the server-side session and clears all locally cached tokens.
   Future<Either<Failure, void>> logout();
 
+  /// Overwrites the cached session with [user].
+  ///
+  /// For when the member's own record changed after sign-in (e.g. Edit
+  /// Profile), so the name and credential later features read back out of the
+  /// session — booking's UName and UPhoneNo — don't go stale. Returns
+  /// [CacheFailure] if the write fails.
+  Future<Either<Failure, void>> saveUser(UserEntity user);
+
   /// Reads the currently authenticated user from the local cache.
   ///
   /// Returns `Right(UserEntity)` if a cached session exists,

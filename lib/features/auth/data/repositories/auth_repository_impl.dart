@@ -4,6 +4,7 @@ import 'package:dartz/dartz.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
+import 'package:fix_up_moto/features/auth/data/models/login_user_model.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
@@ -206,6 +207,16 @@ class AuthRepositoryImpl implements AuthRepository {
     // signing out.
     try {
       await localDataSource.clearUser();
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveUser(UserEntity user) async {
+    try {
+      await localDataSource.cacheUser(LoginUserModel.fromEntity(user));
       return const Right(null);
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));

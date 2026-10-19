@@ -18,7 +18,9 @@ import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/edit_profile_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/privacy_policy_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/settings_page.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
@@ -193,6 +195,18 @@ class AppRouter {
       GoRoute(
         path: RouteNames.settings,
         builder: (_, _) => const SettingsPage(),
+      ),
+      // Opened from the Profile tab's Edit Profile row — a focused
+      // full-screen form like settings above, so it is top-level too.
+      GoRoute(
+        path: RouteNames.editProfile,
+        builder: (_, _) => const EditProfilePage(),
+      ),
+      // Opened from the Profile tab's Kebijakan Privasi row — a focused
+      // full-screen page like settings above, so it is top-level too.
+      GoRoute(
+        path: RouteNames.privacyPolicy,
+        builder: (_, _) => const PrivacyPolicyPage(),
       ),
       // Reached from MyBikesPage's FAB — used to be nested under /profile on
       // the assumption only Profile would ever push it, the same mistake

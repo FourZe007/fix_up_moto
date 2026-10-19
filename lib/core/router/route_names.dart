@@ -70,6 +70,16 @@ class RouteNames {
   /// button rather than inside the bottom-nav shell.
   static const String settings = '/settings';
 
+  /// The privacy policy text — opened from the Profile tab's Kebijakan Privasi
+  /// row. Top-level like [settings], so it renders full-screen with a back
+  /// button rather than inside the bottom-nav shell.
+  static const String privacyPolicy = '/privacy-policy';
+
+  /// Edit the member's name, phone and email — opened from the Profile tab's
+  /// Edit Profile row. Top-level like [settings], so it renders full-screen
+  /// with a back button rather than inside the bottom-nav shell.
+  static const String editProfile = '/edit-profile';
+
   /// Add a bike — reached from [myBikes], so this is a top-level route too
   /// rather than nested under Profile specifically.
   static const String addBike = '/bikes/add';

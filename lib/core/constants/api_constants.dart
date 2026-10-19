@@ -167,8 +167,8 @@ class ApiConstants {
   /// POST — fetches the authenticated member's profile.
   static const String profile = '/apiSAMP/BrowseMember';
 
-  /// POST — body: `{Name, PhoneNo}` → the updated member record.
-  static const String updateProfile = '/apiSAMP/UpdateMember';
+  // Editing a member has no endpoint of its own: it is [modify] with
+  // [ModifyMode.updateProfile]. See ProfileRemoteDataSourceImpl.updateProfile.
 
   /// POST — body: `{Brand, Model, Year, PlateNo}` → the created bike.
   ///

@@ -283,6 +283,16 @@ class _ProfileBody extends StatelessWidget {
           key: const Key('edit-profile'),
           name: 'Edit Profile',
           icon: Icon(Icons.edit, color: AppColors.primary, size: 20),
+          // push, so back returns to Profile.
+          onPressed: () => context.push(RouteNames.editProfile),
+        ),
+
+        const SizedBox(height: 8),
+
+        _ActionCard(
+          key: const Key('delete-profile'),
+          name: 'Hapus Profile',
+          icon: Icon(Icons.delete, color: AppColors.primary, size: 20),
           onPressed: () {},
         ),
 
@@ -305,22 +315,22 @@ class _ProfileBody extends StatelessWidget {
           key: const Key('privacy-policy'),
           name: 'Kebijakan Privasi',
           icon: Icon(Icons.menu_book_sharp, color: AppColors.primary, size: 20),
-          onPressed: () {},
+          // push, so back returns to Profile.
+          onPressed: () => context.push(RouteNames.privacyPolicy),
         ),
 
-        const SizedBox(height: 8),
+        // const SizedBox(height: 8),
 
-        _ActionCard(
-          key: const Key('terms-of-service'),
-          name: 'Ketentuan Layanan',
-          icon: Icon(
-            Icons.info_outline_rounded,
-            color: AppColors.primary,
-            size: 20,
-          ),
-          onPressed: () {},
-        ),
-
+        // _ActionCard(
+        //   key: const Key('terms-of-service'),
+        //   name: 'Ketentuan Layanan',
+        //   icon: Icon(
+        //     Icons.info_outline_rounded,
+        //     color: AppColors.primary,
+        //     size: 20,
+        //   ),
+        //   onPressed: () {},
+        // ),
         const SizedBox(height: 20),
 
         Center(child: Text('Versi Aplikasi 2.0.0')),

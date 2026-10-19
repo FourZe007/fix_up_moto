@@ -63,6 +63,36 @@ void main() {
     when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
   }
 
+  group('saveUser', () {
+    test('overwrites the cached session with the given member', () async {
+      when(() => mockLocal.cacheUser(any())).thenAnswer((_) async {});
+      final user = tUserModel.toEntity().copyWith(
+        name: 'Renamed',
+        loginId: '81234567890',
+      );
+
+      final result = await repository.saveUser(user);
+
+      expect(result.isRight(), isTrue);
+      final cached =
+          verify(() => mockLocal.cacheUser(captureAny())).captured.single
+              as LoginUserModel;
+      expect(cached.id, 'M-001');
+      expect(cached.name, 'Renamed');
+      expect(cached.loginId, '81234567890');
+    });
+
+    test('returns CacheFailure when the write fails', () async {
+      when(
+        () => mockLocal.cacheUser(any()),
+      ).thenThrow(const CacheException(message: 'disk full'));
+
+      final result = await repository.saveUser(tUserModel.toEntity());
+
+      expect(result, const Left(CacheFailure('disk full')));
+    });
+  });
+
   group('login', () {
     test(
       'returns the member as an entity and caches it when the account is active',

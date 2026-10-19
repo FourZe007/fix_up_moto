@@ -93,14 +93,20 @@ class UserEntity extends Equatable {
   ///
   /// [active] and [status] are deliberately not copyable — membership state is
   /// the server's to decide, never the client's.
-  UserEntity copyWith({String? name, String? phone, String? avatarUrl}) {
+  UserEntity copyWith({
+    String? name,
+    String? email,
+    String? phone,
+    String? loginId,
+    String? avatarUrl,
+  }) {
     return UserEntity(
       id: id,
       name: name ?? this.name,
-      email: email,
+      email: email ?? this.email,
       isActive: isActive,
       isGoogle: isGoogle,
-      loginId: loginId,
+      loginId: loginId ?? this.loginId,
       status: status,
       phone: phone ?? this.phone,
       avatarUrl: avatarUrl ?? this.avatarUrl,

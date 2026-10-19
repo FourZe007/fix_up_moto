@@ -36,11 +36,17 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ) async {
     emit(const ProfileLoading());
     final result = await _updateProfile(
-      UpdateProfileParams(name: event.name, phone: event.phone),
+      UpdateProfileParams(
+        name: event.name,
+        phone: event.phone,
+        email: event.email,
+      ),
     );
-    result.fold((f) => emit(ProfileError(f.message)), (user) {
-      emit(const ProfileActionSuccess('Profile updated successfully'));
-      emit(ProfileLoaded(user: user));
-    });
+    // No ProfileLoaded after this: the write returns no member record, so the
+    // page that asked re-reads the member itself (via DataRefreshCubit).
+    result.fold(
+      (f) => emit(ProfileError(f.message)),
+      (_) => emit(const ProfileActionSuccess('Profil berhasil diperbarui')),
+    );
   }
 }

@@ -5,7 +5,18 @@ import 'package:fix_up_moto/features/profile/data/models/profile_model.dart';
 
 abstract class ProfileRemoteDataSource {
   Future<ProfileModel> getProfile({required String memberId});
-  Future<ProfileModel> updateProfile({required String name, String? phone});
+
+  /// Updates an existing member ([ModifyMode.updateProfile]).
+  ///
+  /// [phoneNo] is sent exactly as given, as the backend's `PhoneNo` — the
+  /// member's login credential, so the caller decides what it is (a
+  /// subscriber number, or a Google account's email).
+  Future<void> updateProfile({
+    required String memberId,
+    required String name,
+    required String phoneNo,
+    required String email,
+  });
 }
 
 class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
@@ -27,22 +38,40 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   }
 
   @override
-  Future<ProfileModel> updateProfile({
+  Future<void> updateProfile({
+    required String memberId,
     required String name,
-    String? phone,
-  }) async {
-    try {
-      // Build request body imperatively so optional `phone` can be omitted
-      // cleanly without null-aware map literal syntax.
-      final body = <String, dynamic>{'Name': name};
-      if (phone != null) body['PhoneNo'] = phone;
+    required String phoneNo,
+    required String email,
+  }) {
+    return _modifyMember(ModifyMode.updateProfile, {
+      // Filled, unlike registration: a blank MemberID means "new account".
+      'MemberID': memberId,
+      'MemberName': name,
+      'PhoneNo': phoneNo,
+      'EmailAddress': email,
+    });
+  }
 
-      // SAMP has no PATCH — updates are a POST to their own endpoint.
-      // NOTE: UpdateMember's own response shape hasn't been confirmed with a
-      // real sample yet — assuming it matches BrowseMember's (ProfileModel)
-      // shape, same as how other endpoints here were confirmed one at a time.
-      final response = await _dio.post(ApiConstants.updateProfile, data: body);
-      return ProfileModel.fromJson(SampEnvelope.first(response));
+  /// Every member write — register, update, change password, delete, forgot
+  /// password — is the same call to [ApiConstants.modify] with the same body
+  /// shape, told apart only by `Mode`. A new action is a thin method above
+  /// that hands its `Data` to this.
+  ///
+  /// Modify's own success response has no confirmed shape (registration
+  /// ignores it and re-reads the member instead), so success here means only
+  /// "the request did not fail".
+  Future<void> _modifyMember(ModifyMode mode, Map<String, dynamic> data) async {
+    try {
+      await _dio.post(
+        ApiConstants.modify,
+        data: {
+          'Mode': mode.wireValue,
+          // Same value registration sends — the body is shared.
+          'TransID': 'REGISTRATION',
+          'Data': data,
+        },
+      );
     } on DioException catch (e) {
       SampEnvelope.error(e);
     }

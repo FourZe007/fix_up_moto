@@ -102,6 +102,14 @@ Future<Mocks> pumpProfile(
         builder: (_, _) => const Scaffold(body: Text('notification-page')),
       ),
       GoRoute(
+        path: RouteNames.editProfile,
+        builder: (_, _) => const Scaffold(body: Text('edit-profile-page')),
+      ),
+      GoRoute(
+        path: RouteNames.privacyPolicy,
+        builder: (_, _) => const Scaffold(body: Text('privacy-policy-page')),
+      ),
+      GoRoute(
         path: RouteNames.myBikes,
         builder: (_, _) => const Scaffold(body: Text('my-bikes-page')),
       ),
@@ -170,9 +178,7 @@ void main() {
       );
       expect(
         tester.getBottomLeft(row).dy,
-        lessThan(
-          tester.getTopLeft(find.byKey(const Key('edit-profile'))).dy,
-        ),
+        lessThan(tester.getTopLeft(find.byKey(const Key('edit-profile'))).dy),
       );
     });
 
@@ -321,6 +327,72 @@ void main() {
 
       await pressRow(tester);
 
+      expect(row, findsOneWidget);
+    });
+  });
+
+  group('the Edit Profile row', () {
+    final row = find.byKey(const Key('edit-profile'));
+
+    testWidgets('pressing it opens the edit profile page', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(find.text('edit-profile-page'), findsOneWidget);
+    });
+
+    testWidgets('back from the edit profile page returns to Profile', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      // The stand-in page has no app bar, so pop the route like the system
+      // back button does.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('edit-profile-page'), findsNothing);
+      expect(row, findsOneWidget);
+    });
+  });
+
+  group('the Kebijakan Privasi row', () {
+    final row = find.byKey(const Key('privacy-policy'));
+
+    /// Opens the page and presses the row, which sits below the fold on the
+    /// default test screen.
+    Future<void> pressRow(WidgetTester tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('pressing it opens the privacy policy page', (tester) async {
+      await pressRow(tester);
+
+      expect(find.text('privacy-policy-page'), findsOneWidget);
+    });
+
+    testWidgets('back from the privacy policy page returns to Profile', (
+      tester,
+    ) async {
+      await pressRow(tester);
+      // The stand-in page has no app bar, so pop the route like the system
+      // back button does.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('privacy-policy-page'), findsNothing);
       expect(row, findsOneWidget);
     });
   });
