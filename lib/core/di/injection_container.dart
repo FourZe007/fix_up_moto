@@ -45,6 +45,12 @@ import 'package:fix_up_moto/features/membership/domain/usecases/get_rewards_usec
 import 'package:fix_up_moto/features/membership/domain/usecases/redeem_reward_usecase.dart';
 import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_bloc.dart';
 import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_bloc.dart';
+import 'package:fix_up_moto/features/chatbot/data/datasources/chat_remote_data_source.dart';
+import 'package:fix_up_moto/features/chatbot/data/repositories/chat_repository_impl.dart';
+import 'package:fix_up_moto/features/chatbot/domain/repositories/chat_repository.dart';
+import 'package:fix_up_moto/features/chatbot/domain/usecases/ask_fima_usecase.dart';
+import 'package:fix_up_moto/features/chatbot/domain/usecases/chat_history_usecases.dart';
+import 'package:fix_up_moto/features/chatbot/presentation/bloc/chat_bloc.dart';
 import 'package:fix_up_moto/features/notification/data/datasources/notification_remote_data_source.dart';
 import 'package:fix_up_moto/features/notification/data/repositories/notification_repository_impl.dart';
 import 'package:fix_up_moto/features/notification/domain/repositories/notification_repository.dart';
@@ -363,6 +369,25 @@ Future<void> initDependencies() async {
     () => GetNotificationsUseCase(sl<NotificationRepository>()),
   );
   sl.registerFactory(() => NotificationBloc(getNotifications: sl()));
+
+  // ── Chatbot Feature ───────────────────────────────────────────────────────
+  // Chat with Fima. The repository is app-scoped on purpose: it keeps the
+  // session's conversation, so backing out of the page does not lose it (the
+  // bloc itself is page-scoped, like every other page's).
+
+  // Asks the real chat service (ChatConstants.askUrl) through the shared Dio.
+  sl.registerLazySingleton<ChatRemoteDataSource>(
+    () => ChatRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<ChatRepository>(
+    () => ChatRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+  );
+  sl.registerLazySingleton(() => AskFimaUseCase(sl<ChatRepository>()));
+  sl.registerLazySingleton(() => GetChatHistoryUseCase(sl<ChatRepository>()));
+  sl.registerLazySingleton(() => SaveChatHistoryUseCase(sl<ChatRepository>()));
+  sl.registerFactory(
+    () => ChatBloc(ask: sl(), getHistory: sl(), saveHistory: sl()),
+  );
 
   // App-scoped, like AuthBloc — see SelectedWorkshopCubit's own doc comment
   // for why this can't be a page-scoped factory. Pair with BlocProvider.value

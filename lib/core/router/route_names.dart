@@ -14,10 +14,16 @@ class RouteNames {
   /// Never navigated to manually.
   static const String splash = '/';
 
-  /// Unauthenticated users land here; [AppRouter] redirects here on 401.
+  /// The front door for everyone who is logged out — a cold start with no
+  /// session, a logout, an expired session: [AppRouter] sends them here first,
+  /// and from here they continue to [register] or [login].
+  static const String welcome = '/welcome';
+
+  /// Reached from [welcome]. Also where [completeGoogleProfile] sends the user
+  /// back to when it is restored without the Google identity it needs.
   static const String login = '/login';
 
-  /// Registration screen — reachable from the login page.
+  /// Registration screen — reachable from [welcome] and from the login page.
   static const String register = '/register';
 
   /// Reached only after a successful Google identity pick, before any backend
@@ -89,8 +95,9 @@ class RouteNames {
   /// route rather than nested under either one specifically.
   static const String workshops = '/workshops';
 
-  /// AI-powered virtual customer service chat — opened from Home's "Chat
-  /// with Mika" button. Currently an empty placeholder page.
+  /// Chat with Fima, the virtual customer service — opened from Home's "Chat
+  /// dengan Fima" button. Answers come from the chat service at
+  /// [ChatConstants.askUrl].
   static const String chatbot = '/chatbot';
 
   /// The member's notifications. A focused full-screen page like [chatbot],

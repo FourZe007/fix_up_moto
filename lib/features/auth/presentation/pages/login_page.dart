@@ -9,6 +9,7 @@ import 'package:fix_up_moto/features/auth/domain/entities/google_account_identit
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/auth/presentation/widgets/auth_app_bar.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
 
 /// Login screen — the first page unauthenticated users see.
@@ -54,6 +55,8 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Back arrow only — to the welcome screen this was opened from.
+      appBar: const AuthAppBar(),
       body: BlocConsumer<AuthBloc, AuthState>(
         // listener: handles one-time side effects (navigation, SnackBars)
         listener: (context, state) {

@@ -10,6 +10,7 @@ import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/complete_google_profile_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
+import 'package:fix_up_moto/features/auth/presentation/pages/welcome_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/bookings_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/create_booking_page.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/pages/chatbot_page.dart';
@@ -50,6 +51,64 @@ import 'package:fix_up_moto/core/router/tab_container.dart';
 class AppRouter {
   AppRouter._(); // static-only class — never instantiated
 
+  /// The authentication guard, as a pure function of the auth state, the
+  /// location being resolved and its `extra`, so every branch can be tested
+  /// without building a router. Returns the path to redirect to, or null to
+  /// let the navigation proceed.
+  static String? guard({
+    required AuthState authState,
+    required String location,
+    required Object? extra,
+  }) {
+    final onSplash = location == RouteNames.splash;
+    final onCompleteGoogleProfile =
+        location == RouteNames.completeGoogleProfile;
+    final onAuthRoute =
+        location == RouteNames.welcome ||
+        location == RouteNames.login ||
+        location == RouteNames.register ||
+        // No backend session exists while this page is on screen — it must
+        // be reachable while unauthenticated, same as login/register, or
+        // the guard would bounce the user straight back to the welcome screen
+        // the instant AuthGoogleIdentityObtained navigates them here.
+        onCompleteGoogleProfile;
+
+    // The complete-profile page needs a GoogleAccountIdentity passed
+    // through `extra`. `extra` is an in-memory-only value — it is never
+    // part of the URL and cannot survive a process restart, which Android
+    // can trigger by recreating the app's Activity while Google's account
+    // picker briefly takes the foreground. When that happens GoRouter tries
+    // to restore this same path with no `extra` at all, and the page's
+    // `state.extra as GoogleAccountIdentity` cast would crash with a
+    // TypeError. Catch it here instead and send the user back to sign in
+    // again rather than crash.
+    if (onCompleteGoogleProfile && extra is! GoogleAccountIdentity) {
+      return RouteNames.login;
+    }
+
+    // Cold start, session check still running. AuthInitial means *only* this
+    // — AuthBloc deliberately does not emit AuthLoading during the check.
+    if (authState is AuthInitial) {
+      return onSplash ? null : RouteNames.splash;
+    }
+
+    // Live session — bounce off splash and the auth routes, allow the rest.
+    if (authState is AuthAuthenticated) {
+      return (onSplash || onAuthRoute) ? RouteNames.home : null;
+    }
+
+    // An operation is in flight (login / logout / register). Leave the user
+    // exactly where they are; moving them now would yank the login form out
+    // from under them mid-request. This arm must stay below the
+    // authenticated check so a completed login is handled above.
+    if (authState is AuthLoading) return null;
+
+    // Unauthenticated — the only pages reachable are the auth ones, and
+    // everyone else starts at the welcome screen: a cold start with no
+    // session, a logout and an expired session all land there.
+    return onAuthRoute ? null : RouteNames.welcome;
+  }
+
   static final GoRouter router = GoRouter(
     // Opens on the splash route, which exists purely to hold the frame while
     // AuthBloc restores any cached session. The redirect below moves off it.
@@ -64,65 +123,32 @@ class AppRouter {
     // ── Authentication Guard ────────────────────────────────────────────────
     // Runs on every navigation AND every AuthBloc emission. Returns a redirect
     // path string, or null to proceed.
-    redirect: (BuildContext context, GoRouterState state) {
+    redirect: (BuildContext context, GoRouterState state) => guard(
       // Read the bloc from the service locator rather than the context:
       // AuthBloc is a lazy singleton, so this cannot resolve a different
       // instance than the UI, and it does not depend on where the router sits
       // relative to the provider in the widget tree.
-      final authState = sl<AuthBloc>().state;
-
-      final currentPath = state.matchedLocation;
-      final onSplash = currentPath == RouteNames.splash;
-      final onCompleteGoogleProfile =
-          currentPath == RouteNames.completeGoogleProfile;
-      final onAuthRoute =
-          currentPath == RouteNames.login ||
-          currentPath == RouteNames.register ||
-          // No backend session exists while this page is on screen — it must
-          // be reachable while unauthenticated, same as login/register, or
-          // the guard would bounce the user straight back to /login the
-          // instant AuthGoogleIdentityObtained navigates them here.
-          onCompleteGoogleProfile;
-
-      // The complete-profile page needs a GoogleAccountIdentity passed
-      // through `extra`. `extra` is an in-memory-only value — it is never
-      // part of the URL and cannot survive a process restart, which Android
-      // can trigger by recreating the app's Activity while Google's account
-      // picker briefly takes the foreground. When that happens GoRouter tries
-      // to restore this same path with no `extra` at all, and the page's
-      // `state.extra as GoogleAccountIdentity` cast would crash with a
-      // TypeError. Catch it here instead and send the user back to sign in
-      // again rather than crash.
-      if (onCompleteGoogleProfile && state.extra is! GoogleAccountIdentity) {
-        return RouteNames.login;
-      }
-
-      // Cold start, session check still running. AuthInitial means *only* this
-      // — AuthBloc deliberately does not emit AuthLoading during the check.
-      if (authState is AuthInitial) {
-        return onSplash ? null : RouteNames.splash;
-      }
-
-      // Live session — bounce off splash and the auth routes, allow the rest.
-      if (authState is AuthAuthenticated) {
-        return (onSplash || onAuthRoute) ? RouteNames.home : null;
-      }
-
-      // An operation is in flight (login / logout / register). Leave the user
-      // exactly where they are; moving them now would yank the login form out
-      // from under them mid-request. This arm must stay below the
-      // authenticated check so a completed login is handled above.
-      if (authState is AuthLoading) return null;
-
-      // Unauthenticated — the only pages reachable are the auth ones.
-      return onAuthRoute ? null : RouteNames.login;
-    },
+      authState: sl<AuthBloc>().state,
+      location: state.matchedLocation,
+      extra: state.extra,
+    ),
 
     routes: [
       // ── Splash ────────────────────────────────────────────────────────────
       GoRoute(path: RouteNames.splash, builder: (_, _) => const SplashPage()),
 
       // ── Public routes ─────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.welcome,
+        // Same fade as login: both are entry screens with nothing to slide
+        // in from.
+        pageBuilder: (_, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const WelcomePage(),
+          transitionsBuilder: (_, animation, _, child) =>
+              FadeTransition(opacity: animation, child: child),
+        ),
+      ),
       GoRoute(
         path: RouteNames.login,
         // pageBuilder gives a fade transition instead of the default slide
@@ -178,7 +204,7 @@ class AppRouter {
         path: RouteNames.workshops,
         builder: (_, _) => const WorkshopListPage(),
       ),
-      // Opened from Home's "Chat with Mika" button — a focused full-screen
+      // Opened from Home's "Chat dengan Fima" button — a focused full-screen
       // task like createBooking/workshops above, so it's top-level too.
       GoRoute(path: RouteNames.chatbot, builder: (_, _) => const ChatbotPage()),
       // Opened from Home's notification bell — a focused full-screen page like

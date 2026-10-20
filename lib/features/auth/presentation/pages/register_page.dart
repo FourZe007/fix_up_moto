@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/auth/presentation/widgets/auth_app_bar.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
 
@@ -38,6 +40,16 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
+  /// Whether the page directly underneath this one is Login, read from the
+  /// router's stack (pushed pages are in it, each with its own location).
+  bool _loginIsBelow(BuildContext context) {
+    final stack = GoRouter.of(
+      context,
+    ).routerDelegate.currentConfiguration.matches;
+    return stack.length >= 2 &&
+        stack[stack.length - 2].matchedLocation == RouteNames.login;
+  }
+
   void _onRegisterPressed() {
     if (_formKey.currentState?.validate() ?? false) {
       final email = _emailController.text.trim();
@@ -56,9 +68,10 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // No AppBar — matches LoginPage's borderless look. Getting back to
-      // Login is the text link at the bottom of the form instead, the same
-      // way LoginPage links forward to this screen.
+      // The same back-arrow-only bar as LoginPage. The arrow returns to the
+      // page this was opened from; the text link at the bottom of the form is
+      // the way to Login, the same way LoginPage links forward to this screen.
+      appBar: const AuthAppBar(),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
@@ -187,11 +200,13 @@ class _RegisterPageState extends State<RegisterPage> {
                             // ── Back to login ────────────────────────────
                             // Mirrors LoginPage's own "Tidak punya akun?
                             // Daftar disini" link, just pointed the other way.
-                            // pop(), not go(RouteNames.login): Register was
-                            // reached by pushing on top of Login, which is
-                            // still on the stack underneath — go() would push
-                            // a second, redundant Login route instead of
-                            // returning to the one already there.
+                            // pop() when Login is the page underneath: Register
+                            // pushed on top of Login has it still on the stack,
+                            // and pushing a second, redundant Login would stack
+                            // them up. Opened from the welcome screen instead,
+                            // Login is not there to return to, so Register
+                            // swaps itself for Login — the welcome screen stays
+                            // underneath, and back still returns to it.
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -199,7 +214,11 @@ class _RegisterPageState extends State<RegisterPage> {
                                 TextButton(
                                   onPressed: isLoading
                                       ? null
-                                      : () => context.pop(),
+                                      : () => _loginIsBelow(context)
+                                            ? context.pop()
+                                            : context.pushReplacement(
+                                                RouteNames.login,
+                                              ),
                                   child: const Text(
                                     'Masuk disini',
                                     style: TextStyle(

@@ -15,6 +15,16 @@ class AssetConstants {
   /// size it is drawn at, or it is decoded at full size (~10 MB).
   static const String logo = 'assets/images/fixupmoto_logo.jpg';
 
+  /// The FixUp Moto logo with no background: a 500x500 transparent PNG whose
+  /// lettering is red (#FE0000), centred on the canvas and about 391x189 px.
+  /// For drawing straight onto a page, where [logo]'s red square would show as
+  /// a block. Shown on the login and register screens.
+  ///
+  /// The lettering fills under half the canvas, so crop to it rather than
+  /// showing the whole square, and set `cacheWidth` to the size it is drawn at.
+  static const String logoRedText =
+      'assets/images/fixupmoto_logo_colored_text.png';
+
   /// Placeholder image displayed while a network image is loading.
   static const String imagePlaceholder = 'assets/images/placeholder.png';
 
