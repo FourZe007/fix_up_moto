@@ -135,20 +135,49 @@ void main() {
       expect(title(0), findsOneWidget);
       expect(find.text(features[0].description), findsOneWidget);
     });
+
+    testWidgets('puts a white icon on a solid brand-orange tile', (
+      tester,
+    ) async {
+      await pumpCarousel(tester);
+
+      final icon = find.byIcon(features[0].icon);
+      final tile =
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .ancestor(of: icon, matching: find.byType(DecoratedBox))
+                        .first,
+                  )
+                  .decoration
+              as BoxDecoration;
+
+      expect(tile.color, AppColors.primary);
+      expect(tester.widget<Icon>(icon).color, AppColors.textOnPrimary);
+    });
+
+    testWidgets('sets its description at 14 px', (tester) async {
+      await pumpCarousel(tester);
+
+      final description = tester.widget<Text>(
+        find.text(features[0].description),
+      );
+      expect(description.style!.fontSize, 14);
+    });
   });
 
   group('the dots', () {
     testWidgets('are one per card, the first one wide', (tester) async {
       await pumpCarousel(tester);
 
-      expect([for (var i = 0; i < 3; i++) dotWidth(tester, i)], [20, 6, 6]);
+      expect([for (var i = 0; i < 3; i++) dotWidth(tester, i)], [24, 8, 8]);
     });
 
     testWidgets('follow the card in view, in the brand colour', (tester) async {
       await pumpCarousel(tester);
       await swipe(tester);
 
-      expect([for (var i = 0; i < 3; i++) dotWidth(tester, i)], [6, 20, 6]);
+      expect([for (var i = 0; i < 3; i++) dotWidth(tester, i)], [8, 24, 8]);
 
       Color dotColor(int i) =>
           (tester
@@ -185,7 +214,7 @@ void main() {
 
       await swipe(tester);
       expect(title(0), findsOneWidget);
-      expect(dotWidth(tester, 0), 20);
+      expect(dotWidth(tester, 0), 24);
     });
 
     testWidgets('goes round the other way too: before the first is the last', (
@@ -196,7 +225,7 @@ void main() {
       await swipe(tester, forward: false);
 
       expect(title(2), findsOneWidget);
-      expect(dotWidth(tester, 2), 20);
+      expect(dotWidth(tester, 2), 24);
     });
   });
 
@@ -220,7 +249,7 @@ void main() {
 
       expect(page(tester), 1);
       expect(title(1), findsOneWidget);
-      expect(dotWidth(tester, 1), 20);
+      expect(dotWidth(tester, 1), 24);
     });
 
     testWidgets('keeps going forward past the last card instead of rewinding '
@@ -235,7 +264,7 @@ void main() {
       // having travelled back across the other two.
       expect(page(tester), 3);
       expect(title(0), findsOneWidget);
-      expect(dotWidth(tester, 0), 20);
+      expect(dotWidth(tester, 0), 24);
 
       // And it carries on.
       await autoAdvance(tester);
@@ -390,11 +419,8 @@ void main() {
                       )
                       .decoration
                   as BoxDecoration;
-          // White in light mode; the app's light grey in dark mode.
-          expect(
-            card.color,
-            mode == 'light' ? AppColors.surfaceLight : AppColors.surfaceDark,
-          );
+          // Peach in both modes, like the Membership tab's point card.
+          expect(card.color, AppColors.peachLight);
 
           for (final text in [features[i].title, features[i].description]) {
             final color = tester.widget<Text>(find.text(text)).style!.color!;

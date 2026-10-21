@@ -77,7 +77,7 @@ void main() {
 
       expect(find.byType(AuthLogo), findsOneWidget);
       // Larger than the 144 it was first shown at, and in the middle.
-      expect(tester.getSize(logoBox), const Size(200, 100));
+      expect(tester.getSize(logoBox), const Size(220, 110));
       expect(tester.getCenter(logoBox).dx, 180);
     });
 
@@ -111,6 +111,16 @@ void main() {
       );
     });
 
+    testWidgets('names the chat assistant Fima, as the rest of the app does', (
+      tester,
+    ) async {
+      usePhone(tester);
+      await pumpWelcome(tester);
+
+      expect(find.textContaining('dengan Fima dalam satu aplikasi'), findsOne);
+      expect(find.textContaining('Mika'), findsNothing);
+    });
+
     testWidgets('shows the feature carousel, full width, on its first card', (
       tester,
     ) async {
@@ -121,6 +131,87 @@ void main() {
       expect(find.text(firstFeature), findsOneWidget);
       // As wide as the page's content, not a third of it.
       expect(tester.getSize(carousel).width, 360 - 48);
+    });
+  });
+
+  group('the colour', () {
+    final wash = find.byKey(const Key('welcome-wash'));
+
+    testWidgets('a warm orange wash fades in from the top edge', (
+      tester,
+    ) async {
+      usePhone(tester);
+      await pumpWelcome(tester);
+
+      final gradient =
+          (tester.widget<DecoratedBox>(wash).decoration as BoxDecoration)
+                  .gradient
+              as LinearGradient;
+
+      // Brand orange at both ends, strong at the top and gone at the bottom —
+      // not transparent black, which would grey the fade.
+      expect(gradient.begin, Alignment.topCenter);
+      expect(
+        gradient.colors.first.withValues(alpha: 1),
+        AppColors.primaryLight,
+      );
+      expect(gradient.colors.last.withValues(alpha: 1), AppColors.primaryLight);
+      expect(gradient.colors.first.a, greaterThan(0.2));
+      expect(gradient.colors.last.a, 0);
+      // It reaches the very top of the screen, under the status bar.
+      expect(tester.getTopLeft(wash).dy, 0);
+    });
+
+    testWidgets('leaves the page background to the theme', (tester) async {
+      usePhone(tester);
+      await pumpWelcome(tester, theme: AppTheme.light);
+
+      final scaffold = find.byType(Scaffold);
+      expect(tester.widget<Scaffold>(scaffold).backgroundColor, isNull);
+      expect(
+        Theme.of(tester.element(scaffold)).scaffoldBackgroundColor,
+        AppColors.backgroundLight,
+      );
+    });
+  });
+
+  group('the social footer', () {
+    final instagram = find.byKey(const Key('welcome-social-instagram'));
+    final tiktok = find.byKey(const Key('welcome-social-tiktok'));
+
+    testWidgets('is the last thing on the page, under "Masuk"', (tester) async {
+      usePhone(tester);
+      await pumpWelcome(tester);
+
+      expect(find.text('Ikuti kami'), findsOneWidget);
+      expect(instagram, findsOneWidget);
+      expect(tiktok, findsOneWidget);
+
+      // "Get started", then "Masuk", then the footer: quiet, so it never
+      // competes with the button the page exists for.
+      expect(
+        tester.getTopLeft(instagram).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(masuk).dy),
+      );
+      expect(
+        tester.getTopLeft(masuk).dy,
+        greaterThan(tester.getBottomLeft(getStarted).dy),
+      );
+    });
+
+    testWidgets('is centred, as a group, on the same line as "Get started"', (
+      tester,
+    ) async {
+      usePhone(tester);
+      await pumpWelcome(tester);
+
+      final axis = tester.getCenter(getStarted).dx;
+      // From the label's left edge to the last icon's right edge.
+      final group = tester
+          .getRect(find.text('Ikuti kami'))
+          .expandToInclude(tester.getRect(tiktok));
+
+      expect(group.center.dx, closeTo(axis, 0.5));
     });
   });
 
@@ -204,6 +295,12 @@ void main() {
       // Pinned: below the content, not scrolled away with it.
       expect(tester.getRect(getStarted).bottom, lessThanOrEqualTo(480));
       expect(tester.getRect(masuk).bottom, lessThanOrEqualTo(480));
+      expect(
+        tester
+            .getRect(find.byKey(const Key('welcome-social-instagram')))
+            .bottom,
+        lessThanOrEqualTo(480),
+      );
     });
 
     testWidgets('scrolls to reach the carousel', (tester) async {

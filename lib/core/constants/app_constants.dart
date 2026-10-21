@@ -27,6 +27,15 @@ class AppConstants {
   /// it is not.
   static const String whatsappServiceUrl = 'https://wa.me/6285179798961';
 
+  /// FixUp Moto's public pages, shown as the Welcome screen's "Ikuti kami"
+  /// icons. Empty until the real links are set (full https:// addresses): an
+  /// empty one is hidden in a release build, and shown as a placeholder in
+  /// debug and profile builds so the design can be judged — see
+  /// WelcomeSocialLinks.
+  static const String instagramUrl =
+      'https://www.instagram.com/fixupmotoidn_official/';
+  static const String tiktokUrl = 'https://www.tiktok.com/@fixupmotoidn';
+
   /// Whether members can choose light/dark mode.
   ///
   /// Off for now, so the app always uses the light theme even when the phone

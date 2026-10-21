@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:fix_up_moto/core/router/route_names.dart';
+import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_logo.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/welcome_feature_carousel.dart';
+import 'package:fix_up_moto/features/auth/presentation/widgets/welcome_social_links.dart';
 
 /// The front door for everyone who is logged out: the logo, what the app does,
 /// and two ways on — "Get started" to register, or "Masuk" for members who
@@ -15,6 +17,10 @@ import 'package:fix_up_moto/features/auth/presentation/widgets/welcome_feature_c
 /// Layout: the logo, headline and feature carousel scroll as one block, spaced
 /// out to fill a tall screen; the buttons are pinned below it, so they are on
 /// screen on a short phone or with large text too.
+///
+/// Colour: the page keeps the theme's own background; a warm orange wash fades
+/// in from the top edge over it, and the colour is carried by the carousel's
+/// peach cards and the button — the same family as the Membership tab.
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
@@ -23,120 +29,100 @@ class WelcomePage extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              // SliverFillRemaining(hasScrollBody: false) makes this block at
-              // least as tall as the viewport — so the Spacers can spread it
-              // out on a tall phone — and lets it scroll when it is taller.
-              child: CustomScrollView(
-                slivers: [
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Each gap is a fixed minimum plus a share of
-                          // whatever room is left: on a tall phone the Spacers
-                          // spread the content out, and on a short one they
-                          // collapse but the minimums keep it from bunching up.
-                          const SizedBox(height: 32),
-                          const Spacer(flex: 2),
+      body: DecoratedBox(
+        key: const Key('welcome-wash'),
+        // Outside the SafeArea, so the wash reaches the top edge of the screen.
+        // Both ends are the same orange (not Colors.transparent, which is
+        // transparent black and would grey the fade out), and being alpha
+        // rather than an opaque peach it also reads on the dark theme's black.
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.primaryLight.withValues(alpha: 0.30),
+              AppColors.primaryLight.withValues(alpha: 0),
+            ],
+            stops: const [0, 0.55],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                // SliverFillRemaining(hasScrollBody: false) makes this block at
+                // least as tall as the viewport — so the Spacers can spread it
+                // out on a tall phone — and lets it scroll when it is taller.
+                child: CustomScrollView(
+                  slivers: [
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Each gap is a fixed minimum plus a share of
+                            // whatever room is left: on a tall phone the Spacers
+                            // spread the content out, and on a short one they
+                            // collapse but the minimums keep it from bunching up.
+                            const SizedBox(height: 32),
+                            const Spacer(flex: 2),
 
-                          // ── Logo over a soft red glow ───────────────────
-                          const Center(child: _Hero()),
+                            // ── Logo ────────────────────────────────────────
+                            const Center(child: AuthLogo(width: 220)),
 
-                          const SizedBox(height: 32),
-                          const Spacer(flex: 2),
+                            const SizedBox(height: 32),
+                            const Spacer(flex: 2),
 
-                          // ── What the app is, and does ───────────────────
-                          _Reveal(
-                            start: 0.35,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Servis motor jadi lebih mudah & terpercaya',
-                                  textAlign: TextAlign.center,
-                                  style: textTheme.headlineLarge,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Booking bengkel, kumpulkan poin, dan chat '
-                                  'dengan Mika dalam satu aplikasi.',
-                                  textAlign: TextAlign.center,
-                                  style: textTheme.bodyMedium,
-                                ),
-                                const SizedBox(height: 28),
-                                // Full-width cards that swipe and advance on
-                                // their own — see WelcomeFeatureCarousel.
-                                const WelcomeFeatureCarousel(),
-                              ],
+                            // ── What the app is, and does ───────────────────
+                            _Reveal(
+                              start: 0.35,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    'Servis motor jadi lebih mudah & terpercaya',
+                                    textAlign: TextAlign.center,
+                                    style: textTheme.headlineLarge,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Booking bengkel, kumpulkan poin, dan chat '
+                                    'dengan Fima dalam satu aplikasi.',
+                                    textAlign: TextAlign.center,
+                                    style: textTheme.bodyMedium,
+                                  ),
+                                  const SizedBox(height: 28),
+                                  // Full-width cards that swipe and advance on
+                                  // their own — see WelcomeFeatureCarousel.
+                                  const WelcomeFeatureCarousel(),
+                                ],
+                              ),
                             ),
-                          ),
 
-                          const SizedBox(height: 16),
-                          const Spacer(),
-                        ],
+                            const SizedBox(height: 16),
+                            const Spacer(),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // ── Pinned actions ──────────────────────────────────────────────
-            _Reveal(start: 0.6, child: const _Actions()),
-          ],
+              // ── Pinned actions ──────────────────────────────────────────────
+              _Reveal(start: 0.6, child: const _Actions()),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// The logo, drawn large, over a soft glow in its own red.
-class _Hero extends StatelessWidget {
-  const _Hero();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      // The glow is bigger than the logo that sizes this Stack, and is meant
-      // to spill past it.
-      clipBehavior: Clip.none,
-      children: [
-        Positioned(
-          left: -60,
-          right: -60,
-          top: -110,
-          bottom: -110,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AuthLogo.red.withValues(alpha: 0.14),
-                    // Same red, not Colors.transparent (transparent black),
-                    // which would grey the fade out.
-                    AuthLogo.red.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const AuthLogo(width: 200),
-      ],
-    );
-  }
-}
-
-/// "Get started" at full width, with the way in for existing members under it.
+/// "Get started" at full width, with the way in for existing members under it,
+/// and FixUp Moto's social pages in a quiet footer under that.
 class _Actions extends StatelessWidget {
   const _Actions();
 
@@ -179,6 +165,8 @@ class _Actions extends StatelessWidget {
               ),
             ],
           ),
+          // Last and smallest, so "Get started" stays the loudest thing here.
+          const WelcomeSocialLinks(),
         ],
       ),
     );

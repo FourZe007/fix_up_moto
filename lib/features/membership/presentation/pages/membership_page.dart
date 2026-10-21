@@ -165,7 +165,7 @@ class _MembershipView extends StatelessWidget {
 const _satinBase = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [Color(0xFFFFCDAC), Color(0xFFFFDAC1), Color(0xFFFFCDAC)],
+  colors: [AppColors.peach, AppColors.peachLight, AppColors.peach],
   stops: [0.0, 0.55, 1.0],
 );
 
@@ -465,14 +465,14 @@ class _TabPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: Color(0xFFFFCDAC), width: selected ? 0 : 1.5),
+      side: BorderSide(color: AppColors.peach, width: selected ? 0 : 1.5),
     );
 
     return Semantics(
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? Color(0xFFFFCDAC) : Colors.transparent,
+        color: selected ? AppColors.peach : Colors.transparent,
         shape: shape,
         child: InkWell(
           onTap: onTap,

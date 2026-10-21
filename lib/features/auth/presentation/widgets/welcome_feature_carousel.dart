@@ -3,7 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
-import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+
+/// The card's text sizes and line heights. [_Slide] sets them and
+/// [_WelcomeFeatureCarouselState._height] must leave room for exactly them, so
+/// both read them from here.
+const _titleSize = 16.0;
+const _titleLeading = 1.3;
+const _descriptionSize = 14.0;
+const _descriptionLeading = 1.4;
 
 /// One thing the app does, as the welcome screen's carousel shows it.
 class WelcomeFeature {
@@ -43,8 +50,7 @@ class WelcomeFeatureCarousel extends StatefulWidget {
     WelcomeFeature(
       icon: Icons.card_giftcard_outlined,
       title: 'Poin & voucher',
-      description:
-          'Kumpulkan poin dari setiap servis dan tukar dengan voucher.',
+      description: 'Kumpulkan poin dari servis, tukar dengan voucher.',
     ),
     WelcomeFeature(
       icon: Icons.chat_bubble_outline,
@@ -126,11 +132,13 @@ class _WelcomeFeatureCarouselState extends State<WelcomeFeatureCarousel> {
 
   /// The carousel's height: the card's fixed parts plus its text, which grows
   /// with the system text size (one title line and at most two of description,
-  /// at the line heights set in [_Slide]).
+  /// at the sizes set at the top of this file).
   double _height(BuildContext context) {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     const fixed = 16 + 44 + 10 + 4 + 16; // padding, icon, gaps, padding
-    return (fixed + 54.4 * textScale + 8).ceilToDouble();
+    const text =
+        _titleSize * _titleLeading + 2 * _descriptionSize * _descriptionLeading;
+    return (fixed + text * textScale + 8).ceilToDouble();
   }
 
   @override
@@ -163,11 +171,11 @@ class _WelcomeFeatureCarouselState extends State<WelcomeFeatureCarousel> {
                 key: Key('welcome-dot-$i'),
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: i == _page ? 20 : 6,
-                height: 6,
+                width: i == _page ? 24 : 8,
+                height: 8,
                 decoration: BoxDecoration(
                   color: i == _page ? AppColors.primary : AppColors.grey400,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
           ],
@@ -177,7 +185,12 @@ class _WelcomeFeatureCarouselState extends State<WelcomeFeatureCarousel> {
   }
 }
 
-/// One card: a tinted icon over the feature's title and a line about it.
+/// One card: a solid brand-orange tile with the feature's icon, over its title
+/// and a line about it, on the same peach as the Membership tab's point card.
+///
+/// The card is peach in light and dark mode alike, so its text colours are set
+/// here rather than taken from the theme (whose body text is white in dark mode
+/// and a grey too pale for peach in light mode).
 class _Slide extends StatelessWidget {
   final WelcomeFeature feature;
 
@@ -185,76 +198,67 @@ class _Slide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A white card in light mode is light grey in dark mode, and its text must
-    // then be dark — LightSurfaceScope re-themes it for that, and the Builder
-    // below reads the theme from inside the scope.
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: LightSurfaceScope(
-        child: Builder(
-          builder: (context) {
-            final theme = Theme.of(context);
-
-            return DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.grey200),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 16,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.peachLight,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.peach),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // The same tile as the Membership tab's owned vouchers.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.primary.withValues(alpha: 0.10),
-                      ),
-                      child: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: Icon(
-                          feature.icon,
-                          size: 24,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // One line for the title and at most two for the text, so
-                    // the card's height is known and _height() can set it.
-                    Text(
-                      feature.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      feature.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
+                    feature.icon,
+                    size: 24,
+                    color: AppColors.textOnPrimary,
+                  ),
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 10),
+              // One line for the title and at most two for the text, so the
+              // card's height is known and _height() can set it.
+              Text(
+                feature.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontSize: _titleSize,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                  height: _titleLeading,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                feature.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontSize: _descriptionSize,
+                  // Dark enough for 4.5:1 on peach; the theme's grey is not.
+                  color: AppColors.grey700,
+                  height: _descriptionLeading,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

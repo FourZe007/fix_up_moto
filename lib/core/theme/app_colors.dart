@@ -19,6 +19,18 @@ class AppColors {
   /// Dark variant — used for elevated primary surfaces (AppBar background).
   static const Color primaryDark = Color(0xFFAC1900);
 
+  /// Soft peach tints of the brand orange: the Membership point card's satin
+  /// finish and its tab pills, and the Welcome screen's feature cards. Dark
+  /// text (textPrimary, grey700) reads on both.
+  static const Color peach = Color(0xFFFFCDAC);
+  static const Color peachLight = Color(0xFFFFDAC1);
+
+  /// The palest peach tints, for the Profile page: [peachMist] fills the tile
+  /// behind each row's icon (the brand orange on it is 3.4:1, enough for an
+  /// icon), and [peachHairline] is the warm border and divider of its cards.
+  static const Color peachMist = Color(0xFFFFF1E8);
+  static const Color peachHairline = Color(0xFFF3E6DC);
+
   // ── Secondary ─────────────────────────────────────────────────────────────
   // Steel blue — used for secondary actions and information chips.
 

@@ -22,8 +22,8 @@ class AuthLogo extends StatelessWidget {
   static const double _widthFactor = 0.8;
   static const double _heightFactor = 0.4;
 
-  /// The lettering's colour in the PNG. Public so what sits around the logo
-  /// (the welcome screen's glow) can match it exactly.
+  /// The lettering's colour in the PNG, which the fallback text below matches
+  /// so a missing asset still leaves a recognisable mark.
   static const Color red = Color(0xFFFE0000);
 
   static const Duration _entrance = Duration(milliseconds: 400);

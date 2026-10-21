@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/helpers/external_link.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
@@ -38,15 +39,14 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Both colours come from the active Theme rather than AppColors constants,
-    // so this bar follows light/dark automatically when ThemeCubit changes
-    // MaterialApp's themeMode — no cubit read needed here. The title and arrow
+    // The icon colour comes from the active Theme rather than an AppColors
+    // constant, so this bar follows light/dark automatically when ThemeCubit
+    // changes MaterialApp's themeMode — no cubit read needed here. The icons
     // are coloured explicitly because the app's AppBarTheme hard-codes a white
     // title style.
     // Light and Dark mode disabled temporary, but the codes still exist inside
     // the project
-    final theme = Theme.of(context);
-    final onSurface = theme.colorScheme.onSurface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return BlocProvider(
       // Page-scoped factory, fetched on mount — same as MembershipPage.
@@ -57,53 +57,63 @@ class ProfilePage extends StatelessWidget {
         kind: DataKind.stats,
         onRefresh: (context) =>
             context.read<HomeBloc>().add(const HomeStatsRequested()),
-        child: _scaffold(context, theme, onSurface),
+        child: _scaffold(context, onSurface),
       ),
     );
   }
 
-  Widget _scaffold(BuildContext context, ThemeData theme, Color onSurface) {
-    return Scaffold(
-      appBar: AppBar(
-        // title: const Text('Profile'),
-        backgroundColor: theme.scaffoldBackgroundColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            style: IconButton.styleFrom(foregroundColor: onSurface),
-            tooltip: 'Settings',
-            // push, not go: go would replace the whole back stack, leaving
-            // Settings with no way back to Profile.
-            onPressed: () => context.push(RouteNames.settings),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            style: IconButton.styleFrom(foregroundColor: onSurface),
-            tooltip: 'Sign out',
-            onPressed: () => _confirmLogout(context),
-          ),
-        ],
-      ),
-      body: BlocBuilder<HomeBloc, HomeState>(
-        builder: (context, state) => switch (state) {
-          HomeInitial() ||
-          HomeLoading() => const Center(child: CircularProgressIndicator()),
-          HomeError(:final message) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 12,
-              children: [
-                Text(message),
-                ElevatedButton(
-                  onPressed: () =>
-                      context.read<HomeBloc>().add(const HomeStatsRequested()),
-                  child: const Text('Retry'),
-                ),
-              ],
+  Widget _scaffold(BuildContext context, Color onSurface) {
+    // The page keeps its theme background; a warm wash fades in from the top.
+    // The wash is a fixed backdrop *around* the Scaffold, whose own background
+    // and AppBar are transparent: it shows behind the bar, and the rows scroll
+    // below the bar rather than under its icons.
+    return WarmWash(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          // title: const Text('Profile'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              style: IconButton.styleFrom(foregroundColor: onSurface),
+              tooltip: 'Settings',
+              // push, not go: go would replace the whole back stack, leaving
+              // Settings with no way back to Profile.
+              onPressed: () => context.push(RouteNames.settings),
             ),
-          ),
-          HomeLoaded(:final stats) => _ProfileBody(stats: stats),
-        },
+            IconButton(
+              icon: const Icon(Icons.logout),
+              style: IconButton.styleFrom(foregroundColor: onSurface),
+              tooltip: 'Sign out',
+              onPressed: () => _confirmLogout(context),
+            ),
+          ],
+        ),
+        body: BlocBuilder<HomeBloc, HomeState>(
+          builder: (context, state) => switch (state) {
+            HomeInitial() ||
+            HomeLoading() => const Center(child: CircularProgressIndicator()),
+            HomeError(:final message) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 12,
+                children: [
+                  Text(message),
+                  ElevatedButton(
+                    onPressed: () => context.read<HomeBloc>().add(
+                      const HomeStatsRequested(),
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+            HomeLoaded(:final stats) => _ProfileBody(stats: stats),
+          },
+        ),
       ),
     );
   }
@@ -154,6 +164,12 @@ class _ProfileBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The theme's body grey is too pale on the warm wash behind the header
+    // (about 3.7:1), so the light theme uses a darker one (5:1); the dark
+    // theme's own light text is already fine on black.
+    final contactStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.brightness == Brightness.dark ? null : AppColors.grey700,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -166,13 +182,41 @@ class _ProfileBody extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User Avatar — initial only; the stats record has no photo.
-                  CircleAvatar(
-                    radius: 40,
+                  Container(
+                    key: const Key('profile-avatar'),
+                    width: 80,
+                    height: 80,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.primaryLight, AppColors.primary],
+                      ),
+                      // A white ring and a soft orange shadow, so it lifts off
+                      // the wash behind it.
+                      border: Border.all(
+                        color: AppColors.surfaceLight,
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.28),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
                     child: Text(
                       stats.memberName.isNotEmpty
                           ? stats.memberName[0].toUpperCase()
                           : '?',
-                      style: const TextStyle(fontSize: 32),
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textOnPrimary,
+                      ),
                     ),
                   ),
 
@@ -183,18 +227,14 @@ class _ProfileBody extends StatelessWidget {
                       // Username
                       Text(
                         stats.memberName,
-                        style: theme.textTheme.headlineSmall,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       if (_hasValue(stats.phoneNo))
-                        Text(
-                          '0${stats.phoneNo}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
+                        Text('0${stats.phoneNo}', style: contactStyle),
                       if (_hasValue(stats.emailAddress))
-                        Text(
-                          stats.emailAddress,
-                          style: theme.textTheme.bodyMedium,
-                        ),
+                        Text(stats.emailAddress, style: contactStyle),
                     ],
                   ),
                 ],
@@ -218,119 +258,184 @@ class _ProfileBody extends StatelessWidget {
 
         const SizedBox(height: 24),
 
-        // Two compact stat tiles. Their height comes from padding + content,
-        // not a fixed `height`, so a larger system font grows the tile
-        // instead of clipping it.
-        Row(
-          spacing: 12,
-          children: [
-            // Total Registered Bikes → My Bikes. push, not go: My Bikes is a
-            // top-level route and go would replace the whole back stack.
-            Expanded(
-              // child: _BikeStatTile(
-              //   onTap: () => context.push(RouteNames.myBikes),
-              // ),
-              child: _StatTile(
-                key: const Key('bike-count-column'),
-                icon: Icons.two_wheeler_outlined,
-                label: 'My Bikes',
-                onTap: () => context.push(RouteNames.myBikes),
-                value: Text('${stats.qty}'),
-              ),
-            ),
+        // The page is three titled groups, each one rounded card with its rows
+        // split by hairlines, not a stack of separate cards.
 
-            // Total Points → Member tab (a tab switch, where go is right).
-            // The value stays a dash until its data source is chosen.
-            Expanded(
-              child: _StatTile(
-                key: const Key('points-stat-tile'),
-                icon: Icons.star_outline,
-                label: 'Points',
-                onTap: () => context.go(RouteNames.membership),
-                value: Text('${stats.point}'),
+        // ── Akun ──────────────────────────────────────────────────────────
+        const _SectionHeader('Akun'),
+        _SectionCard(
+          children: [
+            _ActionRow(
+              key: const Key('edit-profile'),
+              name: 'Edit Profile',
+              icon: Icon(Icons.edit, color: AppColors.primary, size: 20),
+              // push, so back returns to Profile.
+              onPressed: () => context.push(RouteNames.editProfile),
+            ),
+            // The balance sits in the row as a value. Member is a tab, where go
+            // is right.
+            _ActionRow(
+              key: const Key('points-row'),
+              name: 'Point & Voucher',
+              icon: Icon(
+                Icons.star_outline,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              value: '${stats.point} pts',
+              onPressed: () => context.go(RouteNames.membership),
+            ),
+            // Notifications: the same page Home's bell opens, with the same
+            // unread count (both read NotificationCountCubit). push, so back
+            // returns to Profile.
+            _ActionRow(
+              key: const Key('notification-card'),
+              name: 'Kotak Masuk',
+              icon: Icon(
+                Icons.notifications_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              onPressed: () => context.push(RouteNames.notification),
+              // Hidden at 0, so the row is just a label and a chevron until
+              // there is something unread.
+              trailing: BlocBuilder<NotificationCountCubit, int>(
+                builder: (context, count) => Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(NotificationCountCubit.label(count)),
+                ),
               ),
             ),
           ],
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
 
-        // Notifications, as a labelled row: the same page Home's bell opens,
-        // with the same unread count (both read NotificationCountCubit). push,
-        // so back returns to Profile.
-        _ActionCard(
-          key: const Key('notification-card'),
-          name: 'Kotak Masuk',
-          icon: Icon(
-            Icons.notifications_outlined,
-            color: AppColors.primary,
-            size: 20,
-          ),
-          onPressed: () => context.push(RouteNames.notification),
-          // Hidden at 0, so the row is just a label and a chevron until there
-          // is something unread.
-          trailing: BlocBuilder<NotificationCountCubit, int>(
-            builder: (context, count) => Badge(
-              isLabelVisible: count > 0,
-              label: Text(NotificationCountCubit.label(count)),
+        // ── Garasi ────────────────────────────────────────────────────────
+        // The member's bikes and what was done to them. The bike count sits in
+        // its row as a value: with the points (in Akun) it replaced the two
+        // stat tiles that used to head the page. Point & Voucher is not here —
+        // a garage holds bikes, and points are a membership benefit.
+        const _SectionHeader('Garasi'),
+        _SectionCard(
+          children: [
+            // My Bikes is a top-level route, so push: go would replace the
+            // whole back stack.
+            _ActionRow(
+              key: const Key('my-bikes-row'),
+              name: 'Motor Saya',
+              icon: Icon(
+                Icons.two_wheeler_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              value: '${stats.qty}',
+              onPressed: () => context.push(RouteNames.myBikes),
             ),
-          ),
+            // Bookings is a tab, where go is right.
+            _ActionRow(
+              key: const Key('bookings-row'),
+              name: 'Riwayat Booking',
+              icon: Icon(
+                Icons.calendar_month_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              onPressed: () => context.go(RouteNames.bookings),
+            ),
+          ],
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
 
-        _ActionCard(
-          key: const Key('edit-profile'),
-          name: 'Edit Profile',
-          icon: Icon(Icons.edit, color: AppColors.primary, size: 20),
-          // push, so back returns to Profile.
-          onPressed: () => context.push(RouteNames.editProfile),
+        // ── FixUp Moto ────────────────────────────────────────────────────
+        const _SectionHeader('FixUp Moto'),
+        _SectionCard(
+          children: [
+            _ActionRow(
+              key: const Key('whatsapp-service'),
+              name: 'Layanan Whatsapp',
+              icon: FaIcon(
+                FontAwesomeIcons.whatsapp,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              onPressed: () => openExternalLink(
+                context,
+                AppConstants.whatsappServiceUrl,
+                failureMessage: 'WhatsApp tidak dapat dibuka',
+              ),
+            ),
+            // A page whose address is not set yet is left out.
+            if (AppConstants.instagramUrl.trim().isNotEmpty)
+              _ActionRow(
+                key: const Key('instagram-link'),
+                name: 'Instagram',
+                icon: FaIcon(
+                  FontAwesomeIcons.instagram,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                onPressed: () => openExternalLink(
+                  context,
+                  AppConstants.instagramUrl,
+                  failureMessage: 'Instagram tidak dapat dibuka',
+                ),
+              ),
+            if (AppConstants.tiktokUrl.trim().isNotEmpty)
+              _ActionRow(
+                key: const Key('tiktok-link'),
+                name: 'TikTok',
+                icon: FaIcon(
+                  FontAwesomeIcons.tiktok,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                onPressed: () => openExternalLink(
+                  context,
+                  AppConstants.tiktokUrl,
+                  failureMessage: 'TikTok tidak dapat dibuka',
+                ),
+              ),
+            _ActionRow(
+              key: const Key('privacy-policy'),
+              name: 'Kebijakan Privasi',
+              icon: Icon(
+                Icons.menu_book_sharp,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              // push, so back returns to Profile.
+              onPressed: () => context.push(RouteNames.privacyPolicy),
+            ),
+            // _ActionRow(
+            //   key: const Key('terms-of-service'),
+            //   name: 'Ketentuan Layanan',
+            //   icon: Icon(
+            //     Icons.info_outline_rounded,
+            //     color: AppColors.primary,
+            //     size: 20,
+            //   ),
+            //   onPressed: () {},
+            // ),
+          ],
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
 
-        _ActionCard(
-          key: const Key('delete-profile'),
-          name: 'Hapus Profile',
-          icon: Icon(Icons.delete, color: AppColors.primary, size: 20),
-          onPressed: () {},
+        // Apart from the groups: it ends the account rather than opening
+        // something. It does nothing yet — no delete endpoint is wired.
+        _SectionCard(
+          children: [
+            _ActionRow(
+              key: const Key('delete-profile'),
+              name: 'Hapus Profile',
+              destructive: true,
+              icon: Icon(Icons.delete, color: AppColors.error, size: 20),
+              onPressed: () {},
+            ),
+          ],
         ),
-
-        const SizedBox(height: 8),
-
-        _ActionCard(
-          key: const Key('whatsapp-service'),
-          name: 'Layanan Whatsapp',
-          icon: FaIcon(
-            FontAwesomeIcons.whatsapp,
-            color: AppColors.primary,
-            size: 20,
-          ),
-          onPressed: () => _openWhatsApp(context),
-        ),
-
-        const SizedBox(height: 8),
-
-        _ActionCard(
-          key: const Key('privacy-policy'),
-          name: 'Kebijakan Privasi',
-          icon: Icon(Icons.menu_book_sharp, color: AppColors.primary, size: 20),
-          // push, so back returns to Profile.
-          onPressed: () => context.push(RouteNames.privacyPolicy),
-        ),
-
-        // const SizedBox(height: 8),
-
-        // _ActionCard(
-        //   key: const Key('terms-of-service'),
-        //   name: 'Ketentuan Layanan',
-        //   icon: Icon(
-        //     Icons.info_outline_rounded,
-        //     color: AppColors.primary,
-        //     size: 20,
-        //   ),
-        //   onPressed: () {},
-        // ),
         const SizedBox(height: 20),
 
         Center(child: Text('Versi Aplikasi 2.0.0')),
@@ -356,56 +461,52 @@ class _ProfileBody extends StatelessWidget {
   }
 }
 
-/// Opens the customer service chat ([AppConstants.whatsappServiceUrl]) in the
-/// WhatsApp app, or in the browser when the app is not installed; says so if
-/// neither could.
-Future<void> _openWhatsApp(BuildContext context) async {
-  // Resolved before the await, so the context is not used across the gap.
-  final messenger = ScaffoldMessenger.of(context);
+/// A group's title, sitting on the page above its [_SectionCard].
+class _SectionHeader extends StatelessWidget {
+  final String title;
 
-  var opened = false;
-  try {
-    opened = await launchUrl(
-      Uri.parse(AppConstants.whatsappServiceUrl),
-      // Hands the link to WhatsApp (or the browser) rather than showing it in
-      // an in-app web view, which cannot open the WhatsApp app.
-      mode: LaunchMode.externalApplication,
-    );
-  } catch (_) {
-    // No handler for the address: reported below, same as a `false` result.
-  }
+  const _SectionHeader(this.title);
 
-  if (!opened) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('WhatsApp tidak dapat dibuka')),
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Dark red, not the brand orange: orange text is only 3.8:1 on the light
+    // page and fails for small text, the dark red is 6.7:1. On the dark theme's
+    // black page the dark red would fail instead (2.9:1), so it uses the light
+    // orange there.
+    final color = theme.brightness == Brightness.dark
+        ? AppColors.primaryLight
+        : AppColors.primaryDark;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+      // Read as a heading by screen readers, so they can jump between groups.
+      child: Semantics(
+        header: true,
+        child: Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ),
     );
   }
 }
 
-/// One compact stat shortcut: icon beside a value over a label, with a
-/// chevron — the whole tile is the tap target.
-///
-/// [value] is built without any text style; it picks up the bold value style
-/// set here, so callers don't need the theme (which, inside the
-/// [LightSurfaceScope], isn't the one their own `context` sees).
-class _StatTile extends StatelessWidget {
-  final IconData icon;
-  final Widget value;
-  final String label;
-  final VoidCallback onTap;
+/// One rounded card holding a group's rows ([_ActionRow]), split by hairlines.
+/// White (light grey in dark mode, via [LightSurfaceScope]), like the cards on
+/// the other tabs.
+class _SectionCard extends StatelessWidget {
+  final List<Widget> children;
 
-  const _StatTile({
-    super.key,
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.onTap,
-  });
+  const _SectionCard({required this.children});
 
   @override
   Widget build(BuildContext context) {
-    // White (light grey in dark) surface, so in dark mode the text needs the
-    // light theme's dark colours too.
+    // On a white (light grey in dark) surface, so in dark mode the text inside
+    // needs the light theme's dark colours too.
     return LightSurfaceScope(
       child: Builder(
         builder: (context) {
@@ -413,54 +514,28 @@ class _StatTile extends StatelessWidget {
 
           return Material(
             color: theme.colorScheme.surface,
+            // Keeps each row's ripple inside the rounded corners.
+            clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.grey200),
+              // A warm hairline rather than grey, to sit with the peach tiles.
+              side: const BorderSide(color: AppColors.peachHairline),
             ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Row(
-                  spacing: 10,
-                  children: [
-                    Icon(icon, color: AppColors.primary, size: 22),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // minHeight, not height: keeps the tile from
-                          // jumping when the spinner becomes the number,
-                          // without clipping at a larger font size.
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 22),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: DefaultTextStyle.merge(
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                child: value,
-                              ),
-                            ),
-                          ),
-                          Text(label, style: theme.textTheme.bodySmall),
-                        ],
-                      ),
+            child: Column(
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  // Starts under the label, not under the icon tile: 12 px of
+                  // padding, the 36 px tile, 12 px of gap.
+                  if (i > 0)
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      indent: 60,
+                      color: AppColors.peachHairline,
                     ),
-                    const Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: AppColors.grey400,
-                    ),
-                  ],
-                ),
-              ),
+                  children[i],
+                ],
+              ],
             ),
           );
         },
@@ -469,73 +544,92 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-/// A full-width, reusable shortcut row in the same style as [_StatTile]: an
-/// [icon], the [name], an optional [trailing] widget (e.g. a count badge) and a
-/// chevron — the whole row is the tap target.
-class _ActionCard extends StatelessWidget {
+/// A full-width shortcut row inside a [_SectionCard]: an [icon], the [name], an
+/// optional [value] (a count or a balance) and [trailing] widget (e.g. an
+/// unread badge), and a chevron — the whole row is the tap target.
+///
+/// It draws no card of its own, so it must sit in a [_SectionCard], which is
+/// also what lets it read the light theme in dark mode.
+class _ActionRow extends StatelessWidget {
   final String name;
   final Icon icon;
   final VoidCallback onPressed;
 
+  /// Plain text shown before the chevron, e.g. "4" or "80 pts".
+  final String? value;
+
   /// Shown between the name and the chevron; nothing by default.
   final Widget? trailing;
 
-  const _ActionCard({
+  /// Marks an action that ends something (Hapus Profile): red label, and no
+  /// chevron since it does not lead on to another page.
+  final bool destructive;
+
+  const _ActionRow({
     super.key,
     required this.name,
     required this.icon,
     required this.onPressed,
+    this.value,
     this.trailing,
+    this.destructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Same surface as the stat tiles above, so in dark mode the text needs the
-    // light theme's dark colours too.
-    return LightSurfaceScope(
-      child: Builder(
-        builder: (context) {
-          final theme = Theme.of(context);
+    final theme = Theme.of(context);
 
-          return Material(
-            color: theme.colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.grey200),
+    return InkWell(
+      onTap: onPressed,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          spacing: 12,
+          children: [
+            // The icon on a soft 36 px tile (red-tinted for a destructive row).
+            // Inside it, one fixed 20 px slot for every icon: the Font Awesome
+            // logos are narrower than Material's icons, and without it the
+            // labels of rows with different kinds of icon start at different x.
+            Container(
+              key: const Key('row-icon-tile'),
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: destructive
+                    ? AppColors.errorBackground
+                    : AppColors.peachMist,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: SizedBox.square(dimension: 20, child: Center(child: icon)),
             ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onPressed,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                child: Row(
-                  spacing: 12,
-                  children: [
-                    icon,
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    ?trailing,
-                    const Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: AppColors.grey400,
-                    ),
-                  ],
+            Expanded(
+              child: Text(
+                name,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: destructive ? AppColors.error : null,
                 ),
               ),
             ),
-          );
-        },
+            ?trailing,
+            if (value != null)
+              Text(
+                value!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.grey700,
+                ),
+              ),
+            if (!destructive)
+              const Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: AppColors.grey400,
+              ),
+          ],
+        ),
       ),
     );
   }
