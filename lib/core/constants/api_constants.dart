@@ -68,32 +68,35 @@ class ApiConstants {
   /// against an unregistered phone is the only way to find out.
   static const String login = '/apiSAMP/Master/LoginMembership';
 
-  /// POST — creates, updates, or deletes a member, discriminated by [ModifyMode]
-  /// and by whether `Data.MemberID` is blank (blank = new account). Body:
+  /// POST — creates, updates, or deletes a member, picked by [ModifyMode].
+  /// Registering a new account sends:
   /// ```json
   /// {
   ///   "Mode": "1",
   ///   "TransID": "REGISTRATION",
   ///   "Data": {
-  ///     "MemberID": "",       // blank when registering a new account
   ///     "MemberName": "...",
   ///     "MemberPass": "...",
-  ///     "PhoneNo": "...",
-  ///     "EmailAddress": "...",
-  ///     "OldPass": ""         // required when changing an existing password
+  ///     "PhoneNo": "...",       // bare subscriber number, e.g. 81234567890
+  ///     "EmailAddress": "...",  // "" when there is none
+  ///     "IsGoogle": "0"         // "1" for an account made through Google
   ///   }
   /// }
   /// ```
+  /// It answers HTTP 200 whether or not it created the member, so the status
+  /// code proves nothing. The envelope's `Msg` is "Berhasil" or "Gagal", and on
+  /// success `Data[0].ResultMessage` is the new member's id (on a refusal, the
+  /// reason). `AuthRemoteDataSourceImpl.register` requires both before it logs
+  /// in. Edits to an existing member carry its `Data.MemberID` (and `OldPass`
+  /// when the password is changed).
+  ///
   /// The same call also carries other writes, picked by `TransID` (always
   /// `Mode: "1"`, answered with `{ResultMessage}`): `"REGISTERMOTOR"` adds a
   /// bike, `"RSV"` creates a booking, and `"REDEEMPOINT"` spends a member's
   /// points on a voucher, with `Data: {MemberID, PointID}`.
   ///
-  /// Manual registration (name/email/password only, no phone collected yet —
-  /// see `register_page.dart`) still targets the old placeholder [register]
-  /// endpoint below and has not been migrated to this one. The Google
-  /// complete-profile flow, which does collect a phone number, uses this
-  /// endpoint directly via `AuthRemoteDataSourceImpl.submitGoogleAccount`.
+  /// The Google complete-profile flow creates its member through this same call
+  /// (with `IsGoogle: "1"`), via `AuthRemoteDataSourceImpl.submitGoogleAccount`.
   static const String modify = '/apiSAMP/Modify';
 
   /// POST — the shared master-data lookup. One endpoint, many lists: the

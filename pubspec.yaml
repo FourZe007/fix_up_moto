@@ -79,7 +79,8 @@ dependencies:
   image_picker: ^1.2.3
 
   # ── UI ────────────────────────────────────────────────────────────────────
-  # sliding_up_panel: the advanced-filter panel on the Bookings tab.
+  # sliding_up_panel: the advanced-filter panel on the Bookings tab, and the
+  # confirmation panels (ConfirmPanelScope) that replace dialogs on Profile.
   sliding_up_panel: ^2.0.0+1
   # qr_flutter: draws the member QR on the Membership page, locally (no network).
   qr_flutter: ^4.1.0

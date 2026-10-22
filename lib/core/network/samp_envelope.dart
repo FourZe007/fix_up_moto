@@ -72,6 +72,20 @@ class SampEnvelope {
     return records.first;
   }
 
+  /// The envelope's own `Msg` — the server's verdict on the request ("Sukses",
+  /// "Berhasil", "Gagal", …) — trimmed, or `null` when the body has none or it
+  /// is blank.
+  ///
+  /// A write endpoint can answer HTTP 200 whether or not it did the job, so the
+  /// status code says nothing; callers that need to know compare this.
+  static String? message(Response<dynamic> response) {
+    final message = _pick(response.data, _messageKeys);
+
+    return message is String && message.trim().isNotEmpty
+        ? message.trim()
+        : null;
+  }
+
   /// Converts a [DioException] into the matching typed data-layer exception.
   ///
   /// Never returns — always throws, so callers need no `rethrow` afterwards:

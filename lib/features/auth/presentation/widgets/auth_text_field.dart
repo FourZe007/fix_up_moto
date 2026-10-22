@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 
 /// Reusable styled text field for login and registration forms.
 ///
 /// Wraps [TextFormField] with the app's [InputDecorationTheme] already applied,
 /// so every auth form input looks consistent without repeating decoration code.
+///
+/// **Every field keeps its label up on the border**, so its [hint] — and a
+/// [prefixText] such as `+62` — show as soon as the form opens: the field
+/// previews how to fill it in before it is tapped, and every field in the app
+/// behaves the same way. Flutter would otherwise hide the hint until focus.
 ///
 /// **Password fields get a show/hide toggle for free.** Whenever
 /// [obscureText] is true, a suffix eye icon appears that flips the text
@@ -17,11 +23,27 @@ class AuthTextField extends StatefulWidget {
   /// Label shown above the field and as floating hint text.
   final String label;
 
-  /// Placeholder shown inside the field when it is empty.
+  /// Placeholder shown inside the field while it is empty — before it is
+  /// tapped too, since the label stays up. Say something the label does not:
+  /// an example value (`81234567889`) or the rule it must meet. Never an
+  /// example password.
   final String? hint;
 
   /// Leading icon displayed at the start of the field (e.g. Icons.email).
   final IconData? prefixIcon;
+
+  /// Fixed text in front of what the member types, e.g. `'+62'`. It is part of
+  /// the decoration, not of the field's text, and stays visible while typing
+  /// (unlike the [hint]).
+  ///
+  /// Flutter shows a prefix, and the hint, only once the label has floated
+  /// above the field, which is why every field keeps its label up (see the
+  /// class comment).
+  final String? prefixText;
+
+  /// Filters or rewrites the text as it is typed or pasted, e.g.
+  /// `PhoneNumberInputFormatter` for a field with a `+62` [prefixText].
+  final List<TextInputFormatter>? inputFormatters;
 
   /// When true, the field renders as a password input: text hidden by
   /// default, with a suffix toggle button letting the user reveal it.
@@ -51,6 +73,8 @@ class AuthTextField extends StatefulWidget {
     required this.label,
     this.hint,
     this.prefixIcon,
+    this.prefixText,
+    this.inputFormatters,
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.validator,
@@ -74,15 +98,20 @@ class _AuthTextFieldState extends State<AuthTextField> {
     // The field is white-filled in light mode, so in dark mode it is a
     // light-grey box on the black page — LightSurfaceScope gives its text,
     // label and icons the dark-on-light colours that needs.
-    return LightSurfaceScope(child: _buildField());
+    //
+    // The Builder is what lets _buildField read the theme the scope sets up.
+    return LightSurfaceScope(child: Builder(builder: _buildField));
   }
 
-  Widget _buildField() {
+  Widget _buildField(BuildContext context) {
+    final prefixText = widget.prefixText;
+
     return TextFormField(
       controller: widget.controller,
       obscureText: _obscured,
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction,
+      inputFormatters: widget.inputFormatters,
       validator: widget.validator,
       onChanged: widget.onChanged,
       enabled: widget.enabled,
@@ -92,6 +121,23 @@ class _AuthTextFieldState extends State<AuthTextField> {
         labelText: widget.label,
         hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
+        // A bold copy of the input's own style, so it reads as part of the
+        // value; left alone it would take the grey of the hint.
+        prefix: prefixText == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  prefixText,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+        // Always up, so the hint and the prefix are visible at rest and every
+        // field looks and behaves alike; the label never leaves the border, so
+        // a field keeps its name once something is typed.
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         // Only password fields get the toggle — a plain text field has
         // nothing to reveal, so its decoration is unaffected either way.
         suffixIcon: widget.obscureText

@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:fix_up_moto/core/helpers/phone_input_formatter.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -60,7 +61,12 @@ class _LoginPageState extends State<LoginPage> {
       body: BlocConsumer<AuthBloc, AuthState>(
         // listener: handles one-time side effects (navigation, SnackBars)
         listener: (context, state) {
-          if (state is AuthError) {
+          // Only while this page is the one on screen. Register and the Google
+          // profile page are pushed on top of Login, which stays mounted
+          // underneath still listening to the same AuthBloc — so without this
+          // an error they cause would be reported twice, once by each page.
+          if (state is AuthError &&
+              (ModalRoute.of(context)?.isCurrent ?? true)) {
             // Show error without navigating away — user stays on the form
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -145,14 +151,21 @@ class _LoginPageState extends State<LoginPage> {
 
                             // ── Phone number field ──────────────────────────
                             // The phone number is the login credential, not an
-                            // email. Typing the leading 0 is fine — it is
-                            // stripped before the request is sent.
+                            // email. The fixed +62 and the example number show
+                            // how to fill it in before it is tapped, and the
+                            // formatter drops a typed leading 0 / 62 / +62 as
+                            // the member types, so the field holds what the
+                            // backend wants (812…). The data layer still
+                            // normalises as a safety net.
                             AuthTextField(
                               controller: _phoneController,
                               label: 'Phone number',
-                              hint: '081234567890',
-                              prefixIcon: Icons.phone_outlined,
+                              hint: '81234567889',
+                              prefixText: '+62',
                               keyboardType: TextInputType.phone,
+                              inputFormatters: const [
+                                PhoneNumberInputFormatter(),
+                              ],
                               validator: Validators.phone,
                             ),
                             const SizedBox(height: 16),
@@ -161,6 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                             AuthTextField(
                               controller: _passwordController,
                               label: 'Password',
+                              hint: 'Masukkan password',
                               prefixIcon: Icons.lock_outlined,
                               obscureText: true,
                               textInputAction: TextInputAction.done,

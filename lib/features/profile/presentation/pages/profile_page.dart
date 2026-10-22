@@ -9,6 +9,7 @@ import 'package:fix_up_moto/core/helpers/external_link.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
+import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
@@ -57,7 +58,9 @@ class ProfilePage extends StatelessWidget {
         kind: DataKind.stats,
         onRefresh: (context) =>
             context.read<HomeBloc>().add(const HomeStatsRequested()),
-        child: _scaffold(context, onSurface),
+        // Hosts the confirmation panels (sign out, delete profile): they slide
+        // up in the root Overlay, above this Scaffold and the bottom bar.
+        child: ConfirmPanelScope(child: _scaffold(context, onSurface)),
       ),
     );
   }
@@ -75,22 +78,23 @@ class ProfilePage extends StatelessWidget {
           backgroundColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              style: IconButton.styleFrom(foregroundColor: onSurface),
-              tooltip: 'Settings',
-              // push, not go: go would replace the whole back stack, leaving
-              // Settings with no way back to Profile.
-              onPressed: () => context.push(RouteNames.settings),
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              style: IconButton.styleFrom(foregroundColor: onSurface),
-              tooltip: 'Sign out',
-              onPressed: () => _confirmLogout(context),
-            ),
-          ],
+          toolbarHeight: 20,
+          // actions: [
+          //   IconButton(
+          //     icon: const Icon(Icons.settings_outlined),
+          //     style: IconButton.styleFrom(foregroundColor: onSurface),
+          //     tooltip: 'Settings',
+          //     // push, not go: go would replace the whole back stack, leaving
+          //     // Settings with no way back to Profile.
+          //     onPressed: () => context.push(RouteNames.settings),
+          //   ),
+          //   IconButton(
+          //     icon: const Icon(Icons.logout),
+          //     style: IconButton.styleFrom(foregroundColor: onSurface),
+          //     tooltip: 'Sign out',
+          //     onPressed: () => _confirmLogout(context),
+          //   ),
+          // ],
         ),
         body: BlocBuilder<HomeBloc, HomeState>(
           builder: (context, state) => switch (state) {
@@ -117,37 +121,24 @@ class ProfilePage extends StatelessWidget {
       ),
     );
   }
+}
 
-  void _confirmLogout(BuildContext context) {
-    // Resolve the bloc BEFORE opening the dialog. Reaching for it afterwards
-    // would mean touching a BuildContext across the dialog's dismissal.
-    final authBloc = context.read<AuthBloc>();
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-
-              // No navigation here on purpose. AuthBloc emits
-              // AuthUnauthenticated, GoRouterRefreshStream notifies the router,
-              // and the redirect guard sends the user to /login.
-              authBloc.add(const AuthLogoutRequested());
-            },
-            child: const Text('Sign Out'),
-          ),
-        ],
-      ),
-    );
-  }
+/// Asks before deleting the profile, in the same panel as sign out.
+///
+/// Confirming does nothing yet: no delete endpoint is wired (`ModifyMode.delete`
+/// exists but nothing calls it), so the panel is ready for when one is.
+Future<void> _confirmDeleteProfile(BuildContext context) async {
+  final confirmed = await ConfirmPanelScope.of(context).confirm(
+    icon: Icons.delete,
+    title: 'Hapus Profile',
+    message:
+        'Yakin ingin menghapus profile ini? Tindakan ini tidak dapat '
+        'dibatalkan.',
+    confirmLabel: 'Hapus',
+    destructive: true,
+  );
+  if (!confirmed) return;
+  // The delete call goes here once it exists.
 }
 
 /// The backend sends `-` (or nothing) for a field the member never filled in.
@@ -424,7 +415,8 @@ class _ProfileBody extends StatelessWidget {
         const SizedBox(height: 20),
 
         // Apart from the groups: it ends the account rather than opening
-        // something. It does nothing yet — no delete endpoint is wired.
+        // something. It asks first, but confirming does nothing yet — no delete
+        // endpoint is wired.
         _SectionCard(
           children: [
             _ActionRow(
@@ -432,10 +424,17 @@ class _ProfileBody extends StatelessWidget {
               name: 'Hapus Profile',
               destructive: true,
               icon: Icon(Icons.delete, color: AppColors.error, size: 20),
-              onPressed: () {},
+              onPressed: () => _confirmDeleteProfile(context),
             ),
           ],
         ),
+
+        const SizedBox(height: 12),
+
+        // The way out of the session. Below Hapus Profile, but a different kind
+        // of action: brand-coloured and outlined rather than red.
+        const _SignOutButton(),
+
         const SizedBox(height: 20),
 
         Center(child: Text('Versi Aplikasi 2.0.0')),
@@ -629,6 +628,64 @@ class _ActionRow extends StatelessWidget {
                 color: AppColors.grey400,
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The full-width Keluar button at the foot of the page. Asks for confirmation
+/// in the page's [ConfirmPanelScope], then signs the member out through
+/// [AuthBloc].
+///
+/// Outlined in the same dark red (light orange in dark mode) as the group
+/// headings, with the section cards' 12 px corners, so it sits with the rest of
+/// the page but stays apart from the red Hapus Profile row above it.
+class _SignOutButton extends StatelessWidget {
+  const _SignOutButton();
+
+  Future<void> _signOut(BuildContext context) async {
+    // Resolve both BEFORE the await. Reaching for either afterwards would mean
+    // touching a BuildContext across the panel's dismissal.
+    final authBloc = context.read<AuthBloc>();
+    final panel = ConfirmPanelScope.of(context);
+
+    final confirmed = await panel.confirm(
+      icon: Icons.logout,
+      title: 'Keluar',
+      message: 'Yakin ingin keluar dari akun ini?',
+      confirmLabel: 'Keluar',
+    );
+    if (!confirmed) return;
+
+    // No navigation here on purpose. AuthBloc emits AuthUnauthenticated,
+    // GoRouterRefreshStream notifies the router, and the redirect guard sends
+    // the user to /login. The panel has finished closing by now.
+    authBloc.add(const AuthLogoutRequested());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Same pairing as _SectionHeader: the dark red passes on the light page, the
+    // light orange on the dark theme's black one.
+    final color = theme.brightness == Brightness.dark
+        ? AppColors.primaryLight
+        : AppColors.primaryDark;
+
+    return OutlinedButton.icon(
+      key: const Key('sign-out'),
+      onPressed: () => _signOut(context),
+      icon: const Icon(Icons.logout, size: 20),
+      label: const Text('Keluar'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        minimumSize: const Size.fromHeight(52),
+        side: BorderSide(color: color),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: theme.textTheme.titleMedium?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/auth/presentation/pages/complete_google_profile_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_logo.dart';
@@ -97,6 +100,16 @@ Future<void> tapText(WidgetTester tester, String text) async {
   await tester.pumpAndSettle();
 }
 
+/// How visible a hint is. Flutter keeps a hint in the tree while hiding it (an
+/// opacity of 0), so finding its text does not say whether it can be seen.
+double hintOpacity(WidgetTester tester, String hint) => tester
+    .widget<AnimatedOpacity>(
+      find
+          .ancestor(of: find.text(hint), matching: find.byType(AnimatedOpacity))
+          .first,
+    )
+    .opacity;
+
 void main() {
   /// The logo now lives on the welcome screen only.
   final logo = find.byType(AuthLogo);
@@ -145,6 +158,46 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('shows +62 and an example number before the phone field is '
+        'tapped, in place of the phone icon', (tester) async {
+      await pumpPage(tester, const LoginPage());
+
+      expect(find.text('+62'), findsOneWidget);
+      expect(find.text('81234567889'), findsOneWidget);
+      expect(find.byIcon(Icons.phone_outlined), findsNothing);
+      // The label stays, so the field keeps its name once something is typed.
+      expect(find.text('Phone number'), findsOneWidget);
+    });
+
+    testWidgets('drops a typed leading 0 and signs in with the bare number', (
+      tester,
+    ) async {
+      final bloc = unauthenticatedBloc();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<AuthBloc>.value(
+            value: bloc,
+            child: const LoginPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.first, '0812-3456-7890');
+      await tester.enterText(fields.last, 'Password1');
+      // What the field holds is what will be sent, with the +62 in front of it.
+      expect(find.text('81234567890'), findsOneWidget);
+
+      await tapText(tester, 'Sign In');
+
+      verify(
+        () => bloc.add(
+          const AuthLoginRequested(phone: '81234567890', password: 'Password1'),
+        ),
+      ).called(1);
+    });
+
     testWidgets('still has no logo while a login is in flight', (tester) async {
       await pumpPage(
         tester,
@@ -190,6 +243,217 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('shows +62 and an example number in place of the phone icon, '
+        'like Login', (tester) async {
+      await pumpPage(tester, const RegisterPage());
+
+      expect(find.text('+62'), findsOneWidget);
+      expect(hintOpacity(tester, '81234567889'), 1);
+      expect(find.byIcon(Icons.phone_outlined), findsNothing);
+      expect(find.text('Phone number'), findsOneWidget);
+    });
+
+    testWidgets('gives every field a hint, visible before it is tapped', (
+      tester,
+    ) async {
+      await pumpPage(tester, const RegisterPage());
+
+      for (final hint in [
+        'Budi Santoso',
+        '81234567889',
+        'you@example.com',
+        'Min. 8 karakter',
+        'Ulangi password',
+      ]) {
+        expect(hintOpacity(tester, hint), 1, reason: hint);
+      }
+    });
+
+    testWidgets('drops a typed leading 0 in the phone field, as Login does', (
+      tester,
+    ) async {
+      await pumpPage(tester, const RegisterPage());
+
+      await tester.enterText(
+        find.byType(TextFormField).at(1),
+        '0812-3456-7890',
+      );
+
+      expect(find.text('81234567890'), findsOneWidget);
+    });
+
+    group('the error snackbar', () {
+      /// The page, then an [AuthError] arriving from the bloc.
+      Future<void> pumpWithError(WidgetTester tester, String message) async {
+        final bloc = MockAuthBloc();
+        whenListen(
+          bloc,
+          Stream<AuthState>.fromIterable([AuthError(message)]),
+          initialState: const AuthUnauthenticated(),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BlocProvider<AuthBloc>.value(
+              value: bloc,
+              child: const RegisterPage(),
+            ),
+          ),
+        );
+        await tester.pump(); // the error arrives
+        await tester.pump(const Duration(milliseconds: 300)); // snackbar in
+      }
+
+      testWidgets('tidies a reason the backend shouted in capitals', (
+        tester,
+      ) async {
+        await pumpWithError(tester, 'NO HP SUDAH TERDAFTAR');
+
+        expect(find.text('No Hp Sudah Terdaftar'), findsOneWidget);
+        expect(find.text('NO HP SUDAH TERDAFTAR'), findsNothing);
+      });
+
+      testWidgets('leaves wording that is not shouted exactly as it is', (
+        tester,
+      ) async {
+        await pumpWithError(tester, 'No internet connection');
+
+        expect(find.text('No internet connection'), findsOneWidget);
+      });
+
+      testWidgets('has a close button at the centre right', (tester) async {
+        await pumpWithError(tester, 'NO HP SUDAH TERDAFTAR');
+
+        final snackBar = find.byType(SnackBar);
+        final close = find.descendant(
+          of: snackBar,
+          matching: find.byIcon(Icons.close),
+        );
+
+        expect(close, findsOneWidget);
+        // At the right end...
+        expect(
+          tester.getCenter(close).dx,
+          greaterThan(tester.getCenter(snackBar).dx),
+        );
+        expect(
+          tester.getTopRight(snackBar).dx - tester.getCenter(close).dx,
+          lessThan(48),
+        );
+        // ...and halfway down.
+        expect(
+          (tester.getCenter(close).dy - tester.getCenter(snackBar).dy).abs(),
+          lessThan(2),
+        );
+      });
+
+      testWidgets('the close button dismisses it at once', (tester) async {
+        await pumpWithError(tester, 'NO HP SUDAH TERDAFTAR');
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(SnackBar),
+            matching: find.byIcon(Icons.close),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SnackBar), findsNothing);
+      });
+
+      testWidgets('goes by itself after ten seconds, untouched', (
+        tester,
+      ) async {
+        await pumpWithError(tester, 'NO HP SUDAH TERDAFTAR');
+
+        // Set to time out after ten seconds, and not to stay put.
+        final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+        expect(snackBar.duration, const Duration(seconds: 10));
+        expect(snackBar.persist, isFalse);
+
+        // Still there well into its time...
+        await tester.pump(const Duration(seconds: 5));
+        expect(find.byType(SnackBar), findsOneWidget);
+
+        // ...and gone once it is up, with nobody having tapped anything.
+        await tester.pump(const Duration(seconds: 6));
+        await tester.pumpAndSettle();
+        expect(find.byType(SnackBar), findsNothing);
+      });
+    });
+
+    group('the confirm password check', () {
+      /// The page with its bloc, the keyboard already up (so nothing rebuilds
+      /// the page between typing the password and tapping the button), and the
+      /// form filled in with [confirmation] as the second password.
+      Future<MockAuthBloc> fillWithKeyboardUp(
+        WidgetTester tester, {
+        required String confirmation,
+      }) async {
+        final bloc = unauthenticatedBloc();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BlocProvider<AuthBloc>.value(
+              value: bloc,
+              child: const RegisterPage(),
+            ),
+          ),
+        );
+        tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpAndSettle();
+
+        final fields = find.byType(TextFormField);
+        await tester.enterText(fields.at(0), 'Budi Santoso');
+        await tester.enterText(fields.at(1), '0812-3456-7890');
+        await tester.enterText(fields.at(3), 'Password1');
+        await tester.enterText(fields.at(4), confirmation);
+        await tapText(tester, 'Buat Akun');
+        return bloc;
+      }
+
+      testWidgets('accepts an identical confirmation even while the keyboard '
+          'stays up, and signs up with the bare number', (tester) async {
+        final bloc = await fillWithKeyboardUp(
+          tester,
+          confirmation: 'Password1',
+        );
+
+        expect(find.text('Passwords do not match'), findsNothing);
+        verify(
+          () => bloc.add(
+            const AuthRegisterRequested(
+              name: 'Budi Santoso',
+              phone: '81234567890',
+              email: '',
+              password: 'Password1',
+            ),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('still rejects a confirmation that differs, and does not '
+          'sign up', (tester) async {
+        final bloc = await fillWithKeyboardUp(
+          tester,
+          confirmation: 'Password2',
+        );
+
+        expect(find.text('Passwords do not match'), findsOneWidget);
+        // Same event the passing test expects, so this cannot pass by the
+        // event merely differing in some detail.
+        verifyNever(
+          () => bloc.add(
+            const AuthRegisterRequested(
+              name: 'Budi Santoso',
+              phone: '81234567890',
+              email: '',
+              password: 'Password1',
+            ),
+          ),
+        );
+      });
+    });
+
     testWidgets('does not overflow in dark mode on a short screen', (
       tester,
     ) async {
@@ -200,6 +464,117 @@ void main() {
       await pumpPage(tester, const RegisterPage(), theme: ThemeData.dark());
 
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('one failure, one snackbar', () {
+    /// Opens [pages] in order, each pushed over the last (the way the app
+    /// stacks them), makes the bloc emit a single [AuthError], and returns the
+    /// text of every snackbar that comes up. Each is dismissed in turn so that
+    /// whatever is queued behind it slides in and is counted too.
+    Future<List<String>> snackBarsAfterError(
+      WidgetTester tester,
+      List<String> pages,
+    ) async {
+      final controller = StreamController<AuthState>.broadcast();
+      addTearDown(controller.close);
+      final bloc = MockAuthBloc();
+      whenListen(
+        bloc,
+        controller.stream,
+        initialState: const AuthUnauthenticated(),
+      );
+
+      final router = GoRouter(
+        initialLocation: pages.first,
+        routes: [
+          GoRoute(path: RouteNames.login, builder: (_, _) => const LoginPage()),
+          GoRoute(
+            path: RouteNames.register,
+            builder: (_, _) => const RegisterPage(),
+          ),
+          GoRoute(
+            path: RouteNames.completeGoogleProfile,
+            builder: (_, state) => CompleteGoogleProfilePage(
+              identity: state.extra as GoogleAccountIdentity,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        BlocProvider<AuthBloc>.value(
+          value: bloc,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final page in pages.skip(1)) {
+        unawaited(
+          router.push(
+            page,
+            extra: GoogleAccountIdentity(
+              displayName: 'Budi',
+              email: 'budi@example.com',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      controller.add(const AuthError('NO HP SUDAH TERDAFTAR'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final messenger = ScaffoldMessenger.of(
+        tester.element(find.byType(Scaffold).first),
+      );
+      final seen = <String>[];
+      while (find.byType(SnackBar).evaluate().isNotEmpty && seen.length < 6) {
+        seen.add(
+          tester
+              .widget<Text>(
+                find
+                    .descendant(
+                      of: find.byType(SnackBar),
+                      matching: find.byType(Text),
+                    )
+                    .first,
+              )
+              .data!,
+        );
+        messenger.hideCurrentSnackBar();
+        await tester.pumpAndSettle();
+      }
+      return seen;
+    }
+
+    testWidgets('Login on its own reports an error once', (tester) async {
+      final seen = await snackBarsAfterError(tester, [RouteNames.login]);
+
+      expect(seen, ['NO HP SUDAH TERDAFTAR']);
+    });
+
+    testWidgets('Register opened from Login reports it once, not once more '
+        'from the Login underneath', (tester) async {
+      final seen = await snackBarsAfterError(tester, [
+        RouteNames.login,
+        RouteNames.register,
+      ]);
+
+      // Register's own, tidied — not Login's raw one as well.
+      expect(seen, ['No Hp Sudah Terdaftar']);
+    });
+
+    testWidgets('the Google profile page opened from Login reports it once '
+        'too', (tester) async {
+      final seen = await snackBarsAfterError(tester, [
+        RouteNames.login,
+        RouteNames.completeGoogleProfile,
+      ]);
+
+      expect(seen, ['NO HP SUDAH TERDAFTAR']);
     });
   });
 

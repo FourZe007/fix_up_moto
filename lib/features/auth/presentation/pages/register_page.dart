@@ -7,6 +7,8 @@ import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_app_bar.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:fix_up_moto/core/helpers/phone_input_formatter.dart';
+import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
 
 /// Registration screen — creates a new user account.
@@ -58,7 +60,7 @@ class _RegisterPageState extends State<RegisterPage> {
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
           // Left blank on the form means "no email", not "empty string".
-          email: email.isEmpty ? null : email,
+          email: email.isEmpty ? '' : email,
           password: _passwordController.text,
         ),
       );
@@ -77,8 +79,19 @@ class _RegisterPageState extends State<RegisterPage> {
           if (state is AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.message),
+                // The backend shouts its wording in capitals ("NO HP SUDAH
+                // TERDAFTAR"); tidied here, at display time. Text that is not
+                // shouted passes through unchanged.
+                content: Text(TextFormatter.fromUppercase(state.message)),
                 backgroundColor: Theme.of(context).colorScheme.error,
+                // A close button at the right end, vertically centred, so the
+                // member can dismiss it whenever they have read it...
+                showCloseIcon: true,
+                // ...and a timer, so it also goes away on its own. persist is
+                // spelled out: a SnackBar that gains an action stays up until
+                // tapped, and this one must always time out.
+                duration: const Duration(seconds: 10),
+                persist: false,
               ),
             );
           }
@@ -125,6 +138,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             AuthTextField(
                               controller: _nameController,
                               label: 'Full Name',
+                              hint: 'Budi Santoso',
                               prefixIcon: Icons.person_outlined,
                               validator: Validators.required('Full name'),
                             ),
@@ -134,13 +148,19 @@ class _RegisterPageState extends State<RegisterPage> {
                             // The identity field everywhere else in this app
                             // uses — Home's dashboard and the login form both
                             // key off it, so a manually-created account needs
-                            // one too, not just Google-linked accounts.
+                            // one too, not just Google-linked accounts. The same
+                            // +62 field as the login form (see LoginPage): the
+                            // number is created here and signed in with there,
+                            // so it must be typed the same way in both.
                             AuthTextField(
                               controller: _phoneController,
                               label: 'Phone number',
-                              hint: '081234567890',
-                              prefixIcon: Icons.phone_outlined,
+                              hint: '81234567889',
+                              prefixText: '+62',
                               keyboardType: TextInputType.phone,
+                              inputFormatters: const [
+                                PhoneNumberInputFormatter(),
+                              ],
                               validator: Validators.phone,
                             ),
                             const SizedBox(height: 16),
@@ -160,9 +180,13 @@ class _RegisterPageState extends State<RegisterPage> {
                             const SizedBox(height: 16),
 
                             // ── Password (required) ──────────────────────
+                            // The hint states the rules Validators.password
+                            // enforces, so they are seen before they are
+                            // broken. Keep the two in step.
                             AuthTextField(
                               controller: _passwordController,
                               label: 'Password',
+                              hint: 'Min. 8 karakter',
                               prefixIcon: Icons.lock_outlined,
                               obscureText: true,
                               validator: Validators.password,
@@ -173,12 +197,19 @@ class _RegisterPageState extends State<RegisterPage> {
                             AuthTextField(
                               controller: _confirmPasswordController,
                               label: 'Confirm Password',
+                              hint: 'Ulangi password',
                               prefixIcon: Icons.lock_outlined,
                               obscureText: true,
                               textInputAction: TextInputAction.done,
-                              validator: Validators.confirmPassword(
+                              // The password is read when the form validates,
+                              // not when this page builds. Typing does not
+                              // rebuild the page, so a value taken here would
+                              // be whatever the password field held at the
+                              // last build (usually empty) and an identical
+                              // confirmation would be rejected.
+                              validator: (value) => Validators.confirmPassword(
                                 _passwordController.text,
-                              ),
+                              )(value),
                             ),
                             const SizedBox(height: 32),
 
@@ -194,7 +225,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                         color: Colors.white,
                                       ),
                                     )
-                                  : const Text('Create Account'),
+                                  : const Text('Buat Akun'),
                             ),
 
                             // ── Back to login ────────────────────────────

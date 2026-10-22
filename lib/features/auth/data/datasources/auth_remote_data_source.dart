@@ -8,6 +8,7 @@ import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/helpers/google_password.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
+import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/auth/data/models/login_user_model.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
@@ -160,33 +161,77 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String password,
   }) async {
     try {
-      await _dio.post(
+      final response = await _dio.post(
         ApiConstants.modify,
         data: {
           'Mode': ModifyMode.create.wireValue,
           'TransID': 'REGISTRATION',
           'Data': {
-            'MemberID': '', // blank = new account, per the confirmed contract
             'MemberName': name,
             'MemberPass': password,
             'PhoneNo': PhoneNumber.toSubscriberNumber(phone),
             'EmailAddress': email ?? '',
-            'OldPass': '',
+            'IsGoogle': '0',
           },
         },
       );
+
+      // Modify answers HTTP 200 even when it refused, so nothing has been
+      // created until this says so. It throws otherwise, and the login below
+      // is never attempted.
+      _requireMemberCreated(response);
     } on DioException catch (e) {
       SampEnvelope.error(e);
     }
 
-    // Same reasoning as submitGoogleAccount's Phase 3: Modify's own success
-    // response shape has not been confirmed, while login's has — so fetch
-    // the canonical member record through the trusted path instead of
-    // parsing Modify's result directly. This is the manual registration
-    // form, never Google, so isGoogleLogin stays at its default — passing
-    // '1' here (as a previous edit did) would skip phone normalisation on a
-    // real phone number.
+    // The member record itself still comes from the login path, whose response
+    // shape is confirmed (the Modify answer only carries the new id), and it
+    // is what yields the session. This is the manual registration form, never
+    // Google, so isGoogleLogin stays at its default — passing '1' here (as a
+    // previous edit did) would skip phone normalisation on a real phone number.
     return login(phone, password);
+  }
+
+  /// Throws unless `Modify` says the new member was created.
+  ///
+  /// The verdict is the envelope's `Msg`, "Berhasil" or "Gagal", and a success
+  /// also carries the new member's id in `Data[0].ResultMessage`. Success needs
+  /// both. Anything else — "Gagal", some other `Msg`, a missing or blank id —
+  /// is a failed sign-up, reported with the server's own reason when it gave
+  /// one in `ResultMessage`.
+  void _requireMemberCreated(Response<dynamic> response) {
+    final verdict = SampEnvelope.message(response)?.toLowerCase();
+    final result = _resultMessageOf(response);
+    final reason = result?.resultMessage.trim() ?? '';
+
+    if (verdict == 'berhasil' && reason.isNotEmpty) {
+      log('Register: member created, id $reason');
+    } else {
+      log(
+        'Register refused: Msg=$verdict, ResultMessage=${result?.resultMessage}',
+      );
+      throw ServerException(
+        message: reason.isNotEmpty ? reason : 'Gagal membuat akun',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  /// `Data[0]` of a write endpoint's answer, or `null` when there is no such
+  /// record or its `ResultMessage` is not text — either way nothing usable, and
+  /// a malformed answer must read as a refusal rather than crash the cast in
+  /// [ResultMessageModel.fromJson].
+  ResultMessageModel? _resultMessageOf(Response<dynamic> response) {
+    try {
+      final record = SampEnvelope.first(response);
+
+      return record['ResultMessage'] is String
+          ? ResultMessageModel.fromJson(record)
+          : null;
+    } on ServerException {
+      // No Data array at all, or an empty one.
+      return null;
+    }
   }
 
   @override
@@ -303,6 +348,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
             // "username" field) — not the real phone collected above.
             'PhoneNo': email,
             'EmailAddress': email,
+            'IsGoogle': '1',
           },
         },
       );

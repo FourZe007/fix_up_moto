@@ -157,11 +157,11 @@ void main() {
   });
   tearDown(() => sl.reset());
 
-  final settingsButton = find.widgetWithIcon(
-    IconButton,
-    Icons.settings_outlined,
-  );
-  final logoutButton = find.widgetWithIcon(IconButton, Icons.logout);
+  final signOutButton = find.byKey(const Key('sign-out'));
+  // The confirmation panel (Keluar, Hapus Profile) and its two buttons.
+  final confirmPanel = find.byKey(const Key('confirm-panel'));
+  final confirmButton = find.byKey(const Key('confirm-panel-confirm'));
+  final cancelButton = find.byKey(const Key('confirm-panel-cancel'));
   // The rows, by the keys they are given in the page.
   final notificationRow = find.byKey(const Key('notification-card'));
   final editRow = find.byKey(const Key('edit-profile'));
@@ -417,11 +417,16 @@ void main() {
     });
   });
 
-  testWidgets('shows the Settings and Sign out buttons', (tester) async {
+  testWidgets('has no actions in the app bar', (tester) async {
     await pumpProfile(tester);
 
-    expect(settingsButton, findsOneWidget);
-    expect(logoutButton, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byType(IconButton),
+      ),
+      findsNothing,
+    );
   });
 
   group('member details come from the dashboard stats', () {
@@ -501,17 +506,6 @@ void main() {
       // Once on open, once for the retry.
       verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
     });
-
-    testWidgets('sign out still goes through AuthBloc', (tester) async {
-      final mocks = await pumpProfile(tester);
-
-      await tester.tap(logoutButton);
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Sign Out'));
-      await tester.pumpAndSettle();
-
-      verify(() => mocks.auth.add(const AuthLogoutRequested())).called(1);
-    });
   });
 
   group('reloads when the stats go out of date elsewhere', () {
@@ -548,6 +542,128 @@ void main() {
   /// The rounded card a row sits in: the nearest Material around it.
   Material cardOf(WidgetTester tester, Finder row) =>
       tester.element(row).findAncestorWidgetOfExactType<Material>()!;
+
+  group('the Keluar button', () {
+    testWidgets('sits below Hapus Profile, with a logout icon', (tester) async {
+      useTallScreen(tester);
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(signOutButton, findsOneWidget);
+      expect(
+        find.descendant(of: signOutButton, matching: find.text('Keluar')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: signOutButton, matching: find.byIcon(Icons.logout)),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(signOutButton).dy,
+        greaterThan(tester.getBottomLeft(deleteRow).dy),
+      );
+    });
+
+    testWidgets('is as wide as the cards above it', (tester) async {
+      useTallScreen(tester);
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(signOutButton).width,
+        tester.getSize(find.byWidget(cardOf(tester, deleteRow))).width,
+      );
+    });
+
+    testWidgets('asks first, in a panel, not a dialog', (tester) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+
+      await tester.tap(signOutButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        find.descendant(of: confirmPanel, matching: find.text('Keluar')),
+        findsNWidgets(2), // the title, and the confirm button's label
+      );
+      expect(
+        find.descendant(
+          of: confirmPanel,
+          matching: find.text('Yakin ingin keluar dari akun ini?'),
+        ),
+        findsOneWidget,
+      );
+      // Nothing has been sent until the member confirms.
+      verifyNever(() => mocks.auth.add(const AuthLogoutRequested()));
+    });
+
+    testWidgets('sign out still goes through AuthBloc', (tester) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(signOutButton);
+      await tester.pumpAndSettle();
+      await tester.tap(confirmButton);
+      await tester.pumpAndSettle();
+
+      verify(() => mocks.auth.add(const AuthLogoutRequested())).called(1);
+      expect(confirmPanel, findsNothing);
+    });
+
+    testWidgets('Batal leaves the member signed in', (tester) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(signOutButton);
+      await tester.pumpAndSettle();
+      await tester.tap(cancelButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      verifyNever(() => mocks.auth.add(const AuthLogoutRequested()));
+    });
+
+    testWidgets('a tap outside the panel closes it without signing out', (
+      tester,
+    ) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(signOutButton);
+      await tester.pumpAndSettle();
+      // The top-left corner is the page behind, under the dimmed backdrop.
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      verifyNever(() => mocks.auth.add(const AuthLogoutRequested()));
+    });
+
+    testWidgets('system back closes the panel and stays on Profile', (
+      tester,
+    ) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(signOutButton);
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      expect(signOutButton, findsOneWidget);
+      verifyNever(() => mocks.auth.add(const AuthLogoutRequested()));
+    });
+  });
 
   group('the sections', () {
     testWidgets('are three titled groups: Akun, Garasi, FixUp Moto, top to '
@@ -1191,9 +1307,7 @@ void main() {
       );
     });
 
-    testWidgets('is still there to press, but does nothing yet', (
-      tester,
-    ) async {
+    testWidgets('asks first, in a red panel', (tester) async {
       useTallScreen(tester);
       await pumpProfile(tester);
       await tester.pumpAndSettle();
@@ -1201,9 +1315,53 @@ void main() {
       await tester.tap(deleteRow);
       await tester.pumpAndSettle();
 
-      // No delete endpoint is wired: no dialog, no navigation.
-      expect(deleteRow, findsOneWidget);
+      expect(confirmPanel, findsOneWidget);
       expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        find.descendant(of: confirmPanel, matching: find.text('Hapus Profile')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(confirmButton)
+            .style
+            ?.backgroundColor
+            ?.resolve({}),
+        AppColors.error,
+      );
+    });
+
+    testWidgets('Batal closes the panel, and nothing else happens', (
+      tester,
+    ) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(deleteRow);
+      await tester.pumpAndSettle();
+      await tester.tap(cancelButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      expect(deleteRow, findsOneWidget);
+      verifyNever(() => mocks.auth.add(const AuthLogoutRequested()));
+    });
+
+    testWidgets('Hapus closes the panel but does nothing yet', (tester) async {
+      useTallScreen(tester);
+      final mocks = await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(deleteRow);
+      await tester.pumpAndSettle();
+      await tester.tap(confirmButton);
+      await tester.pumpAndSettle();
+
+      // No delete endpoint is wired: no sign-out, no navigation.
+      expect(confirmPanel, findsNothing);
+      expect(deleteRow, findsOneWidget);
+      verifyNever(() => mocks.auth.add(const AuthLogoutRequested()));
     });
   });
 }
