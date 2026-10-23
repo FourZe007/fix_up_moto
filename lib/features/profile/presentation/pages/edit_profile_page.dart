@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/core/widgets/profile_avatar.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
@@ -33,13 +37,12 @@ class EditProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Both colours come from the active Theme rather than AppColors constants,
-    // so this bar follows light/dark automatically when ThemeCubit changes
-    // MaterialApp's themeMode — no cubit read needed here. The title and arrow
-    // are coloured explicitly because the app's AppBarTheme hard-codes a white
-    // title style.
-    final theme = Theme.of(context);
-    final onSurface = theme.colorScheme.onSurface;
+    // The colour comes from the active Theme rather than an AppColors
+    // constant, so this bar follows light/dark automatically when ThemeCubit
+    // changes MaterialApp's themeMode — no cubit read needed here. The title
+    // and arrow are coloured explicitly because the app's AppBarTheme
+    // hard-codes a white title style.
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     final authState = context.read<AuthBloc>().state;
     final isGoogle =
@@ -53,46 +56,96 @@ class EditProfilePage extends StatelessWidget {
         ),
         BlocProvider(create: (_) => sl<ProfileBloc>()),
       ],
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Edit Profile',
-            style: TextStyle(color: onSurface, fontSize: 20),
+      // The same warm wash as the Profile page. It is a fixed backdrop *around*
+      // the Scaffold, whose own background and AppBar are transparent: it shows
+      // behind the bar, and the form scrolls below the bar rather than under
+      // its icons.
+      child: WarmWash(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              'Edit Profile',
+              style: TextStyle(color: onSurface, fontSize: 20),
+            ),
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            backgroundColor: Colors.transparent,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              style: IconButton.styleFrom(foregroundColor: onSurface),
+              onPressed: () => context.pop(),
+            ),
           ),
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          // Same colour as the page behind it, so the bar blends into the body.
-          backgroundColor: theme.scaffoldBackgroundColor,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            style: IconButton.styleFrom(foregroundColor: onSurface),
-            onPressed: () => context.pop(),
+          body: BlocBuilder<HomeBloc, HomeState>(
+            builder: (context, state) => switch (state) {
+              HomeInitial() ||
+              HomeLoading() => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              HomeError(:final message) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 12,
+                  children: [
+                    Text(message),
+                    ElevatedButton(
+                      onPressed: () => context.read<HomeBloc>().add(
+                        const HomeStatsRequested(),
+                      ),
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+              HomeLoaded(:final stats) => _EditProfileForm(
+                stats: stats,
+                isGoogle: isGoogle,
+              ),
+            },
           ),
         ),
-        body: BlocBuilder<HomeBloc, HomeState>(
-          builder: (context, state) => switch (state) {
-            HomeInitial() ||
-            HomeLoading() => const Center(child: CircularProgressIndicator()),
-            HomeError(:final message) => Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 12,
-                children: [
-                  Text(message),
-                  ElevatedButton(
-                    onPressed: () => context.read<HomeBloc>().add(
-                      const HomeStatsRequested(),
-                    ),
-                    child: const Text('Coba lagi'),
+      ),
+    );
+  }
+}
+
+/// Says which field is the login ID and why it cannot be edited: a peach tile
+/// with a lock, in the warm style of the Profile page's cards.
+class _LockedNote extends StatelessWidget {
+  final String message;
+
+  const _LockedNote(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    // On a pale surface (light grey in dark mode), like the Profile cards, so
+    // in dark mode the text needs the light theme's dark colours too. The
+    // Builder lets the text read the theme the scope sets up.
+    return LightSurfaceScope(
+      child: Builder(
+        builder: (context) => Container(
+          key: const Key('locked-note'),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.peachMist,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.peachHairline),
+          ),
+          child: Row(
+            spacing: 12,
+            children: [
+              const Icon(Icons.lock_outline, color: AppColors.primary, size: 20),
+              Expanded(
+                child: Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.grey700,
                   ),
-                ],
+                ),
               ),
-            ),
-            HomeLoaded(:final stats) => _EditProfileForm(
-              stats: stats,
-              isGoogle: isGoogle,
-            ),
-          },
+            ],
+          ),
         ),
       ),
     );
@@ -221,6 +274,24 @@ class _EditProfileFormState extends State<_EditProfileForm> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 16,
                 children: [
+                  // Who is being edited, as on the Profile page. Fixed to the
+                  // name the page opened with, not what is being typed.
+                  Column(
+                    spacing: 12,
+                    children: [
+                      ProfileAvatar(
+                        key: const Key('edit-profile-avatar'),
+                        name: widget.stats.memberName,
+                      ),
+                      Text(
+                        widget.stats.memberName,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   AuthTextField(
                     controller: _nameController,
                     label: 'Nama Lengkap',
@@ -251,13 +322,12 @@ class _EditProfileFormState extends State<_EditProfileForm> {
                     enabled: !widget.isGoogle,
                     validator: widget.isGoogle ? null : _validateEmail,
                   ),
-                  Text(
+                  _LockedNote(
                     widget.isGoogle
                         ? 'Email adalah ID akun Google Anda dan tidak dapat '
                               'diubah.'
                         : 'Nomor telepon adalah ID akun Anda dan tidak dapat '
                               'diubah.',
-                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(

@@ -10,6 +10,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
+import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/profile_avatar.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
@@ -80,6 +84,7 @@ Future<Harness> pumpEditProfile(
   WidgetTester tester, {
   HomeState homeState = const HomeLoaded(tStats),
   UserEntity user = tManual,
+  ThemeData? theme,
 }) async {
   final homeBloc = MockHomeBloc();
   whenListen(
@@ -124,7 +129,7 @@ Future<Harness> pumpEditProfile(
         BlocProvider<AuthBloc>.value(value: authBloc),
         BlocProvider<DataRefreshCubit>.value(value: refreshCubit),
       ],
-      child: MaterialApp.router(routerConfig: router),
+      child: MaterialApp.router(theme: theme, routerConfig: router),
     ),
   );
   unawaited(router.push(RouteNames.editProfile));
@@ -504,6 +509,154 @@ void main() {
 
       expect(find.text('Masukkan nomor telepon yang valid'), findsOneWidget);
       verifyNever(() => harness.profile.add(any()));
+    });
+  });
+
+  group('the warm colouring', () {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance();
+      final lb = b.computeLuminance();
+      final hi = la > lb ? la : lb;
+      final lo = la > lb ? lb : la;
+      return (hi + 0.05) / (lo + 0.05);
+    }
+
+    final note = find.byKey(const Key('locked-note'));
+
+    testWidgets('puts the warm wash behind the page, from the very top', (
+      tester,
+    ) async {
+      await pumpEditProfile(tester);
+
+      final wash = find.byType(WarmWash);
+      expect(wash, findsOneWidget);
+      expect(tester.getTopLeft(wash).dy, 0);
+
+      // The bar and the Scaffold are transparent, so the wash shows through
+      // behind them, as on the Profile page.
+      expect(
+        tester.widget<AppBar>(find.byType(AppBar)).backgroundColor,
+        Colors.transparent,
+      );
+      expect(
+        tester.widget<Scaffold>(find.byType(Scaffold).last).backgroundColor,
+        Colors.transparent,
+      );
+    });
+
+    testWidgets('shows the member\'s initial and name above the fields', (
+      tester,
+    ) async {
+      await pumpEditProfile(tester);
+
+      final avatar = find.byKey(const Key('edit-profile-avatar'));
+      expect(tester.getSize(avatar), const Size(80, 80));
+      expect(
+        find.descendant(of: avatar, matching: find.text('S')),
+        findsOneWidget,
+      );
+      // The name heads the form; the field below holds it as editable text,
+      // which is not a Text widget.
+      final heading = find.byWidgetPredicate(
+        (w) => w is Text && w.data == 'Stats Member',
+      );
+      expect(heading, findsOneWidget);
+      expect(
+        tester.getTopLeft(avatar).dy,
+        lessThan(tester.getTopLeft(heading).dy),
+      );
+      expect(
+        tester.getTopLeft(heading).dy,
+        lessThan(tester.getTopLeft(nameField).dy),
+      );
+    });
+
+    testWidgets('uses the shared avatar, so it matches the Profile page', (
+      tester,
+    ) async {
+      await pumpEditProfile(tester);
+
+      expect(find.byType(ProfileAvatar), findsOneWidget);
+    });
+
+    testWidgets('shows the note on a peach tile with a lock, for a phone '
+        'account', (tester) async {
+      await pumpEditProfile(tester);
+
+      final decoration =
+          tester.widget<Container>(note).decoration as BoxDecoration;
+      expect(decoration.color, AppColors.peachMist);
+      expect((decoration.border as Border).top.color, AppColors.peachHairline);
+      expect(
+        find.descendant(of: note, matching: find.byIcon(Icons.lock_outline)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: note,
+          matching: find.text(
+            'Nomor telepon adalah ID akun Anda dan tidak dapat diubah.',
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows the same tile for a Google account', (tester) async {
+      await pumpEditProfile(tester, user: tGoogle);
+
+      expect(
+        find.descendant(
+          of: note,
+          matching: find.text(
+            'Email adalah ID akun Google Anda dan tidak dapat diubah.',
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    for (final (label, theme) in [
+      ('light', AppTheme.light),
+      ('dark', AppTheme.dark),
+    ]) {
+      testWidgets('keeps the note\'s text legible on its tile in the $label '
+          'theme', (tester) async {
+        await pumpEditProfile(tester, theme: theme);
+
+        final text = tester.widget<Text>(
+          find.descendant(
+            of: note,
+            matching: find.text(
+              'Nomor telepon adalah ID akun Anda dan tidak dapat diubah.',
+            ),
+          ),
+        );
+        // Dark mode must not turn it white on the pale tile.
+        expect(text.style?.color, AppColors.grey700);
+        expect(
+          contrast(AppColors.grey700, AppColors.peachMist),
+          greaterThanOrEqualTo(4.5),
+        );
+        // And the lock, a graphic, needs 3:1.
+        expect(
+          contrast(AppColors.primary, AppColors.peachMist),
+          greaterThanOrEqualTo(3),
+        );
+      });
+    }
+
+    testWidgets('keeps Simpan full width and 52 px tall', (tester) async {
+      // The app theme's button, not Flutter's default one.
+      await pumpEditProfile(tester, theme: AppTheme.light);
+
+      final size = tester.getSize(saveButton);
+      expect(size.height, 52);
+      expect(
+        size.width,
+        tester.getSize(nameField).width,
+        reason: 'as wide as the fields',
+      );
     });
   });
 }

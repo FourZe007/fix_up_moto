@@ -10,7 +10,8 @@ import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
-import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/core/widgets/profile_avatar.dart';
+import 'package:fix_up_moto/core/widgets/warm_section.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
@@ -173,42 +174,9 @@ class _ProfileBody extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User Avatar — initial only; the stats record has no photo.
-                  Container(
+                  ProfileAvatar(
                     key: const Key('profile-avatar'),
-                    width: 80,
-                    height: 80,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppColors.primaryLight, AppColors.primary],
-                      ),
-                      // A white ring and a soft orange shadow, so it lifts off
-                      // the wash behind it.
-                      border: Border.all(
-                        color: AppColors.surfaceLight,
-                        width: 3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.28),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      stats.memberName.isNotEmpty
-                          ? stats.memberName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textOnPrimary,
-                      ),
-                    ),
+                    name: stats.memberName,
                   ),
 
                   // User profile
@@ -253,10 +221,10 @@ class _ProfileBody extends StatelessWidget {
         // split by hairlines, not a stack of separate cards.
 
         // ── Akun ──────────────────────────────────────────────────────────
-        const _SectionHeader('Akun'),
-        _SectionCard(
+        const SectionHeader('Akun'),
+        SectionCard(
           children: [
-            _ActionRow(
+            ActionRow(
               key: const Key('edit-profile'),
               name: 'Edit Profile',
               icon: Icon(Icons.edit, color: AppColors.primary, size: 20),
@@ -265,7 +233,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             // The balance sits in the row as a value. Member is a tab, where go
             // is right.
-            _ActionRow(
+            ActionRow(
               key: const Key('points-row'),
               name: 'Point & Voucher',
               icon: Icon(
@@ -279,7 +247,7 @@ class _ProfileBody extends StatelessWidget {
             // Notifications: the same page Home's bell opens, with the same
             // unread count (both read NotificationCountCubit). push, so back
             // returns to Profile.
-            _ActionRow(
+            ActionRow(
               key: const Key('notification-card'),
               name: 'Kotak Masuk',
               icon: Icon(
@@ -307,12 +275,12 @@ class _ProfileBody extends StatelessWidget {
         // its row as a value: with the points (in Akun) it replaced the two
         // stat tiles that used to head the page. Point & Voucher is not here —
         // a garage holds bikes, and points are a membership benefit.
-        const _SectionHeader('Garasi'),
-        _SectionCard(
+        const SectionHeader('Garasi'),
+        SectionCard(
           children: [
             // My Bikes is a top-level route, so push: go would replace the
             // whole back stack.
-            _ActionRow(
+            ActionRow(
               key: const Key('my-bikes-row'),
               name: 'Motor Saya',
               icon: Icon(
@@ -324,7 +292,7 @@ class _ProfileBody extends StatelessWidget {
               onPressed: () => context.push(RouteNames.myBikes),
             ),
             // Bookings is a tab, where go is right.
-            _ActionRow(
+            ActionRow(
               key: const Key('bookings-row'),
               name: 'Riwayat Booking',
               icon: Icon(
@@ -340,10 +308,10 @@ class _ProfileBody extends StatelessWidget {
         const SizedBox(height: 20),
 
         // ── FixUp Moto ────────────────────────────────────────────────────
-        const _SectionHeader('FixUp Moto'),
-        _SectionCard(
+        const SectionHeader('FixUp Moto'),
+        SectionCard(
           children: [
-            _ActionRow(
+            ActionRow(
               key: const Key('whatsapp-service'),
               name: 'Layanan Whatsapp',
               icon: FaIcon(
@@ -359,7 +327,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             // A page whose address is not set yet is left out.
             if (AppConstants.instagramUrl.trim().isNotEmpty)
-              _ActionRow(
+              ActionRow(
                 key: const Key('instagram-link'),
                 name: 'Instagram',
                 icon: FaIcon(
@@ -374,7 +342,7 @@ class _ProfileBody extends StatelessWidget {
                 ),
               ),
             if (AppConstants.tiktokUrl.trim().isNotEmpty)
-              _ActionRow(
+              ActionRow(
                 key: const Key('tiktok-link'),
                 name: 'TikTok',
                 icon: FaIcon(
@@ -388,7 +356,7 @@ class _ProfileBody extends StatelessWidget {
                   failureMessage: 'TikTok tidak dapat dibuka',
                 ),
               ),
-            _ActionRow(
+            ActionRow(
               key: const Key('privacy-policy'),
               name: 'Kebijakan Privasi',
               icon: Icon(
@@ -399,7 +367,7 @@ class _ProfileBody extends StatelessWidget {
               // push, so back returns to Profile.
               onPressed: () => context.push(RouteNames.privacyPolicy),
             ),
-            // _ActionRow(
+            // ActionRow(
             //   key: const Key('terms-of-service'),
             //   name: 'Ketentuan Layanan',
             //   icon: Icon(
@@ -417,9 +385,9 @@ class _ProfileBody extends StatelessWidget {
         // Apart from the groups: it ends the account rather than opening
         // something. It asks first, but confirming does nothing yet — no delete
         // endpoint is wired.
-        _SectionCard(
+        SectionCard(
           children: [
-            _ActionRow(
+            ActionRow(
               key: const Key('delete-profile'),
               name: 'Hapus Profile',
               destructive: true,
@@ -460,180 +428,6 @@ class _ProfileBody extends StatelessWidget {
   }
 }
 
-/// A group's title, sitting on the page above its [_SectionCard].
-class _SectionHeader extends StatelessWidget {
-  final String title;
-
-  const _SectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Dark red, not the brand orange: orange text is only 3.8:1 on the light
-    // page and fails for small text, the dark red is 6.7:1. On the dark theme's
-    // black page the dark red would fail instead (2.9:1), so it uses the light
-    // orange there.
-    final color = theme.brightness == Brightness.dark
-        ? AppColors.primaryLight
-        : AppColors.primaryDark;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-      // Read as a heading by screen readers, so they can jump between groups.
-      child: Semantics(
-        header: true,
-        child: Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// One rounded card holding a group's rows ([_ActionRow]), split by hairlines.
-/// White (light grey in dark mode, via [LightSurfaceScope]), like the cards on
-/// the other tabs.
-class _SectionCard extends StatelessWidget {
-  final List<Widget> children;
-
-  const _SectionCard({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    // On a white (light grey in dark) surface, so in dark mode the text inside
-    // needs the light theme's dark colours too.
-    return LightSurfaceScope(
-      child: Builder(
-        builder: (context) {
-          final theme = Theme.of(context);
-
-          return Material(
-            color: theme.colorScheme.surface,
-            // Keeps each row's ripple inside the rounded corners.
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              // A warm hairline rather than grey, to sit with the peach tiles.
-              side: const BorderSide(color: AppColors.peachHairline),
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  // Starts under the label, not under the icon tile: 12 px of
-                  // padding, the 36 px tile, 12 px of gap.
-                  if (i > 0)
-                    const Divider(
-                      height: 1,
-                      thickness: 1,
-                      indent: 60,
-                      color: AppColors.peachHairline,
-                    ),
-                  children[i],
-                ],
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// A full-width shortcut row inside a [_SectionCard]: an [icon], the [name], an
-/// optional [value] (a count or a balance) and [trailing] widget (e.g. an
-/// unread badge), and a chevron — the whole row is the tap target.
-///
-/// It draws no card of its own, so it must sit in a [_SectionCard], which is
-/// also what lets it read the light theme in dark mode.
-class _ActionRow extends StatelessWidget {
-  final String name;
-  final Icon icon;
-  final VoidCallback onPressed;
-
-  /// Plain text shown before the chevron, e.g. "4" or "80 pts".
-  final String? value;
-
-  /// Shown between the name and the chevron; nothing by default.
-  final Widget? trailing;
-
-  /// Marks an action that ends something (Hapus Profile): red label, and no
-  /// chevron since it does not lead on to another page.
-  final bool destructive;
-
-  const _ActionRow({
-    super.key,
-    required this.name,
-    required this.icon,
-    required this.onPressed,
-    this.value,
-    this.trailing,
-    this.destructive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return InkWell(
-      onTap: onPressed,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          spacing: 12,
-          children: [
-            // The icon on a soft 36 px tile (red-tinted for a destructive row).
-            // Inside it, one fixed 20 px slot for every icon: the Font Awesome
-            // logos are narrower than Material's icons, and without it the
-            // labels of rows with different kinds of icon start at different x.
-            Container(
-              key: const Key('row-icon-tile'),
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: destructive
-                    ? AppColors.errorBackground
-                    : AppColors.peachMist,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: SizedBox.square(dimension: 20, child: Center(child: icon)),
-            ),
-            Expanded(
-              child: Text(
-                name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: destructive ? AppColors.error : null,
-                ),
-              ),
-            ),
-            ?trailing,
-            if (value != null)
-              Text(
-                value!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.grey700,
-                ),
-              ),
-            if (!destructive)
-              const Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: AppColors.grey400,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// The full-width Keluar button at the foot of the page. Asks for confirmation
 /// in the page's [ConfirmPanelScope], then signs the member out through
 /// [AuthBloc].
@@ -667,7 +461,7 @@ class _SignOutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Same pairing as _SectionHeader: the dark red passes on the light page, the
+    // Same pairing as SectionHeader: the dark red passes on the light page, the
     // light orange on the dark theme's black one.
     final color = theme.brightness == Brightness.dark
         ? AppColors.primaryLight

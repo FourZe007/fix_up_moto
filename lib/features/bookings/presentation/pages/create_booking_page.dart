@@ -83,7 +83,7 @@ class _BookingSetupCard extends StatelessWidget {
             onTap: onTapWorkshop,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             content: selectedWorkshop == null
-                ? const Text('Select workshop from the existing list')
+                ? const Text('Pilih bengkel dari daftar')
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

@@ -15,9 +15,9 @@ class ChatEmptyState extends StatelessWidget {
   /// other things, such as points, vouchers and booking, so those are not
   /// offered. Revisit when what Fima can answer grows.
   static const suggestions = [
-    'Jam operasional bengkel?',
+    'Saya ingin tahu tentang jam operasional bengkel',
     'Di mana lokasi bengkel Fix Up Moto?',
-    'Bengkel buka hari Minggu?',
+    'Apakah bengkel buka hari Minggu?',
   ];
 
   @override

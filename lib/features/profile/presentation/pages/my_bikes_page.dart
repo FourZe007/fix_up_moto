@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
-import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/core/widgets/warm_section.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -25,7 +27,9 @@ class MyBikesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<BikesBloc>()..add(const BikesLoadRequested()),
-      child: const _MyBikesView(),
+      // Hosts the delete confirmation: it slides up in the root Overlay, like
+      // Profile's sign-out and delete panels.
+      child: const ConfirmPanelScope(child: _MyBikesView()),
     );
   }
 }
@@ -58,18 +62,20 @@ class _MyBikesViewState extends State<_MyBikesView> {
 
   void _insertActionsOverlay() {
     if (!mounted) return;
+    // Looked up here, from the page's own context: the entry below lives in
+    // the root Overlay, outside this subtree, so it could not find the scope
+    // itself.
+    final confirmPanel = ConfirmPanelScope.of(context);
     final entry = OverlayEntry(
       builder: (context) => Positioned.fill(
         child: SlidingUpPanel(
           controller: _actionsPanelController,
           minHeight: 0,
           // Sized to exactly fit _BikeActionsPanel's content so the panel
-          // doesn't leave dead space below the buttons when open: 32
+          // doesn't leave dead space below the rows when open: 32
           // (Padding.fromLTRB(20,12,20,20)'s vertical 12+20) + 20 (the drag
-          // handle's 4 height + 16 bottom margin) + 88 (two default Material
-          // 3 TextButtons at 40 each, +8 Column spacing between them — this
-          // theme's textButtonTheme doesn't override minimumSize, so the M3
-          // default height applies).
+          // handle's 4 height + 16 bottom margin) + 105 (two 52 px ActionRows
+          // and the 1 px hairline between them).
           maxHeight: 160,
           // Defaults to false — without it there's no dim/tap-to-close layer
           // at all, same gotcha as Bookings' filter panel.
@@ -86,6 +92,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
               : LightSurfaceScope(
                   child: _BikeActionsPanel(
                     bike: _selectedBike!,
+                    confirmPanel: confirmPanel,
                     onEdit: () {
                       debugPrint(
                         'Edit button pressed for ${_selectedBike!.unitId}',
@@ -136,79 +143,123 @@ class _MyBikesViewState extends State<_MyBikesView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.brandBackdrop(context),
-      appBar: AppBar(
-        title: const Text('Motor Saya'),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          // Top-only — the bottom already meets the screen edge, so rounding
-          // it wouldn't be visible against anything.
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    // The colour comes from the active Theme rather than an AppColors
+    // constant, so this bar follows light/dark automatically. The title and
+    // arrow are coloured explicitly because the app's AppBarTheme hard-codes a
+    // white title style.
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    // The same warm wash as Profile: a fixed backdrop *around* the Scaffold,
+    // whose own background and AppBar are transparent, so it shows behind the
+    // bar and the cards scroll over it.
+    return WarmWash(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            'Motor Saya',
+            style: TextStyle(color: onSurface, fontSize: 20),
+          ),
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          backgroundColor: Colors.transparent,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            style: IconButton.styleFrom(foregroundColor: onSurface),
+            onPressed: () => context.pop(),
+          ),
         ),
         // top: false — the AppBar already accounts for the status bar; this
         // guards the FAB/last card from the gesture nav bar, since this page
         // has no bottomNavigationBar to reserve that space.
-        child: LightSurfaceScope(
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: MediaQuery.of(context).size.height,
-              child: BlocConsumer<BikesBloc, BikesState>(
-                listener: (context, state) {
-                  if (state is BikesError) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(state.message),
-                        backgroundColor: Theme.of(context).colorScheme.error,
-                      ),
-                    );
-                  }
-                },
-                builder: (context, state) {
-                  return switch (state) {
-                    BikesInitial() || BikesLoading() => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    // Loading again after Add pops back in — same spinner, not a
-                    // separate case, since a fresh list is already on the way.
-                    BikesAdded() => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    BikesError() => Center(
-                      child: TextButton(
-                        onPressed: () => context.read<BikesBloc>().add(
-                          const BikesLoadRequested(),
+        body: SafeArea(
+          top: false,
+          child: BlocConsumer<BikesBloc, BikesState>(
+            listener: (context, state) {
+              if (state is BikesError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                );
+              }
+            },
+            builder: (context, state) {
+              return switch (state) {
+                BikesInitial() || BikesLoading() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                // Loading again after Add pops back in — same spinner, not a
+                // separate case, since a fresh list is already on the way.
+                BikesAdded() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                BikesError(:final message) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 12,
+                      children: [
+                        Text(message, textAlign: TextAlign.center),
+                        ElevatedButton(
+                          onPressed: () => context.read<BikesBloc>().add(
+                            const BikesLoadRequested(),
+                          ),
+                          child: const Text('Coba lagi'),
                         ),
-                        child: const Text('Retry'),
-                      ),
+                      ],
                     ),
-                    BikesLoaded(:final bikes) => _buildList(bikes),
-                  };
-                },
-              ),
-            ),
+                  ),
+                ),
+                BikesLoaded(:final bikes) => _buildList(bikes),
+              };
+            },
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openAddBike(context),
-        tooltip: 'Add a bike',
-        child: const Icon(Icons.add),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => _openAddBike(context),
+          tooltip: 'Tambah motor',
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
 
   Widget _buildList(List<BikeEntity> bikes) {
     if (bikes.isEmpty) {
-      return const Center(child: Text('No bikes added yet'));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 12,
+            children: [
+              const Icon(
+                Icons.two_wheeler_outlined,
+                size: 48,
+                color: AppColors.primary,
+              ),
+              Text(
+                'Belum ada motor',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              ElevatedButton(
+                onPressed: () => _openAddBike(context),
+                child: const Text('Tambah Motor'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+      // Room at the foot for the FAB, so it never covers the last card's
+      // more-actions button.
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
       itemCount: bikes.length,
       itemBuilder: (context, index) => _BikeCard(
         bike: bikes[index],
@@ -218,11 +269,12 @@ class _MyBikesViewState extends State<_MyBikesView> {
   }
 }
 
-/// Same flat, bordered card language as the Bookings/History cards —
-/// elevation: 0 + a black border instead of a shadow — with a photo
-/// thumbnail alongside the unit/plate/color/year header, and the chassis
-/// and engine numbers as a labeled spec section beneath it, per the
-/// hand-drawn layout this was built from.
+/// One bike: a photo thumbnail alongside the unit/plate/color/year header, and
+/// the chassis and engine numbers as a labeled spec section beneath it.
+///
+/// Drawn like Profile's [SectionCard]: a flat, rounded surface with a warm
+/// hairline instead of a shadow, white (light grey in dark mode, via
+/// [LightSurfaceScope]).
 class _BikeCard extends StatelessWidget {
   final BikeEntity bike;
   final VoidCallback onMorePressed;
@@ -230,17 +282,28 @@ class _BikeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Colors.black),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [_headerRow(context), ..._specSection],
+    // The scope wraps the card, not the page: the empty and error messages sit
+    // on the wash in the page's own theme, and only what is drawn on a pale
+    // surface needs the light theme's dark text in dark mode. The Builder is
+    // what lets the content read the theme the scope sets up.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: LightSurfaceScope(
+        child: Builder(
+          builder: (context) => Material(
+            color: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.peachHairline),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [_headerRow(context), ..._specSection],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -273,14 +336,21 @@ class _BikeCard extends StatelessWidget {
             children: [
               Text(
                 bike.unitId,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                // The same weight and size as an ActionRow's label on Profile.
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
 
-              Text(_plateSummary, style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                _plateSummary,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.grey700),
+              ),
             ],
           ),
         ),
@@ -289,7 +359,7 @@ class _BikeCard extends StatelessWidget {
         // (see _MyBikesViewState) rather than showing edit/delete inline.
         _ActionButton(
           icon: Icons.more_vert,
-          tooltip: 'More actions',
+          tooltip: 'Aksi lainnya',
           onPressed: onMorePressed,
         ),
       ],
@@ -320,7 +390,7 @@ class _BikeCard extends StatelessWidget {
 
     const divider = Padding(
       padding: EdgeInsets.symmetric(vertical: 12),
-      child: Divider(height: 1),
+      child: Divider(height: 1, color: AppColors.peachHairline),
     );
 
     return switch ((hasChasis, hasEngine)) {
@@ -340,43 +410,6 @@ class _BikeCard extends StatelessWidget {
         _SpecRow(label: 'No Mesin', value: bike.engineNo),
       ],
     };
-  }
-}
-
-/// Edit/delete actions shown in the "more actions" panel — plain text-and-
-/// icon rows stacked vertically, no button chrome, just the tap behavior.
-class _CardActions extends StatelessWidget {
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  const _CardActions({required this.onEdit, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      spacing: 8,
-      children: [
-        TextButton.icon(
-          onPressed: onEdit,
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Edit'),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
-            alignment: Alignment.centerLeft,
-            minimumSize: Size(MediaQuery.of(context).size.width, 0),
-          ),
-        ),
-        TextButton.icon(
-          onPressed: onDelete,
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('Hapus'),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
-            alignment: Alignment.centerLeft,
-            minimumSize: Size(MediaQuery.of(context).size.width, 0),
-          ),
-        ),
-      ],
-    );
   }
 }
 
@@ -405,55 +438,47 @@ class _ActionButton extends StatelessWidget {
 }
 
 /// Content of the shared "more actions" SlidingUpPanel (see
-/// _MyBikesViewState) — a drag handle over the same [_CardActions] edit/
-/// delete pair the header row used to show inline. `bike` isn't displayed
-/// here; it's only needed to name the bike in [_confirmDelete]'s dialog.
+/// _MyBikesViewState) — a drag handle over an Edit and a Hapus row, drawn like
+/// Profile's rows. `bike` isn't displayed here; it's only needed to name the
+/// bike in [_confirmDelete]'s panel.
 class _BikeActionsPanel extends StatelessWidget {
   final BikeEntity bike;
+
+  /// Asks before deleting. Passed in, not looked up: this widget is built in
+  /// the root Overlay, where [ConfirmPanelScope.of] cannot find the page's
+  /// scope.
+  final ConfirmPanel confirmPanel;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final Future<void> Function() onClosePanel;
 
   const _BikeActionsPanel({
     required this.bike,
+    required this.confirmPanel,
     required this.onEdit,
     required this.onDelete,
     required this.onClosePanel,
   });
 
-  /// The panel and the confirm dialog both ultimately render through the
-  /// app's root Overlay (the panel via a manually-managed OverlayEntry, the
-  /// dialog via Navigator's own route), and the two don't coordinate z-order
-  /// with each other — showing the dialog while the panel is still open can
-  /// render it behind the panel instead of above it. Closing the panel first
-  /// avoids the question entirely: same confirm-before-destructive shape as
-  /// BookingsPage._confirmCancel, but declining now just leaves the user back
-  /// on the plain bike list (the panel's already closed by then), rather than
-  /// leaving the panel open the way it used to.
+  /// This panel and the confirmation panel both render through the app's root
+  /// Overlay, and the two don't coordinate z-order with each other — opening
+  /// the confirmation while this panel is still open can leave it behind this
+  /// one. Closing this panel first avoids the question entirely, and declining
+  /// then just leaves the user back on the plain bike list (this panel's
+  /// already closed by then).
   Future<void> _confirmDelete(BuildContext context) async {
     await onClosePanel();
     if (!context.mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Bike'),
-        content: Text('Are you sure you want to delete "${bike.unitId}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmPanel.confirm(
+      icon: Icons.delete,
+      title: 'Hapus Motor',
+      message:
+          'Yakin ingin menghapus "${bike.unitId}"? Tindakan ini tidak dapat '
+          'dibatalkan.',
+      confirmLabel: 'Hapus',
+      destructive: true,
     );
-    if (confirmed == true) onDelete();
+    if (confirmed) onDelete();
   }
 
   @override
@@ -474,7 +499,33 @@ class _BikeActionsPanel extends StatelessWidget {
               ),
             ),
           ),
-          _CardActions(onEdit: onEdit, onDelete: () => _confirmDelete(context)),
+          // A SectionCard, not bare rows: it is the Material the rows' ripples
+          // need, which this root-Overlay panel does not otherwise have.
+          SectionCard(
+            children: [
+              ActionRow(
+                key: const Key('bike-edit'),
+                name: 'Edit',
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                onPressed: onEdit,
+              ),
+              ActionRow(
+                key: const Key('bike-delete'),
+                name: 'Hapus',
+                destructive: true,
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.error,
+                  size: 20,
+                ),
+                onPressed: () => _confirmDelete(context),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -577,10 +628,10 @@ class _BikePhoto extends StatelessWidget {
         child: Container(
           width: 64,
           height: 64,
-          color: AppColors.grey200,
+          color: AppColors.peachMist,
           alignment: Alignment.center,
           child: provider == null
-              ? const Icon(Icons.two_wheeler_outlined, color: AppColors.grey600)
+              ? const Icon(Icons.two_wheeler_outlined, color: AppColors.primary)
               : Image(
                   // 2x the display size for device pixel ratio headroom,
                   // still far below whatever the original resolution is —
@@ -592,7 +643,7 @@ class _BikePhoto extends StatelessWidget {
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => const Icon(
                     Icons.two_wheeler_outlined,
-                    color: AppColors.grey600,
+                    color: AppColors.primary,
                   ),
                 ),
         ),
@@ -612,7 +663,12 @@ class _SpecRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.grey700),
+        ),
         const Spacer(),
         Text(
           value,

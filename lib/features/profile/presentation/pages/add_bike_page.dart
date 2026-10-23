@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
-import 'package:fix_up_moto/core/theme/app_theme.dart';
-import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/core/widgets/warm_section.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
+import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -115,192 +116,179 @@ class _AddBikeViewState extends State<_AddBikeView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.brandBackdrop(context),
-      appBar: AppBar(
-        backgroundColor: AppTheme.brandBackdrop(context),
-        elevation: 0,
-        title: const Text('Tambah Motor'),
-        // Plain pop, not go(RouteNames.myBikes) — this route is pushed from
-        // two different places (MyBikesPage's FAB and ProfilePage's own "+"
-        // shortcut), and go() unconditionally to one of them would both
-        // land the wrong caller on the wrong page and wipe out the rest of
-        // the navigation stack (go() replaces the whole stack with just the
-        // target route, since these are top-level routes outside any
-        // ShellRoute — that's what was making the AppBar's own back button
-        // disappear from MyBikesPage afterwards).
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      // top: false — the AppBar above already accounts for the status bar;
-      // this guards "Tambah Motor" at the form's end from the gesture nav
-      // bar, since this page has no bottomNavigationBar to reserve that
-      // space.
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          // Top-only — the bottom already meets the screen edge, so
-          // rounding it wouldn't be visible against anything.
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: LightSurfaceScope(
-          child: SafeArea(
-            top: false,
-            child: BlocListener<BikesBloc, BikesState>(
-              listener: (context, state) {
-                if (state is BikesAdded) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Motor berhasil ditambah!')),
-                  );
+    // The colour comes from the active Theme rather than an AppColors
+    // constant, so this bar follows light/dark automatically. The title and
+    // arrow are coloured explicitly because the app's AppBarTheme hard-codes a
+    // white title style.
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
-                  // A new bike can change the member's stats (Home, Membership
-                  // and Profile are alive in the tab stack), so tell them to
-                  // reload. Read before the pop, while this context is active.
-                  context.read<DataRefreshCubit>().invalidate(DataKind.stats);
+    // The same warm wash as Profile: a fixed backdrop *around* the Scaffold,
+    // whose own background and AppBar are transparent, so it shows behind the
+    // bar and the form scrolls over it.
+    return WarmWash(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(
+            'Tambah Motor',
+            style: TextStyle(color: onSurface, fontSize: 20),
+          ),
+          // Plain pop, not go(RouteNames.myBikes) — this route is pushed from
+          // two different places (MyBikesPage's FAB and ProfilePage's own "+"
+          // shortcut), and go() unconditionally to one of them would both
+          // land the wrong caller on the wrong page and wipe out the rest of
+          // the navigation stack (go() replaces the whole stack with just the
+          // target route, since these are top-level routes outside any
+          // ShellRoute — that's what was making the AppBar's own back button
+          // disappear from MyBikesPage afterwards).
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            style: IconButton.styleFrom(foregroundColor: onSurface),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        // top: false — the AppBar above already accounts for the status bar;
+        // this guards "Tambah Motor" at the form's end from the gesture nav
+        // bar, since this page has no bottomNavigationBar to reserve that
+        // space.
+        body: SafeArea(
+          top: false,
+          child: BlocListener<BikesBloc, BikesState>(
+            listener: (context, state) {
+              if (state is BikesAdded) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Motor berhasil ditambah!')),
+                );
 
-                  // Popping with `true` lets whichever caller pushed this
-                  // route (MyBikesPage's FAB) know a bike was actually added,
-                  // so it can refresh its own (separate) BikesBloc instance —
-                  // this page's Bloc and the caller's are different
-                  // page-scoped instances, so a plain pop alone wouldn't
-                  // surface the new bike there.
-                  context.pop(true);
-                } else if (state is BikesError) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(state.message)));
-                }
-              },
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-                child: Column(
-                  spacing: 32,
-                  children: [
-                    // Input Textfields
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Form(
-                          key: _formKey,
-                          // Surfaces each field's error as soon as the user
-                          // leaves it, rather than dumping every error at
-                          // once on submit.
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          // Builder so this reads the theme from inside
-                          // LightSurfaceScope — the outer `context` still sees
-                          // the dark theme in dark mode.
-                          child: Builder(
-                            builder: (context) => Theme(
-                              // Filled fields suit short/single-field forms;
-                              // unfilled (outlined-only) reads lighter once
-                              // this many fields sit together on one screen —
-                              // Material 3's own guidance for busier forms.
-                              // Scoped to just this form rather than the
-                              // app-wide theme.
-                              data: Theme.of(context).copyWith(
-                                inputDecorationTheme: Theme.of(
-                                  context,
-                                ).inputDecorationTheme.copyWith(filled: false),
-                              ),
-                              child: Column(
-                                spacing: 16,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const _SectionHeader('Informasi Motor'),
-                                  TextFormField(
-                                    controller: _unitIdController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Merek & Model',
-                                      hintText: 'Contoh: Honda Supra x 125',
-                                    ),
-                                    validator: (v) =>
-                                        _required('Merek & Model', v),
-                                  ),
-                                  TextFormField(
-                                    controller: _colorController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Warna',
-                                      hintText: 'Contoh: Hitam',
-                                    ),
-                                    // validator: (v) => _required('Warna', v),
-                                  ),
-                                  TextFormField(
-                                    controller: _yearController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Tahun',
-                                      hintText: 'Contoh: 2023',
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    validator: (v) {
-                                      // if (v == null || v.isEmpty) {
-                                      //   return 'Tahun wajib diisi';
-                                      // }
-                                      if (v != null && v.isNotEmpty) {
-                                        final year = int.tryParse(v);
-                                        if (year == null ||
-                                            year < 1900 ||
-                                            year > DateTime.now().year + 1) {
-                                          return 'Masukkan tahun yang valid';
-                                        }
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const Divider(height: 20),
-                                  const _SectionHeader('Registrasi'),
-                                  TextFormField(
-                                    controller: _plateController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Plat Nomor',
-                                      hintText: 'Contoh: L 1234 AB',
-                                    ),
-                                    textCapitalization:
-                                        TextCapitalization.characters,
-                                    validator: _plateNumberValidator,
-                                  ),
-                                  TextFormField(
-                                    controller: _chasisController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'No Chasis',
-                                      hintText: 'Masukkan nomor rangka',
-                                    ),
-                                    textCapitalization:
-                                        TextCapitalization.characters,
-                                    // validator: (v) => _required('No Chasis', v),
-                                  ),
-                                  TextFormField(
-                                    controller: _engineController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'No Mesin',
-                                      hintText: 'Masukkan nomor mesin',
-                                    ),
-                                    textCapitalization:
-                                        TextCapitalization.characters,
-                                    // validator: (v) => _required('No Mesin', v),
-                                  ),
-                                  const Divider(height: 20),
-                                  const _SectionHeader('Foto'),
-                                  _PhotoPicker(
-                                    photoBytes: _photoBytes,
-                                    onPick: _pickPhoto,
-                                    onRemove: _removePhoto,
-                                  ),
-                                ],
-                              ),
+                // A new bike can change the member's stats (Home, Membership
+                // and Profile are alive in the tab stack), so tell them to
+                // reload. Read before the pop, while this context is active.
+                context.read<DataRefreshCubit>().invalidate(DataKind.stats);
+
+                // Popping with `true` lets whichever caller pushed this
+                // route (MyBikesPage's FAB) know a bike was actually added,
+                // so it can refresh its own (separate) BikesBloc instance —
+                // this page's Bloc and the caller's are different
+                // page-scoped instances, so a plain pop alone wouldn't
+                // surface the new bike there.
+                context.pop(true);
+              } else if (state is BikesError) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(state.message)));
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+              child: Column(
+                spacing: 24,
+                children: [
+                  // Input Textfields
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Form(
+                        key: _formKey,
+                        // Surfaces each field's error as soon as the user
+                        // leaves it, rather than dumping every error at
+                        // once on submit.
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: Column(
+                          spacing: 16,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SectionHeader('Informasi Motor'),
+                            AuthTextField(
+                              controller: _unitIdController,
+                              label: 'Merek & Model',
+                              hint: 'Contoh: Honda Supra x 125',
+                              prefixIcon: Icons.two_wheeler_outlined,
+                              validator: (v) => _required('Merek & Model', v),
                             ),
-                          ),
+                            AuthTextField(
+                              controller: _colorController,
+                              label: 'Warna',
+                              hint: 'Contoh: Hitam',
+                              prefixIcon: Icons.palette_outlined,
+                              // validator: (v) => _required('Warna', v),
+                            ),
+                            AuthTextField(
+                              controller: _yearController,
+                              label: 'Tahun',
+                              hint: 'Contoh: 2023',
+                              prefixIcon: Icons.calendar_today_outlined,
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                // if (v == null || v.isEmpty) {
+                                //   return 'Tahun wajib diisi';
+                                // }
+                                if (v != null && v.isNotEmpty) {
+                                  final year = int.tryParse(v);
+                                  if (year == null ||
+                                      year < 1900 ||
+                                      year > DateTime.now().year + 1) {
+                                    return 'Masukkan tahun yang valid';
+                                  }
+                                }
+                                return null;
+                              },
+                            ),
+                            const Divider(
+                              height: 20,
+                              color: AppColors.peachHairline,
+                            ),
+                            const SectionHeader('Registrasi'),
+                            AuthTextField(
+                              controller: _plateController,
+                              label: 'Plat Nomor',
+                              hint: 'Contoh: L 1234 AB',
+                              prefixIcon: Icons.confirmation_number_outlined,
+                              textCapitalization: TextCapitalization.characters,
+                              validator: _plateNumberValidator,
+                            ),
+                            AuthTextField(
+                              controller: _chasisController,
+                              label: 'No Chasis',
+                              hint: 'Masukkan nomor rangka',
+                              prefixIcon: Icons.tag,
+                              textCapitalization: TextCapitalization.characters,
+                              // validator: (v) => _required('No Chasis', v),
+                            ),
+                            AuthTextField(
+                              controller: _engineController,
+                              label: 'No Mesin',
+                              hint: 'Masukkan nomor mesin',
+                              prefixIcon: Icons.settings_outlined,
+                              textCapitalization: TextCapitalization.characters,
+                              // The last field: the keyboard's action closes it
+                              // rather than jumping on.
+                              textInputAction: TextInputAction.done,
+                              // validator: (v) => _required('No Mesin', v),
+                            ),
+                            const Divider(
+                              height: 20,
+                              color: AppColors.peachHairline,
+                            ),
+                            const SectionHeader('Foto'),
+                            _PhotoPicker(
+                              photoBytes: _photoBytes,
+                              onPick: _pickPhoto,
+                              onRemove: _removePhoto,
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  ),
 
-                    // Add Button
-                    ElevatedButton(
-                      onPressed: _submit,
-                      child: const Text('Tambah Motor'),
-                    ),
-                  ],
-                ),
+                  // Add Button
+                  ElevatedButton(
+                    onPressed: _submit,
+                    child: const Text('Tambah Motor'),
+                  ),
+                ],
               ),
             ),
           ),
@@ -370,7 +358,12 @@ class _PhotoPicker extends StatelessWidget {
           // sits centered inside it changes.
           // Container(decoration: dotted),
           CustomPaint(
-            painter: const _DashedBorderPainter(color: AppColors.grey400),
+            // The brand orange on the palest peach: 3.8:1 against the page and
+            // more than 3:1 against its own fill, enough for a graphic.
+            painter: const _DashedBorderPainter(
+              color: AppColors.primary,
+              fillColor: AppColors.peachMist,
+            ),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: SizedBox(
@@ -385,7 +378,7 @@ class _PhotoPicker extends StatelessWidget {
                   child: bytes == null
                       ? const Icon(
                           Icons.camera_alt_outlined,
-                          color: AppColors.grey600,
+                          color: AppColors.primary,
                           size: 32,
                         )
                       // A local Stack scoped to just the thumbnail's own
@@ -454,7 +447,7 @@ class _PhotoPicker extends StatelessWidget {
 
 /// Paints a dashed rounded-rectangle border — the standard visual cue for
 /// an empty upload/drop target, distinguishing it from a solid-bordered box
-/// that could be mistaken for already-filled content.
+/// that could be mistaken for already-filled content — over a soft [fillColor].
 class _DashedBorderPainter extends CustomPainter {
   // Matches the box's own ClipRRect radius so the dashes trace exactly
   // along its rounded corners.
@@ -463,20 +456,24 @@ class _DashedBorderPainter extends CustomPainter {
   static const double _gapLength = 4;
 
   final Color color;
+  final Color fillColor;
 
-  const _DashedBorderPainter({required this.color});
+  const _DashedBorderPainter({required this.color, required this.fillColor});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(_radius),
+    );
+    canvas.drawRRect(rrect, Paint()..color = fillColor);
+
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(_radius)),
-      );
+    final path = Path()..addRRect(rrect);
 
     for (final metric in path.computeMetrics()) {
       var distance = 0.0;
@@ -493,24 +490,6 @@ class _DashedBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
-    return color != oldDelegate.color;
-  }
-}
-
-/// Bold, compact heading above a group of related fields — e.g. "Bike
-/// Identity" over Brand/Model/Color/Year — so the form reads as a few small
-/// sections instead of one flat list (chunking: NN/g, Miller's Law).
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  const _SectionHeader(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-    );
+    return color != oldDelegate.color || fillColor != oldDelegate.fillColor;
   }
 }

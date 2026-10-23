@@ -63,6 +63,10 @@ class AuthTextField extends StatefulWidget {
   /// (e.g. [TextInputAction.next] to jump to the next field).
   final TextInputAction textInputAction;
 
+  /// How the keyboard capitalizes what is typed, e.g.
+  /// [TextCapitalization.characters] for a plate or chassis number.
+  final TextCapitalization textCapitalization;
+
   /// False renders the field greyed out and non-editable — for a value the
   /// form displays but the user cannot change (e.g. a Google-verified email).
   final bool enabled;
@@ -80,6 +84,7 @@ class AuthTextField extends StatefulWidget {
     this.validator,
     this.onChanged,
     this.textInputAction = TextInputAction.next,
+    this.textCapitalization = TextCapitalization.none,
     this.enabled = true,
   });
 
@@ -111,6 +116,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
       obscureText: _obscured,
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction,
+      textCapitalization: widget.textCapitalization,
       inputFormatters: widget.inputFormatters,
       validator: widget.validator,
       onChanged: widget.onChanged,

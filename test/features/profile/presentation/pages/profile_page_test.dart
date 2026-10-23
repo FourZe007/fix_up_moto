@@ -1083,8 +1083,9 @@ void main() {
       final avatar = find.byKey(const Key('profile-avatar'));
       expect(tester.getSize(avatar), const Size(80, 80));
 
+      final disc = find.descendant(of: avatar, matching: find.byType(Container));
       final decoration =
-          tester.widget<Container>(avatar).decoration as BoxDecoration;
+          tester.widget<Container>(disc).decoration as BoxDecoration;
       expect(decoration.shape, BoxShape.circle);
       expect((decoration.gradient as LinearGradient).colors, [
         AppColors.primaryLight,

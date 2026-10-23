@@ -12,6 +12,7 @@ import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_bubble.da
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_composer.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_empty_state.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_failure_text.dart';
+import 'package:fix_up_moto/features/chatbot/presentation/widgets/fima_avatar.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/typing_indicator.dart';
 
 double contrast(Color a, Color b) {
@@ -132,7 +133,8 @@ void main() {
       );
 
       expect(find.text('Halo juga'), findsOneWidget);
-      expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
+      expect(find.byType(FimaAvatar), findsOneWidget);
+      expect(find.byIcon(Icons.smart_toy_outlined), findsNothing);
       expect(tester.getCenter(find.text('Halo juga')).dx, lessThan(360 / 2));
 
       final box = tester.widget<DecoratedBox>(
@@ -402,7 +404,8 @@ void main() {
     testWidgets('shows Fima\'s avatar and three dots', (tester) async {
       await pumpWidgetInPage(tester, const TypingIndicator());
 
-      expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
+      expect(find.byType(FimaAvatar), findsOneWidget);
+      expect(find.byIcon(Icons.smart_toy_outlined), findsNothing);
       expect(
         find.descendant(
           of: find.byType(TypingIndicator),

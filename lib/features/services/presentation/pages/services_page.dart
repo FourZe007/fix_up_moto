@@ -88,15 +88,16 @@ class ServicesHistoryView extends StatelessWidget {
       return const Center(child: Text('No services available'));
     }
 
-    final filtered = _filter(services);
-    if (filtered.isEmpty) {
-      return const Center(child: Text('No services match your search'));
-    }
+    // Check this function why it removed all history even though the data are exist
+    // final filtered = _filter(services);
+    // if (filtered.isEmpty) {
+    //   return const Center(child: Text('No services match your search'));
+    // }
 
     return ListView.builder(
-      itemCount: filtered.length,
+      itemCount: services.length,
       itemBuilder: (context, index) {
-        final service = filtered[index];
+        final service = services[index];
         return ServiceCard(
           service: service,
           onTap: () =>

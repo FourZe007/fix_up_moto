@@ -34,6 +34,16 @@ class AssetConstants {
   /// Full-screen illustration for the empty-state widget (no services found).
   static const String emptyServices = 'assets/images/empty_services.png';
 
+  /// Fima, the virtual assistant: a 360x360 transparent PNG of a smiling woman
+  /// in a headset and glasses, at her laptop. Shown in the chat by
+  /// `FimaAvatar`.
+  ///
+  /// Framed wide (her desk and laptop are in the picture), so the face is only
+  /// about a quarter of its width: `FimaAvatar` zooms in on her head and
+  /// shoulders rather than showing the whole square. It is drawn small, so set
+  /// `cacheWidth` to the size it is drawn at.
+  static const String fimaAvatar = 'assets/images/fima_avatar.png';
+
   // ── Icons ─────────────────────────────────────────────────────────────────
   // Custom SVG/PNG icons — use these when Material Icons don't fit the design.
 
