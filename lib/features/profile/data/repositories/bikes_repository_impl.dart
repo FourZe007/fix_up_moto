@@ -111,4 +111,54 @@ class BikesRepositoryImpl implements BikesRepository {
       }
     });
   }
+
+  @override
+  Future<Either<Failure, void>> updateBike({
+    required String plateNo,
+    required String unitId, // brand name with its variant
+    required String chasisNo,
+    required String engineNo,
+    required String color,
+    required String year,
+    required String photo,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure('No internet connection'));
+    }
+
+    final currentUserResult = await authRepository.getCurrentUser();
+
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        return const Left(AuthFailure('No signed-in member found'));
+      }
+
+      try {
+        await remoteDataSource.updateBike(
+          memberId: user.id,
+          plateNo: plateNo,
+          unitId: unitId,
+          chasisNo: chasisNo,
+          engineNo: engineNo,
+          color: color,
+          year: year,
+          photo: photo,
+        );
+
+        return const Right(null);
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+    });
+  }
 }

@@ -42,3 +42,36 @@ final class BikeAddRequested extends BikesEvent {
     photo,
   ];
 }
+
+final class BikeUpdateRequested extends BikesEvent {
+  /// The bike's key, exactly as the list returned it. Never edited — the
+  /// backend has no other identifier for a bike.
+  final String plateNo;
+  final String unitId; // brand name with its variant
+  final String chasisNo;
+  final String engineNo;
+  final String color;
+  final String year;
+  final String photo;
+
+  const BikeUpdateRequested({
+    required this.plateNo,
+    required this.unitId,
+    required this.chasisNo,
+    required this.engineNo,
+    required this.color,
+    required this.year,
+    required this.photo,
+  });
+
+  @override
+  List<Object> get props => [
+    plateNo,
+    unitId,
+    chasisNo,
+    engineNo,
+    color,
+    year,
+    photo,
+  ];
+}

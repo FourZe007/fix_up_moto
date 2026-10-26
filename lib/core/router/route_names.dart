@@ -90,6 +90,12 @@ class RouteNames {
   /// rather than nested under Profile specifically.
   static const String addBike = '/bikes/add';
 
+  /// Edit a registered bike — opened from [myBikes]' more-actions sheet with
+  /// the bike as the route's `extra`. Top-level for the same reason as
+  /// [addBike]. Without a `BikeEntity` extra there is nothing to edit, so the
+  /// route sends the member back to [myBikes].
+  static const String editBike = '/bikes/edit';
+
   /// Lists nearby/partner workshops so the member can pick one — reached
   /// from both Home's picker and Create Booking's, so this is a top-level
   /// route rather than nested under either one specifically.

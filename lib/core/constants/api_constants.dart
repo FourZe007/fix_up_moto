@@ -95,6 +95,12 @@ class ApiConstants {
   /// bike, `"RSV"` creates a booking, and `"REDEEMPOINT"` spends a member's
   /// points on a voucher, with `Data: {MemberID, PointID}`.
   ///
+  /// Editing a registered bike is `Mode: "2"` with `TransID: "REGISTERMOTOR"`
+  /// and the same `Data` as adding one; `PlateNo` is the bike's key, so it is
+  /// the original plate. **UNVERIFIED** — inferred from a member edit reusing
+  /// `REGISTRATION` with Mode 2, not confirmed against the backend. See
+  /// `BikesRemoteDataSourceImpl.updateBike`.
+  ///
   /// The Google complete-profile flow creates its member through this same call
   /// (with `IsGoogle: "1"`), via `AuthRemoteDataSourceImpl.submitGoogleAccount`.
   static const String modify = '/apiSAMP/Modify';
@@ -189,6 +195,9 @@ class ApiConstants {
 /// guess the way most of the unverified block above is.
 enum ModifyMode {
   create('1'),
+
+  /// Mode '2' is "update" for any record, not only a member: an edited bike
+  /// sends it too (see `BikesRemoteDataSourceImpl.updateBike`).
   updateProfile('2'),
   changePassword('3'),
   delete('4'),

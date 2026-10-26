@@ -43,8 +43,14 @@ const tBare = BikeEntity(
 const _popTrue = Key('stand-in-pop-true');
 const _popNothing = Key('stand-in-pop-nothing');
 
-/// Opens My Bikes with a mock [BikesBloc] in [state]. Add Bike is a stand-in
-/// page with two buttons, so the page's reaction to its result can be checked.
+/// The same two exits on the Edit Bike stand-in: "a bike was saved" or "the
+/// member backed out".
+const _editPopTrue = Key('stand-in-edit-pop-true');
+const _editPopNothing = Key('stand-in-edit-pop-nothing');
+
+/// Opens My Bikes with a mock [BikesBloc] in [state]. Add Bike and Edit Bike
+/// are stand-in pages with two buttons each, so the page's reaction to their
+/// result can be checked. Edit Bike's names the bike it was handed.
 Future<MockBikesBloc> pumpMyBikes(
   WidgetTester tester, {
   BikesState state = const BikesLoaded([tFull]),
@@ -70,6 +76,26 @@ Future<MockBikesBloc> pumpMyBikes(
               ),
               ElevatedButton(
                 key: _popNothing,
+                onPressed: () => context.pop(),
+                child: const Text('back'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: RouteNames.editBike,
+        builder: (context, routeState) => Scaffold(
+          body: Column(
+            children: [
+              Text('edit-bike-page:${(routeState.extra as BikeEntity).unitId}'),
+              ElevatedButton(
+                key: _editPopTrue,
+                onPressed: () => context.pop(true),
+                child: const Text('saved'),
+              ),
+              ElevatedButton(
+                key: _editPopNothing,
                 onPressed: () => context.pop(),
                 child: const Text('back'),
               ),
@@ -240,6 +266,81 @@ void main() {
     });
   });
 
+  group('editing a bike', () {
+    /// Opens the sheet for the card at [index], then taps Edit.
+    Future<void> tapEditFor(WidgetTester tester, {int index = 0}) async {
+      await tester.tap(moreActions.at(index));
+      await tester.pumpAndSettle();
+      await tester.tap(editRow);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Edit opens Edit Bike with the bike whose sheet it is', (
+      tester,
+    ) async {
+      await pumpMyBikes(tester);
+
+      await tapEditFor(tester);
+
+      expect(find.text('edit-bike-page:YAMAHA R25'), findsOneWidget);
+      // The sheet slid shut rather than staying open over the new page. A
+      // closed panel keeps its rows in the tree, parked below the screen.
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(
+        tester.getTopLeft(editRow).dy,
+        greaterThanOrEqualTo(screen.height),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('hands over the bike that was tapped, not just the first', (
+      tester,
+    ) async {
+      await pumpMyBikes(tester, state: const BikesLoaded([tFull, tBare]));
+
+      await tapEditFor(tester, index: 1);
+
+      expect(find.text('edit-bike-page:HONDA BEAT'), findsOneWidget);
+      expect(find.text('edit-bike-page:YAMAHA R25'), findsNothing);
+    });
+
+    testWidgets('reloads the list when a bike was saved', (tester) async {
+      final bloc = await pumpMyBikes(tester);
+
+      await tapEditFor(tester);
+      await tester.tap(find.byKey(_editPopTrue));
+      await tester.pumpAndSettle();
+
+      // Once on open, once for the reload.
+      verify(() => bloc.add(const BikesLoadRequested())).called(2);
+      expect(find.text('Motor Saya'), findsOneWidget);
+    });
+
+    testWidgets('does not reload when the member just backed out', (
+      tester,
+    ) async {
+      final bloc = await pumpMyBikes(tester);
+
+      await tapEditFor(tester);
+      await tester.tap(find.byKey(_editPopNothing));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const BikesLoadRequested())).called(1);
+      expect(find.text('YAMAHA R25'), findsOneWidget);
+    });
+
+    testWidgets('can edit again after coming back', (tester) async {
+      await pumpMyBikes(tester);
+
+      await tapEditFor(tester);
+      await tester.tap(find.byKey(_editPopNothing));
+      await tester.pumpAndSettle();
+      await tapEditFor(tester);
+
+      expect(find.text('edit-bike-page:YAMAHA R25'), findsOneWidget);
+    });
+  });
+
   group('the more-actions sheet', () {
     testWidgets('opens with an Edit and a Hapus row, inside the screen', (
       tester,
@@ -253,7 +354,10 @@ void main() {
       expect(editRow, findsOneWidget);
       expect(deleteRow, findsOneWidget);
       final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
-      expect(tester.getRect(deleteRow).bottom, lessThanOrEqualTo(screen.height));
+      expect(
+        tester.getRect(deleteRow).bottom,
+        lessThanOrEqualTo(screen.height),
+      );
       // A sheet too small for its rows would have overflowed.
       expect(tester.takeException(), isNull);
     });
@@ -396,7 +500,10 @@ void main() {
       expect(tile, findsOneWidget);
       expect(tester.getSize(tile), const Size(64, 64));
       final icon = tester.widget<Icon>(
-        find.descendant(of: tile, matching: find.byIcon(Icons.two_wheeler_outlined)),
+        find.descendant(
+          of: tile,
+          matching: find.byIcon(Icons.two_wheeler_outlined),
+        ),
       );
       expect(icon.color, AppColors.primary);
     });

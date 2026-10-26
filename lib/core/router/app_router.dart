@@ -18,7 +18,9 @@ import 'package:fix_up_moto/features/feeds/presentation/pages/feeds_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/edit_bike_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/edit_profile_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/privacy_policy_page.dart';
@@ -238,6 +240,17 @@ class AppRouter {
       // the assumption only Profile would ever push it, the same mistake
       // /home/workshops made before. Top-level avoids repeating that bug.
       GoRoute(path: RouteNames.addBike, builder: (_, _) => const AddBikePage()),
+      // Opened from MyBikesPage's more-actions sheet, which hands over the bike
+      // as `extra`. A bike can't be rebuilt from the path (it has no id), so
+      // without one — a deep link, a restored session — there is nothing to
+      // edit and the member is sent back to the list instead of hitting a bad
+      // cast.
+      GoRoute(
+        path: RouteNames.editBike,
+        redirect: (_, state) =>
+            state.extra is BikeEntity ? null : RouteNames.myBikes,
+        builder: (_, state) => EditBikePage(bike: state.extra as BikeEntity),
+      ),
 
       // ── Shell route: main tabs with persistent bottom nav bar ──────────────
       // Stateful, so a tab you leave is kept alive and comes back instantly

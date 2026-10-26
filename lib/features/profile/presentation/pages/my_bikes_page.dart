@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -15,6 +13,7 @@ import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
+import 'package:fix_up_moto/features/profile/presentation/widgets/bike_photo_provider.dart';
 
 /// Lists the member's registered bikes — reached from Home's "Motor Saya"
 /// button. A dedicated top-level page (not the Profile tab's own placeholder
@@ -93,12 +92,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
                   child: _BikeActionsPanel(
                     bike: _selectedBike!,
                     confirmPanel: confirmPanel,
-                    onEdit: () {
-                      debugPrint(
-                        'Edit button pressed for ${_selectedBike!.unitId}',
-                      );
-                      _actionsPanelController.close();
-                    },
+                    onEdit: () => _openEditBike(_selectedBike!),
                     onClosePanel: _actionsPanelController.close,
                     onDelete: () {
                       debugPrint(
@@ -131,6 +125,24 @@ class _MyBikesViewState extends State<_MyBikesView> {
   Future<void> _openAddBike(BuildContext context) async {
     final added = await context.push<bool>(RouteNames.addBike);
     if (added == true && context.mounted) {
+      context.read<BikesBloc>().add(const BikesLoadRequested());
+    }
+  }
+
+  // Same shape as _openAddBike: EditBikePage owns its own BikesBloc, so this
+  // page re-fetches only when the pop result says a bike really changed.
+  //
+  // Runs from the actions panel, which lives in the root Overlay — outside
+  // this page's subtree — so it uses this State's own `context`, never the
+  // overlay builder's, which could not find this page's BikesBloc or router.
+  // The panel is closed first, as _BikeActionsPanel._confirmDelete does, so it
+  // is not left sliding shut over the page that opens.
+  Future<void> _openEditBike(BikeEntity bike) async {
+    await _actionsPanelController.close();
+    if (!mounted) return;
+
+    final updated = await context.push<bool>(RouteNames.editBike, extra: bike);
+    if (updated == true && mounted) {
       context.read<BikesBloc>().add(const BikesLoadRequested());
     }
   }
@@ -192,7 +204,9 @@ class _MyBikesViewState extends State<_MyBikesView> {
                 ),
                 // Loading again after Add pops back in — same spinner, not a
                 // separate case, since a fresh list is already on the way.
-                BikesAdded() => const Center(
+                // BikesUpdated is emitted only by Edit's own bloc, but this
+                // switch must still cover every state.
+                BikesAdded() || BikesUpdated() => const Center(
                   child: CircularProgressIndicator(),
                 ),
                 BikesError(:final message) => Center(
@@ -535,7 +549,7 @@ class _BikeActionsPanel extends StatelessWidget {
 /// Square rounded thumbnail, tappable either way. `BikeModel.photo` has only
 /// ever come back empty in the one real response sample seen so far, so
 /// which format a real value would use — a URL vs. base64 — isn't confirmed
-/// yet; [_imageProvider] supports both rather than guessing wrong. Tapping
+/// yet; [bikePhotoProvider] supports both rather than guessing wrong. Tapping
 /// with no photo just says so — tapping a real one opens it at full
 /// resolution. The thumbnail itself decodes at a reduced resolution
 /// (via [ResizeImage]) rather than the full image, since a list of many
@@ -545,29 +559,8 @@ class _BikePhoto extends StatelessWidget {
   final String photo;
   const _BikePhoto({required this.photo});
 
-  bool get _isUrl =>
-      photo.startsWith('http://') || photo.startsWith('https://');
-
-  /// Null means either there's no photo, or the string wasn't a URL and
-  /// wasn't valid base64 either — both are treated as "no photo" by callers.
-  /// A base64 value may arrive bare or as a `data:image/...;base64,` data
-  /// URI, so the scheme prefix (if any) is stripped before decoding.
-  ImageProvider? get _imageProvider {
-    final trimmed = photo.trim();
-    if (trimmed.isEmpty) return null;
-    if (_isUrl) return NetworkImage(trimmed);
-    final raw = trimmed.contains(',')
-        ? trimmed.substring(trimmed.indexOf(',') + 1)
-        : trimmed;
-    try {
-      return MemoryImage(base64Decode(raw));
-    } on FormatException {
-      return null;
-    }
-  }
-
   void _onTap(BuildContext context) {
-    final provider = _imageProvider;
+    final provider = bikePhotoProvider(photo);
     if (provider == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Foto tidak tersedia untuk motor ini.')),
@@ -619,7 +612,7 @@ class _BikePhoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = _imageProvider;
+    final provider = bikePhotoProvider(photo);
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _onTap(context),

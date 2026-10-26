@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/add_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/get_bikes_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/update_bike_usecase.dart';
 import 'bikes_event.dart';
 import 'bikes_state.dart';
 
@@ -12,15 +13,19 @@ import 'bikes_state.dart';
 class BikesBloc extends Bloc<BikesEvent, BikesState> {
   final GetBikesUseCase _getBikes;
   final AddBikeUseCase _addBike;
+  final UpdateBikeUseCase _updateBike;
 
   BikesBloc({
     required GetBikesUseCase getBikes,
     required AddBikeUseCase addBike,
+    required UpdateBikeUseCase updateBike,
   }) : _getBikes = getBikes,
        _addBike = addBike,
+       _updateBike = updateBike,
        super(const BikesInitial()) {
     on<BikesLoadRequested>(_onLoadRequested);
     on<BikeAddRequested>(_onAddRequested);
+    on<BikeUpdateRequested>(_onUpdateRequested);
   }
 
   Future<void> _onLoadRequested(
@@ -61,6 +66,33 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
         emit(const BikesAdded('Bike added successfully'));
         add(BikesLoadRequested());
       },
+    );
+  }
+
+  Future<void> _onUpdateRequested(
+    BikeUpdateRequested event,
+    Emitter<BikesState> emit,
+  ) async {
+    emit(const BikesLoading());
+
+    final result = await _updateBike(
+      UpdateBikeParams(
+        plateNo: event.plateNo,
+        unitId: event.unitId,
+        chasisNo: event.chasisNo,
+        engineNo: event.engineNo,
+        color: event.color,
+        year: event.year,
+        photo: event.photo,
+      ),
+    );
+
+    // No list re-load here, unlike an add: the edit page owns its own
+    // (separate) BikesBloc, so a reload would fill a list nobody is showing.
+    // The page that opened it reloads its own from the pop result instead.
+    result.fold(
+      (f) => emit(BikesError(f.message)),
+      (_) => emit(const BikesUpdated('Bike updated successfully')),
     );
   }
 }

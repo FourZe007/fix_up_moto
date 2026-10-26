@@ -24,4 +24,18 @@ abstract class BikesRepository {
     required String year,
     required String photo,
   });
+
+  // Saves changes to a registered bike. [plateNo] is the bike's key — the
+  // backend has no other identifier — so it is the original plate, unchanged,
+  // and the edit form never lets it be edited. Nothing comes back to use, like
+  // ProfileRepository.updateProfile: the caller just reloads the list.
+  Future<Either<Failure, void>> updateBike({
+    required String plateNo,
+    required String unitId, // brand name with its variant
+    required String chasisNo,
+    required String engineNo,
+    required String color,
+    required String year,
+    required String photo,
+  });
 }
