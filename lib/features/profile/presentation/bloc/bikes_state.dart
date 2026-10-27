@@ -39,6 +39,14 @@ final class BikesUpdated extends BikesState {
   List<Object> get props => [message];
 }
 
+final class BikesDeleted extends BikesState {
+  final String message;
+  const BikesDeleted(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
 final class BikesError extends BikesState {
   final String message;
   const BikesError(this.message);

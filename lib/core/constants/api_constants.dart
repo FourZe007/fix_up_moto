@@ -95,11 +95,22 @@ class ApiConstants {
   /// bike, `"RSV"` creates a booking, and `"REDEEMPOINT"` spends a member's
   /// points on a voucher, with `Data: {MemberID, PointID}`.
   ///
+  /// A bike's own `Data` carries a `Line` — the record's row number, as the
+  /// bike list returns it — which says which bike an edit or a delete means
+  /// (`PlateNo` is an ordinary, editable field, not a key). Adding sends no
+  /// `Line` at all, since a new bike has no record yet.
+  ///
   /// Editing a registered bike is `Mode: "2"` with `TransID: "REGISTERMOTOR"`
-  /// and the same `Data` as adding one; `PlateNo` is the bike's key, so it is
-  /// the original plate. **UNVERIFIED** — inferred from a member edit reusing
-  /// `REGISTRATION` with Mode 2, not confirmed against the backend. See
+  /// and the same `Data` as adding one, with that bike's `Line` filled in.
+  /// **UNVERIFIED** — inferred from a member edit reusing `REGISTRATION` with
+  /// Mode 2, not confirmed against the backend. See
   /// `BikesRemoteDataSourceImpl.updateBike`.
+  ///
+  /// Deleting a registered bike is `Mode: "3"` with `TransID: "REGISTERMOTOR"`
+  /// and a `Data` of only `MemberID` and `Line`. The mode is sent as a
+  /// literal: [ModifyMode]'s `"3"` is `changePassword`, and its delete is a
+  /// member's. **UNVERIFIED** against the backend. See
+  /// `BikesRemoteDataSourceImpl.deleteBike`.
   ///
   /// The Google complete-profile flow creates its member through this same call
   /// (with `IsGoogle: "1"`), via `AuthRemoteDataSourceImpl.submitGoogleAccount`.

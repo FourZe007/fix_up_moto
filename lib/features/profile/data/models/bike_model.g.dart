@@ -7,6 +7,7 @@ part of 'bike_model.dart';
 // **************************************************************************
 
 BikeModel _$BikeModelFromJson(Map<String, dynamic> json) => BikeModel(
+  line: BikeModel._lineFromJson(json['Line']),
   unitId: json['UnitID'] as String,
   plateNo: json['PlateNo'] as String,
   chasisNo: json['ChasisNo'] as String,
@@ -17,6 +18,7 @@ BikeModel _$BikeModelFromJson(Map<String, dynamic> json) => BikeModel(
 );
 
 Map<String, dynamic> _$BikeModelToJson(BikeModel instance) => <String, dynamic>{
+  'Line': instance.line,
   'UnitID': instance.unitId,
   'PlateNo': instance.plateNo,
   'ChasisNo': instance.chasisNo,

@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
@@ -20,6 +24,7 @@ class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
 
 /// Every value filled in.
 const tFull = BikeEntity(
+  line: '1',
   unitId: 'YAMAHA R25',
   plateNo: 'L 1234 AB',
   chasisNo: 'MH3RG1',
@@ -30,6 +35,7 @@ const tFull = BikeEntity(
 
 /// Only what the backend always sends.
 const tBare = BikeEntity(
+  line: '2',
   unitId: 'HONDA BEAT',
   plateNo: 'B 5678 CD',
   chasisNo: '',
@@ -51,13 +57,18 @@ const _editPopNothing = Key('stand-in-edit-pop-nothing');
 /// Opens My Bikes with a mock [BikesBloc] in [state]. Add Bike and Edit Bike
 /// are stand-in pages with two buttons each, so the page's reaction to their
 /// result can be checked. Edit Bike's names the bike it was handed.
+///
+/// [states] lets a test push what the bloc emits next (a delete finishing, say);
+/// [refreshCubit] stands in for the app-wide one that a finished delete signals.
 Future<MockBikesBloc> pumpMyBikes(
   WidgetTester tester, {
   BikesState state = const BikesLoaded([tFull]),
   ThemeData? theme,
+  Stream<BikesState> states = const Stream<BikesState>.empty(),
+  DataRefreshCubit? refreshCubit,
 }) async {
   final bloc = MockBikesBloc();
-  whenListen(bloc, const Stream<BikesState>.empty(), initialState: state);
+  whenListen(bloc, states, initialState: state);
   sl.registerFactory<BikesBloc>(() => bloc);
 
   final router = GoRouter(
@@ -105,8 +116,11 @@ Future<MockBikesBloc> pumpMyBikes(
       ),
     ],
   );
+  final app = MaterialApp.router(theme: theme, routerConfig: router);
   await tester.pumpWidget(
-    MaterialApp.router(theme: theme, routerConfig: router),
+    refreshCubit == null
+        ? app
+        : BlocProvider.value(value: refreshCubit, child: app),
   );
   // Settles the first frame, in which the page mounts its overlay panels.
   await tester.pumpAndSettle();
@@ -185,7 +199,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp.router(
           routerConfig: GoRouter(
-            routes: [GoRoute(path: '/', builder: (_, _) => const MyBikesPage())],
+            routes: [
+              GoRoute(path: '/', builder: (_, _) => const MyBikesPage()),
+            ],
           ),
         ),
       );
@@ -436,9 +452,13 @@ void main() {
       expect(confirmPanel, findsNothing);
       expect(find.text('YAMAHA R25'), findsOneWidget);
       verify(() => bloc.add(const BikesLoadRequested())).called(1);
+      // Declining sends no delete.
+      verifyNever(() => bloc.add(any(that: isA<BikeDeleteRequested>())));
     });
 
-    testWidgets('Hapus closes the panel but does nothing yet', (tester) async {
+    testWidgets('Hapus closes the panel and deletes that bike by its Line', (
+      tester,
+    ) async {
       final bloc = await pumpMyBikes(tester);
       await tester.tap(moreActions);
       await tester.pumpAndSettle();
@@ -448,11 +468,100 @@ void main() {
       await tester.tap(confirmButton);
       await tester.pumpAndSettle();
 
-      // No delete endpoint is wired: the bike stays, and nothing was sent.
       expect(confirmPanel, findsNothing);
+      verify(() => bloc.add(const BikeDeleteRequested(line: '1'))).called(1);
+    });
+
+    testWidgets('deletes the bike whose actions were opened, not the first', (
+      tester,
+    ) async {
+      final bloc = await pumpMyBikes(
+        tester,
+        state: const BikesLoaded([tFull, tBare]),
+      );
+      await tester.tap(moreActions.last);
+      await tester.pumpAndSettle();
+      await tester.tap(deleteRow);
+      await tester.pumpAndSettle();
+      await tester.tap(confirmButton);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const BikeDeleteRequested(line: '2'))).called(1);
+      verifyNever(() => bloc.add(const BikeDeleteRequested(line: '1')));
+    });
+  });
+
+  group('after a delete', () {
+    late StreamController<BikesState> states;
+
+    setUp(() => states = StreamController<BikesState>());
+    tearDown(() => states.close());
+
+    testWidgets('says so in a snackbar and tells the stats to reload', (
+      tester,
+    ) async {
+      final refreshCubit = DataRefreshCubit();
+      await pumpMyBikes(
+        tester,
+        states: states.stream,
+        refreshCubit: refreshCubit,
+      );
+      expect(refreshCubit.state.kind, isNull);
+
+      states.add(const BikesDeleted('Bike deleted successfully'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Motor berhasil dihapus!'), findsOneWidget);
+      // The bike count on Home, Membership and Profile has changed.
+      expect(refreshCubit.state.kind, DataKind.stats);
+    });
+
+    testWidgets('shows the reload as a spinner, then the list without the '
+        'bike', (tester) async {
+      await pumpMyBikes(
+        tester,
+        states: states.stream,
+        refreshCubit: DataRefreshCubit(),
+      );
+
+      states
+        ..add(const BikesDeleted('Bike deleted successfully'))
+        ..add(const BikesLoading());
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      states.add(const BikesLoaded([tBare]));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('YAMAHA R25'), findsNothing);
+      expect(find.text('HONDA BEAT'), findsOneWidget);
+    });
+
+    testWidgets('a refused delete shows the reason, signals nothing, and '
+        'leaves the list to come back', (tester) async {
+      final refreshCubit = DataRefreshCubit();
+      await pumpMyBikes(
+        tester,
+        states: states.stream,
+        refreshCubit: refreshCubit,
+      );
+
+      states
+        ..add(const BikesError('Motor masih memiliki booking'))
+        ..add(const BikesLoading())
+        ..add(const BikesLoaded([tFull]));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Motor masih memiliki booking'), findsOneWidget);
+      // The bike is still there, and no stats reload was asked for.
       expect(find.text('YAMAHA R25'), findsOneWidget);
-      // The one event ever sent is the load on open.
-      verify(() => bloc.add(any())).called(1);
+      expect(refreshCubit.state.kind, isNull);
+      expect(find.text('Motor berhasil dihapus!'), findsNothing);
     });
   });
 

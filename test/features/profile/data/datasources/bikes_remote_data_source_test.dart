@@ -17,16 +17,18 @@ void main() {
     dataSource = BikesRemoteDataSourceImpl(dio);
   });
 
-  Future<void> update({String plateNo = 'L 1234 AB'}) => dataSource.updateBike(
-    memberId: 'M-001',
-    plateNo: plateNo,
-    unitId: 'YAMAHA R25',
-    chasisNo: 'MH3RG1',
-    engineNo: 'G3E1',
-    color: 'Hitam',
-    year: '2023',
-    photo: '',
-  );
+  Future<void> update({String line = '7', String plateNo = 'L 1234 AB'}) =>
+      dataSource.updateBike(
+        memberId: 'M-001',
+        line: line,
+        plateNo: plateNo,
+        unitId: 'YAMAHA R25',
+        chasisNo: 'MH3RG1',
+        engineNo: 'G3E1',
+        color: 'Hitam',
+        year: '2023',
+        photo: '',
+      );
 
   /// Makes Modify answer with [body].
   void answerWith(Map<String, dynamic>? body) {
@@ -63,28 +65,79 @@ void main() {
     );
   }
 
+  group('addBike', () {
+    test(
+      'leaves Line out entirely — a new bike has no record to point at',
+      () async {
+        answerWith({
+          'Code': '100',
+          'Msg': 'Berhasil',
+          'Data': [
+            {'ResultMessage': 'Berhasil'},
+          ],
+        });
+
+        await dataSource.addBike(
+          memberId: 'M-001',
+          plateNumber: 'L 1234 AB',
+          unitId: 'YAMAHA R25',
+          chasisNo: 'MH3RG1',
+          engineNo: 'G3E1',
+          color: 'Hitam',
+          year: '2023',
+          photo: '',
+        );
+
+        final body =
+            verify(
+                  () => dio.post<dynamic>(
+                    ApiConstants.modify,
+                    data: captureAny<dynamic>(named: 'data'),
+                  ),
+                ).captured.single
+                as Map<String, dynamic>;
+        expect(body['Mode'], '1');
+        expect(body['TransID'], 'REGISTERMOTOR');
+        expect(body['Data'], {
+          'MemberID': 'M-001',
+          'PlateNo': 'L 1234 AB',
+          'UnitID': 'YAMAHA R25',
+          'ChasisNo': 'MH3RG1',
+          'EngineNo': 'G3E1',
+          'Color': 'Hitam',
+          'Year': '2023',
+          'Photo': '',
+        });
+        // Not sent empty either: the key itself is absent.
+        expect((body['Data'] as Map).containsKey('Line'), isFalse);
+      },
+    );
+  });
+
   group('updateBike', () {
-    test('posts Modify with Mode 2 and REGISTERMOTOR, and the bike\'s plate '
-        'as its key', () async {
+    Map<String, dynamic> sentBody() =>
+        verify(
+              () => dio.post<dynamic>(
+                ApiConstants.modify,
+                data: captureAny<dynamic>(named: 'data'),
+              ),
+            ).captured.single
+            as Map<String, dynamic>;
+
+    test('posts Modify with Mode 2 and REGISTERMOTOR, and the bike\'s Line '
+        'among every field', () async {
       answerWith({'Code': '100', 'Msg': 'Sukses'});
 
       await update();
 
-      final body =
-          verify(
-                () => dio.post<dynamic>(
-                  ApiConstants.modify,
-                  data: captureAny<dynamic>(named: 'data'),
-                ),
-              ).captured.single
-              as Map<String, dynamic>;
-
-      // The same call as adding a bike (Mode 1) with only the mode swapped,
-      // the way a member edit reuses REGISTRATION.
+      final body = sentBody();
+      // The same call as adding a bike (Mode 1) with the mode swapped and the
+      // record's Line filled in, the way a member edit reuses REGISTRATION.
       expect(body['Mode'], '2');
       expect(body['TransID'], 'REGISTERMOTOR');
       expect(body['Data'], {
         'MemberID': 'M-001',
+        'Line': '7',
         'PlateNo': 'L 1234 AB',
         'UnitID': 'YAMAHA R25',
         'ChasisNo': 'MH3RG1',
@@ -96,21 +149,17 @@ void main() {
     });
 
     test(
-      'sends the plate exactly as given, never re-cased or re-spaced',
+      'sends a changed plate as a plain field, with the Line unchanged',
       () async {
         answerWith({'Code': '100', 'Msg': 'Sukses'});
 
-        await update(plateNo: 'l1234ab');
+        // The plate is no longer the key: it can differ from what the list held,
+        // and the Line alone says which bike this is.
+        await update(line: '12', plateNo: 'B 9 ZZ');
 
-        final body =
-            verify(
-                  () => dio.post<dynamic>(
-                    ApiConstants.modify,
-                    data: captureAny<dynamic>(named: 'data'),
-                  ),
-                ).captured.single
-                as Map<String, dynamic>;
-        expect((body['Data'] as Map)['PlateNo'], 'l1234ab');
+        final data = sentBody()['Data'] as Map;
+        expect(data['Line'], '12');
+        expect(data['PlateNo'], 'B 9 ZZ');
       },
     );
 
@@ -194,6 +243,142 @@ void main() {
 
       expect(
         update(),
+        throwsA(
+          isA<ServerException>()
+              .having((e) => e.message, 'message', 'Server sedang sibuk')
+              .having((e) => e.statusCode, 'statusCode', 500),
+        ),
+      );
+    });
+  });
+
+  group('deleteBike', () {
+    Future<void> delete({String line = '7'}) =>
+        dataSource.deleteBike(memberId: 'M-001', line: line);
+
+    Map<String, dynamic> sentBody() =>
+        verify(
+              () => dio.post<dynamic>(
+                ApiConstants.modify,
+                data: captureAny<dynamic>(named: 'data'),
+              ),
+            ).captured.single
+            as Map<String, dynamic>;
+
+    test('posts exactly four things: Mode 3, REGISTERMOTOR, the member and the '
+        'Line', () async {
+      answerWith({'Code': '100', 'Msg': 'Sukses'});
+
+      await delete();
+
+      final body = sentBody();
+      expect(body['Mode'], '3');
+      expect(body['TransID'], 'REGISTERMOTOR');
+      expect(body['Data'], {'MemberID': 'M-001', 'Line': '7'});
+      expect(body.keys, unorderedEquals(['Mode', 'TransID', 'Data']));
+    });
+
+    test('sends no plate and no other bike detail', () async {
+      answerWith({'Code': '100', 'Msg': 'Sukses'});
+
+      await delete();
+
+      expect((sentBody()['Data'] as Map).keys, ['MemberID', 'Line']);
+    });
+
+    test('is not ModifyMode.delete or changePassword — a bike has its own '
+        'mode', () async {
+      answerWith({'Code': '100', 'Msg': 'Sukses'});
+
+      await delete();
+
+      expect(sentBody()['Mode'], isNot(ModifyMode.delete.wireValue));
+    });
+
+    test('sends the Line exactly as given', () async {
+      answerWith({'Code': '100', 'Msg': 'Sukses'});
+
+      await delete(line: '0042');
+
+      expect((sentBody()['Data'] as Map)['Line'], '0042');
+    });
+
+    test('succeeds on any answer that is not an explicit Gagal', () async {
+      for (final msg in ['Sukses', 'Berhasil', 'OK']) {
+        answerWith({'Code': '100', 'Msg': msg});
+        await expectLater(delete(), completes, reason: msg);
+      }
+      answerWith({'Code': '100'});
+      await expectLater(delete(), completes, reason: 'no Msg at all');
+    });
+
+    test('treats Gagal as a refusal, with the server\'s own reason', () async {
+      answerWith({
+        'Code': '100',
+        'Msg': 'Gagal',
+        'Data': [
+          {'ResultMessage': 'Motor masih memiliki booking'},
+        ],
+      });
+
+      expect(
+        delete(),
+        throwsA(
+          isA<ServerException>()
+              .having(
+                (e) => e.message,
+                'message',
+                'Motor masih memiliki booking',
+              )
+              .having((e) => e.statusCode, 'statusCode', 200),
+        ),
+      );
+    });
+
+    test('reads Gagal whatever its case', () async {
+      answerWith({'Code': '100', 'Msg': ' GAGAL '});
+
+      expect(delete(), throwsA(isA<ServerException>()));
+    });
+
+    test(
+      'falls back to its own generic wording when a refusal gives no reason',
+      () async {
+        for (final data in <List<Map<String, dynamic>>?>[
+          null,
+          [],
+          [
+            {'ResultMessage': '  '},
+          ],
+        ]) {
+          answerWith({'Code': '100', 'Msg': 'Gagal', 'Data': ?data});
+
+          await expectLater(
+            delete(),
+            throwsA(
+              isA<ServerException>().having(
+                (e) => e.message,
+                'message',
+                'Gagal menghapus motor',
+              ),
+            ),
+            reason: '$data',
+          );
+        }
+      },
+    );
+
+    test('turns a 401 into UnauthorizedException', () async {
+      failWith(401);
+
+      expect(delete(), throwsA(isA<UnauthorizedException>()));
+    });
+
+    test('turns a server error into a ServerException with its Msg', () async {
+      failWith(500, body: {'Code': '500', 'Msg': 'Server sedang sibuk'});
+
+      expect(
+        delete(),
         throwsA(
           isA<ServerException>()
               .having((e) => e.message, 'message', 'Server sedang sibuk')

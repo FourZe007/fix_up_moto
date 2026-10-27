@@ -1,4 +1,5 @@
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
@@ -9,14 +10,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-/// Form for changing a registered bike's details, with its plate locked.
+/// Form for changing a registered bike's details, the plate included.
 ///
 /// Reached via `context.push(RouteNames.editBike, extra: bike)` from My Bikes'
 /// more-actions sheet — a top-level route, so like [AddBikePage] it needs its
 /// own [BikesBloc] rather than assuming an ancestor provides one.
 ///
-/// A bike's plate is its only identifier (the backend has no id), so it is
-/// shown but cannot be edited, and goes back unchanged as the record's key.
+/// Which bike is being changed is the record's `Line` (from the list, carried
+/// on [bike]); the plate is an ordinary field, so it can be edited.
 ///
 /// The fields themselves are [BikeForm], shared with Add Bike.
 class EditBikePage extends StatelessWidget {
@@ -46,65 +47,68 @@ class _EditBikeView extends StatelessWidget {
     // white title style.
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
-    // The same warm wash as Add Bike and Profile.
-    return WarmWash(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
+    // The same warm wash as Add Bike and Profile, and the same scope for the
+    // panel that asks before the photo is removed.
+    return ConfirmPanelScope(
+      child: WarmWash(
+        child: Scaffold(
           backgroundColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          title: Text(
-            'Ubah Motor',
-            style: TextStyle(color: onSurface, fontSize: 20),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            title: Text(
+              'Ubah Motor',
+              style: TextStyle(color: onSurface, fontSize: 20),
+            ),
+            // Plain pop, for the same reason as Add Bike's: go() would wipe the
+            // navigation stack that My Bikes sits on.
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              style: IconButton.styleFrom(foregroundColor: onSurface),
+              onPressed: () => context.pop(),
+            ),
           ),
-          // Plain pop, for the same reason as Add Bike's: go() would wipe the
-          // navigation stack that My Bikes sits on.
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            style: IconButton.styleFrom(foregroundColor: onSurface),
-            onPressed: () => context.pop(),
-          ),
-        ),
-        // top: false — the AppBar above already accounts for the status bar.
-        body: SafeArea(
-          top: false,
-          child: BlocConsumer<BikesBloc, BikesState>(
-            listener: (context, state) {
-              if (state is BikesUpdated) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Motor berhasil diperbarui!')),
-                );
+          // top: false — the AppBar above already accounts for the status bar.
+          body: SafeArea(
+            top: false,
+            child: BlocConsumer<BikesBloc, BikesState>(
+              listener: (context, state) {
+                if (state is BikesUpdated) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Motor berhasil diperbarui!')),
+                  );
 
-                // Popping with `true` tells My Bikes a bike really changed, so
-                // it reloads its own (separate) BikesBloc — this page's Bloc
-                // and that one are different page-scoped instances. No
-                // DataRefreshCubit signal: an edit leaves the bike count that
-                // Home, Membership and Profile show unchanged.
-                context.pop(true);
-              } else if (state is BikesError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.message),
-                    backgroundColor: Theme.of(context).colorScheme.error,
+                  // Popping with `true` tells My Bikes a bike really changed, so
+                  // it reloads its own (separate) BikesBloc — this page's Bloc
+                  // and that one are different page-scoped instances. No
+                  // DataRefreshCubit signal: an edit leaves the bike count that
+                  // Home, Membership and Profile show unchanged.
+                  context.pop(true);
+                } else if (state is BikesError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+                }
+              },
+              builder: (context, state) => BikeForm(
+                initial: bike,
+                submitLabel: 'Simpan',
+                isLoading: state is BikesLoading,
+                onSubmit: (values) => context.read<BikesBloc>().add(
+                  BikeUpdateRequested(
+                    line: bike.line,
+                    plateNo: values.plateNo,
+                    unitId: values.unitId,
+                    chasisNo: values.chasisNo,
+                    engineNo: values.engineNo,
+                    color: values.color,
+                    year: values.year,
+                    photo: values.photo,
                   ),
-                );
-              }
-            },
-            builder: (context, state) => BikeForm(
-              initial: bike,
-              lockPlate: true,
-              submitLabel: 'Simpan',
-              isLoading: state is BikesLoading,
-              onSubmit: (values) => context.read<BikesBloc>().add(
-                BikeUpdateRequested(
-                  plateNo: values.plateNo,
-                  unitId: values.unitId,
-                  chasisNo: values.chasisNo,
-                  engineNo: values.engineNo,
-                  color: values.color,
-                  year: values.year,
-                  photo: values.photo,
                 ),
               ),
             ),

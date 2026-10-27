@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/add_bike_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/delete_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/get_bikes_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_bike_usecase.dart';
 import 'bikes_event.dart';
@@ -14,18 +15,22 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
   final GetBikesUseCase _getBikes;
   final AddBikeUseCase _addBike;
   final UpdateBikeUseCase _updateBike;
+  final DeleteBikeUseCase _deleteBike;
 
   BikesBloc({
     required GetBikesUseCase getBikes,
     required AddBikeUseCase addBike,
     required UpdateBikeUseCase updateBike,
+    required DeleteBikeUseCase deleteBike,
   }) : _getBikes = getBikes,
        _addBike = addBike,
        _updateBike = updateBike,
+       _deleteBike = deleteBike,
        super(const BikesInitial()) {
     on<BikesLoadRequested>(_onLoadRequested);
     on<BikeAddRequested>(_onAddRequested);
     on<BikeUpdateRequested>(_onUpdateRequested);
+    on<BikeDeleteRequested>(_onDeleteRequested);
   }
 
   Future<void> _onLoadRequested(
@@ -77,6 +82,7 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
 
     final result = await _updateBike(
       UpdateBikeParams(
+        line: event.line,
         plateNo: event.plateNo,
         unitId: event.unitId,
         chasisNo: event.chasisNo,
@@ -94,5 +100,25 @@ class BikesBloc extends Bloc<BikesEvent, BikesState> {
       (f) => emit(BikesError(f.message)),
       (_) => emit(const BikesUpdated('Bike updated successfully')),
     );
+  }
+
+  Future<void> _onDeleteRequested(
+    BikeDeleteRequested event,
+    Emitter<BikesState> emit,
+  ) async {
+    emit(const BikesLoading());
+
+    final result = await _deleteBike(DeleteBikeParams(line: event.line));
+
+    // Unlike an edit, the list lives on the page that owns this bloc, so it is
+    // reloaded either way: on success to drop the bike, and on a refusal so the
+    // error doesn't leave the page showing an error screen in place of the
+    // list the member just asked to change (the reason reaches them through
+    // BikesError, which the page shows as a snackbar).
+    result.fold(
+      (f) => emit(BikesError(f.message)),
+      (_) => emit(const BikesDeleted('Bike deleted successfully')),
+    );
+    add(const BikesLoadRequested());
   }
 }

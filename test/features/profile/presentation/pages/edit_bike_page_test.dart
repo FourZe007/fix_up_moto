@@ -20,6 +20,7 @@ class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
 
 /// A bike with every value filled in.
 const tBike = BikeEntity(
+  line: '7',
   unitId: 'YAMAHA R25',
   plateNo: 'L 1234 AB',
   chasisNo: 'MH3RG1',
@@ -95,6 +96,9 @@ void main() {
   final engineField = find.widgetWithText(TextFormField, 'No Mesin');
   final saveButton = find.widgetWithText(ElevatedButton, 'Simpan');
   final emptyPhotoIcon = find.byIcon(Icons.camera_alt_outlined);
+  final confirmPanel = find.byKey(const Key('confirm-panel'));
+  final confirmButton = find.byKey(const Key('confirm-panel-confirm'));
+  final cancelButton = find.byKey(const Key('confirm-panel-cancel'));
 
   TextField inputOf(WidgetTester tester, Finder field) =>
       tester.widget<TextField>(
@@ -131,22 +135,25 @@ void main() {
       expect(textOf(tester, engineField), 'G3E1');
     });
 
-    testWidgets('shows the plate but locks it, and says why', (tester) async {
+    testWidgets('lets every field be edited, the plate included', (
+      tester,
+    ) async {
       useTallScreen(tester);
       await openEditBikePage(tester);
 
-      expect(inputOf(tester, plateField).enabled, isFalse);
-      expect(find.byKey(const Key('plate-locked-note')), findsOneWidget);
-      // Every other field stays editable.
+      // The plate is no longer the bike's key (the Line is), so it isn't locked.
       for (final field in [
         unitField,
         colorField,
         yearField,
+        plateField,
         chasisField,
         engineField,
       ]) {
         expect(inputOf(tester, field).enabled, isTrue);
       }
+      expect(find.byKey(const Key('plate-locked-note')), findsNothing);
+      expect(find.text('Nomor polisi tidak dapat diubah'), findsNothing);
     });
 
     testWidgets('shows an empty photo box for a bike with no photo', (
@@ -214,6 +221,7 @@ void main() {
       expect(
         sentUpdate(),
         const BikeUpdateRequested(
+          line: '7',
           plateNo: 'L 1234 AB',
           unitId: 'YAMAHA R25',
           chasisNo: 'MH3RG1',
@@ -225,43 +233,77 @@ void main() {
       );
     });
 
-    testWidgets('sends the trimmed edits, with the plate still the original', (
+    testWidgets(
+      'sends the trimmed edits, with the Line still the bike\'s own',
+      (tester) async {
+        useTallScreen(tester);
+        await openEditBikePage(tester);
+
+        await tester.enterText(unitField, '  Yamaha NMAX ');
+        await tester.enterText(colorField, ' Merah ');
+        await tester.enterText(yearField, '2024');
+        await tester.enterText(chasisField, ' mh3rg2 ');
+        await tester.enterText(engineField, ' g3e2 ');
+        await tester.tap(saveButton);
+        await tester.pump();
+
+        expect(
+          sentUpdate(),
+          const BikeUpdateRequested(
+            line: '7',
+            plateNo: 'L 1234 AB',
+            unitId: 'Yamaha NMAX',
+            chasisNo: 'mh3rg2',
+            engineNo: 'g3e2',
+            color: 'Merah',
+            year: '2024',
+            photo: '',
+          ),
+        );
+      },
+    );
+
+    testWidgets('sends a changed plate trimmed and upper-cased, the Line '
+        'unchanged', (tester) async {
+      useTallScreen(tester);
+      await openEditBikePage(tester);
+
+      await tester.enterText(plateField, ' b 9 zz ');
+      await tester.tap(saveButton);
+      await tester.pump();
+
+      final sent = sentUpdate();
+      expect(sent.plateNo, 'B 9 ZZ');
+      // Which bike this is rides on the Line, not on the plate being edited.
+      expect(sent.line, '7');
+    });
+
+    testWidgets('holds back a malformed plate, as Add Bike does', (
       tester,
     ) async {
       useTallScreen(tester);
       await openEditBikePage(tester);
 
-      await tester.enterText(unitField, '  Yamaha NMAX ');
-      await tester.enterText(colorField, ' Merah ');
-      await tester.enterText(yearField, '2024');
-      await tester.enterText(chasisField, ' mh3rg2 ');
-      await tester.enterText(engineField, ' g3e2 ');
+      await tester.enterText(plateField, 'A');
       await tester.tap(saveButton);
       await tester.pump();
 
       expect(
-        sentUpdate(),
-        const BikeUpdateRequested(
-          plateNo: 'L 1234 AB',
-          unitId: 'Yamaha NMAX',
-          chasisNo: 'mh3rg2',
-          engineNo: 'g3e2',
-          color: 'Merah',
-          year: '2024',
-          photo: '',
-        ),
+        find.text('Masukkan plat nomor yang valid (contoh: L 1234 AB)'),
+        findsOneWidget,
       );
+      verifyNever(() => bloc.add(any()));
     });
 
-    testWidgets('sends a stored plate verbatim even if it would fail the '
-        'format check', (tester) async {
+    testWidgets('asks for a stored plate that fails the format check to be '
+        'corrected, now that it can be', (tester) async {
       useTallScreen(tester);
       await openEditBikePage(
         tester,
         bike: const BikeEntity(
+          line: '9',
           unitId: 'HONDA BEAT',
-          // Hyphens and lower case: nothing the add form would accept. The
-          // member can't fix it here, so it must not block saving.
+          // Hyphens and lower case: nothing the add form would accept.
           plateNo: 'b-5678-cd',
           chasisNo: '',
           engineNo: '',
@@ -273,11 +315,19 @@ void main() {
       await tester.tap(saveButton);
       await tester.pump();
 
-      expect(sentUpdate().plateNo, 'b-5678-cd');
       expect(
         find.text('Masukkan plat nomor yang valid (contoh: L 1234 AB)'),
-        findsNothing,
+        findsOneWidget,
       );
+      verifyNever(() => bloc.add(any()));
+
+      await tester.enterText(plateField, 'B 5678 CD');
+      await tester.tap(saveButton);
+      await tester.pump();
+
+      final sent = sentUpdate();
+      expect(sent.plateNo, 'B 5678 CD');
+      expect(sent.line, '9');
     });
 
     testWidgets('allows clearing the optional fields', (tester) async {
@@ -355,19 +405,86 @@ void main() {
       expect(sentUpdate().photo, tPhoto);
     });
 
-    testWidgets('is sent as empty once the member removes it', (tester) async {
+    testWidgets('is asked about first, in the sliding panel and not a dialog', (
+      tester,
+    ) async {
       useTallScreen(tester);
       await openEditBikePage(tester, bike: bikeWithPhoto);
 
       // The close badge on the photo's corner.
       await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        find.descendant(of: confirmPanel, matching: find.text('Hapus Foto')),
+        findsOneWidget,
+      );
+      // Still there while the member decides.
+      expect(emptyPhotoIcon, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stays when the member says Batal, and goes back as it came', (
+      tester,
+    ) async {
+      useTallScreen(tester);
+      await openEditBikePage(tester, bike: bikeWithPhoto);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.tap(cancelButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      expect(emptyPhotoIcon, findsNothing);
+
+      await tester.tap(saveButton);
       await tester.pump();
+
+      expect(sentUpdate().photo, tPhoto);
+    });
+
+    testWidgets('is sent as empty once the member confirms removing it', (
+      tester,
+    ) async {
+      useTallScreen(tester);
+      await openEditBikePage(tester, bike: bikeWithPhoto);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.tap(confirmButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
       expect(emptyPhotoIcon, findsOneWidget);
 
       await tester.tap(saveButton);
       await tester.pump();
 
       expect(sentUpdate().photo, '');
+    });
+
+    testWidgets('drops the keyboard before the panel slides up', (
+      tester,
+    ) async {
+      useTallScreen(tester);
+      await openEditBikePage(tester, bike: bikeWithPhoto);
+
+      await tester.tap(unitField);
+      await tester.pump();
+      EditableText unitInput() => tester.widget<EditableText>(
+        find.descendant(of: unitField, matching: find.byType(EditableText)),
+      );
+      expect(unitInput().focusNode.hasFocus, isTrue);
+
+      // A tap on the badge doesn't take focus from the field by itself.
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsOneWidget);
+      expect(unitInput().focusNode.hasFocus, isFalse);
     });
 
     testWidgets('is not touched by a bike that never had one', (tester) async {

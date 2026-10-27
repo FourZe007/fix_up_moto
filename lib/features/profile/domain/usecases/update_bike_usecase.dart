@@ -11,6 +11,7 @@ class UpdateBikeUseCase extends UseCase<void, UpdateBikeParams> {
   @override
   Future<Either<Failure, void>> call(UpdateBikeParams params) {
     return repository.updateBike(
+      line: params.line,
       plateNo: params.plateNo,
       unitId: params.unitId,
       chasisNo: params.chasisNo,
@@ -23,7 +24,11 @@ class UpdateBikeUseCase extends UseCase<void, UpdateBikeParams> {
 }
 
 class UpdateBikeParams extends Equatable {
-  /// The bike's key, as the list returned it — never edited.
+  /// The record's row number, as the list returned it — says which bike this
+  /// is. Never edited.
+  final String line;
+
+  /// An ordinary field, editable like the rest.
   final String plateNo;
   final String unitId; // brand name with its variant
   final String chasisNo;
@@ -33,6 +38,7 @@ class UpdateBikeParams extends Equatable {
   final String photo;
 
   const UpdateBikeParams({
+    required this.line,
     required this.plateNo,
     required this.unitId,
     required this.chasisNo,
@@ -44,6 +50,7 @@ class UpdateBikeParams extends Equatable {
 
   @override
   List<Object> get props => [
+    line,
     plateNo,
     unitId,
     chasisNo,

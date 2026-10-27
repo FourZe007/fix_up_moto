@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -233,6 +236,111 @@ void main() {
     });
   });
 
+  group('the photo', () {
+    // A 1x1 PNG, which the faked gallery hands back from a file on disk.
+    const photoBase64 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA6'
+        '0e6kgAAAABJRU5ErkJggg==';
+    final emptyPhotoIcon = find.byIcon(Icons.camera_alt_outlined);
+    final confirmPanel = find.byKey(const Key('confirm-panel'));
+    final confirmButton = find.byKey(const Key('confirm-panel-confirm'));
+    final cancelButton = find.byKey(const Key('confirm-panel-cancel'));
+
+    /// Opens the page and picks a photo through a gallery that answers with the
+    /// PNG above, so the close badge is there to tap.
+    Future<void> openWithPickedPhoto(WidgetTester tester) async {
+      useTallScreen(tester);
+      await openAddBikePage(tester);
+
+      final dir = Directory.systemTemp.createTempSync('add_bike_photo');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/photo.png')
+        ..writeAsBytesSync(base64Decode(photoBase64));
+
+      const channel = MethodChannel('plugins.flutter.io/image_picker');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => call.method == 'pickImage' ? file.path : null,
+      );
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+      await tester.tap(emptyPhotoIcon);
+      // Reading the file is real I/O in several steps, and each one's
+      // continuation only runs once the test clock is pumped — so wait for the
+      // photo in turns of real time and pumping, rather than once.
+      for (var i = 0; i < 50 && emptyPhotoIcon.evaluate().isNotEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      expect(emptyPhotoIcon, findsNothing, reason: 'the photo was picked');
+    }
+
+    testWidgets('is asked about first, in the sliding panel and not a dialog', (
+      tester,
+    ) async {
+      await openWithPickedPhoto(tester);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        find.descendant(of: confirmPanel, matching: find.text('Hapus Foto')),
+        findsOneWidget,
+      );
+      expect(emptyPhotoIcon, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stays when the member says Batal, and is still sent', (
+      tester,
+    ) async {
+      await openWithPickedPhoto(tester);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.tap(cancelButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      expect(emptyPhotoIcon, findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Merek & Model'),
+        'Honda Beat',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Plat Nomor'),
+        'L 1234 AB',
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Tambah Motor'));
+      await tester.pump();
+
+      final sent =
+          verify(() => bloc.add(captureAny())).captured.single
+              as BikeAddRequested;
+      expect(sent.photo, photoBase64);
+    });
+
+    testWidgets('goes, leaving the empty box, once the member confirms', (
+      tester,
+    ) async {
+      await openWithPickedPhoto(tester);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.tap(confirmButton);
+      await tester.pumpAndSettle();
+
+      expect(confirmPanel, findsNothing);
+      expect(emptyPhotoIcon, findsOneWidget);
+    });
+  });
+
   group('the warm colouring', () {
     testWidgets('puts the warm wash behind the page, with a transparent bar', (
       tester,
@@ -277,9 +385,7 @@ void main() {
       await openAddBikePage(tester);
 
       expect(
-        tester
-            .widget<Icon>(find.byIcon(Icons.camera_alt_outlined))
-            .color,
+        tester.widget<Icon>(find.byIcon(Icons.camera_alt_outlined)).color,
         AppColors.primary,
       );
     });

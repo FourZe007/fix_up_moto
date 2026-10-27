@@ -44,8 +44,11 @@ final class BikeAddRequested extends BikesEvent {
 }
 
 final class BikeUpdateRequested extends BikesEvent {
-  /// The bike's key, exactly as the list returned it. Never edited — the
-  /// backend has no other identifier for a bike.
+  /// The record's row number, exactly as the list returned it — says which bike
+  /// this is. Never edited.
+  final String line;
+
+  /// An ordinary field, editable like the rest.
   final String plateNo;
   final String unitId; // brand name with its variant
   final String chasisNo;
@@ -55,6 +58,7 @@ final class BikeUpdateRequested extends BikesEvent {
   final String photo;
 
   const BikeUpdateRequested({
+    required this.line,
     required this.plateNo,
     required this.unitId,
     required this.chasisNo,
@@ -66,6 +70,7 @@ final class BikeUpdateRequested extends BikesEvent {
 
   @override
   List<Object> get props => [
+    line,
     plateNo,
     unitId,
     chasisNo,
@@ -74,4 +79,14 @@ final class BikeUpdateRequested extends BikesEvent {
     year,
     photo,
   ];
+}
+
+final class BikeDeleteRequested extends BikesEvent {
+  /// The record's row number, exactly as the list returned it.
+  final String line;
+
+  const BikeDeleteRequested({required this.line});
+
+  @override
+  List<Object> get props => [line];
 }

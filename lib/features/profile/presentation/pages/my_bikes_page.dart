@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
@@ -94,11 +95,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
                     confirmPanel: confirmPanel,
                     onEdit: () => _openEditBike(_selectedBike!),
                     onClosePanel: _actionsPanelController.close,
-                    onDelete: () {
-                      debugPrint(
-                        'Delete button pressed for ${_selectedBike!.unitId}',
-                      );
-                    },
+                    onDelete: () => _deleteBike(_selectedBike!),
                   ),
                 ),
         ),
@@ -145,6 +142,14 @@ class _MyBikesViewState extends State<_MyBikesView> {
     if (updated == true && mounted) {
       context.read<BikesBloc>().add(const BikesLoadRequested());
     }
+  }
+
+  // Runs once the member has confirmed, from the actions panel in the root
+  // Overlay — so it uses this State's own `context`, like _openEditBike. The bloc
+  // reloads the list itself when it is done, since this page owns it.
+  void _deleteBike(BikeEntity bike) {
+    if (!mounted) return;
+    context.read<BikesBloc>().add(BikeDeleteRequested(line: bike.line));
   }
 
   @override
@@ -195,6 +200,17 @@ class _MyBikesViewState extends State<_MyBikesView> {
                     backgroundColor: Theme.of(context).colorScheme.error,
                   ),
                 );
+              } else if (state is BikesDeleted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Motor berhasil dihapus!')),
+                );
+
+                context.read<BikesBloc>().add(BikesLoadRequested());
+
+                // The bike count Home, Membership and Profile show has changed.
+                context.read<DataRefreshCubit>().invalidate(DataKind.stats);
+              } else if (state is BikesUpdated) {
+                context.read<BikesBloc>().add(BikesLoadRequested());
               }
             },
             builder: (context, state) {
@@ -202,13 +218,12 @@ class _MyBikesViewState extends State<_MyBikesView> {
                 BikesInitial() || BikesLoading() => const Center(
                   child: CircularProgressIndicator(),
                 ),
-                // Loading again after Add pops back in — same spinner, not a
-                // separate case, since a fresh list is already on the way.
-                // BikesUpdated is emitted only by Edit's own bloc, but this
-                // switch must still cover every state.
-                BikesAdded() || BikesUpdated() => const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                // Loading again after Add pops back in, or after a delete —
+                // same spinner, not a separate case, since a fresh list is
+                // already on the way. BikesUpdated is emitted only by Edit's
+                // own bloc, but this switch must still cover every state.
+                BikesAdded() || BikesUpdated() || BikesDeleted() =>
+                  const Center(child: CircularProgressIndicator()),
                 BikesError(:final message) => Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),

@@ -65,6 +65,7 @@ import 'package:fix_up_moto/features/profile/domain/repositories/bikes_repositor
 import 'package:fix_up_moto/features/profile/domain/repositories/profile_repository.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/add_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/get_bikes_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/delete_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/get_profile_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_profile_usecase.dart';
@@ -308,8 +309,14 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => GetBikesUseCase(sl<BikesRepository>()));
   sl.registerLazySingleton(() => AddBikeUseCase(sl<BikesRepository>()));
   sl.registerLazySingleton(() => UpdateBikeUseCase(sl<BikesRepository>()));
+  sl.registerLazySingleton(() => DeleteBikeUseCase(sl<BikesRepository>()));
   sl.registerFactory(
-    () => BikesBloc(getBikes: sl(), addBike: sl(), updateBike: sl()),
+    () => BikesBloc(
+      getBikes: sl(),
+      addBike: sl(),
+      updateBike: sl(),
+      deleteBike: sl(),
+    ),
   );
 
   // ── Workshops Feature ─────────────────────────────────────────────────────

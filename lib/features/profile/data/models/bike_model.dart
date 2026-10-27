@@ -7,10 +7,16 @@ part 'bike_model.g.dart';
 ///
 /// `Year` arrives as a string (e.g. "2023"), not a number — [BikeEntity]
 /// keeps it as `String` too, so [toEntity] passes it through unchanged.
-/// `Line` (a row/sequence number in the raw response) isn't mapped — nothing
-/// in the app needs it.
+///
+/// `Line` is the record's own row number, and what an edit or a delete sends to
+/// say which bike it means — the plate is not a key. Whether it arrives as a
+/// number or a string isn't known, so both are taken and kept as a string, and
+/// a missing one becomes `''`.
 @JsonSerializable()
 class BikeModel {
+  @JsonKey(name: 'Line', fromJson: _lineFromJson)
+  final String line;
+
   @JsonKey(name: 'UnitID')
   final String unitId;
 
@@ -33,6 +39,7 @@ class BikeModel {
   final String photo;
 
   const BikeModel({
+    required this.line,
     required this.unitId,
     required this.plateNo,
     required this.chasisNo,
@@ -47,7 +54,10 @@ class BikeModel {
 
   Map<String, dynamic> toJson() => _$BikeModelToJson(this);
 
+  static String _lineFromJson(Object? value) => value?.toString() ?? '';
+
   BikeEntity toEntity() => BikeEntity(
+    line: line,
     unitId: unitId,
     plateNo: plateNo,
     chasisNo: chasisNo,

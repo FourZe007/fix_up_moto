@@ -490,7 +490,8 @@ class _BikePickerSheet extends StatelessWidget {
               BikesInitial() ||
               BikesLoading() ||
               BikesAdded() ||
-              BikesUpdated() => const SizedBox(
+              BikesUpdated() ||
+              BikesDeleted() => const SizedBox(
                 height: 160,
                 child: Center(child: CircularProgressIndicator()),
               ),

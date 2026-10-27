@@ -25,11 +25,12 @@ abstract class BikesRepository {
     required String photo,
   });
 
-  // Saves changes to a registered bike. [plateNo] is the bike's key — the
-  // backend has no other identifier — so it is the original plate, unchanged,
-  // and the edit form never lets it be edited. Nothing comes back to use, like
+  // Saves changes to a registered bike. [line] is the record's own row number,
+  // as the list returned it, and says which bike this is; [plateNo] is an
+  // ordinary, editable field. Nothing comes back to use, like
   // ProfileRepository.updateProfile: the caller just reloads the list.
   Future<Either<Failure, void>> updateBike({
+    required String line,
     required String plateNo,
     required String unitId, // brand name with its variant
     required String chasisNo,
@@ -38,4 +39,9 @@ abstract class BikesRepository {
     required String year,
     required String photo,
   });
+
+  // Deletes a registered bike, identified by [line] — the record's own row
+  // number, as the list returned it. Nothing comes back to use: the caller just
+  // reloads the list.
+  Future<Either<Failure, void>> deleteBike({required String line});
 }

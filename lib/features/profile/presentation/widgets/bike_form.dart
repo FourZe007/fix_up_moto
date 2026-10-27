@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:typed_data';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/warm_section.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
@@ -36,15 +38,15 @@ class BikeFormValues {
 /// validation, photo box and submit button, so the two cannot drift apart.
 ///
 /// Add Bike passes nothing but a [submitLabel]; Edit Bike passes the bike it is
-/// editing as [initial] to prefill every field, and sets [lockPlate]. The plate
-/// is the only identifier a bike has (the backend has no id), so an edit sends
-/// the original one back as the record's key and the member cannot change it.
+/// editing as [initial] to prefill every field. Every field, the plate
+/// included, is editable: which bike an edit means is carried by the record's
+/// own `Line`, which the page sends and the form never touches.
+///
+/// Removing the photo asks first, so the page must sit under a
+/// [ConfirmPanelScope].
 class BikeForm extends StatefulWidget {
   /// The bike being edited, or null for a new one.
   final BikeEntity? initial;
-
-  /// Shows the plate but leaves it uneditable. Needs [initial].
-  final bool lockPlate;
 
   final String submitLabel;
 
@@ -58,11 +60,10 @@ class BikeForm extends StatefulWidget {
   const BikeForm({
     super.key,
     this.initial,
-    this.lockPlate = false,
     this.isLoading = false,
     required this.submitLabel,
     required this.onSubmit,
-  }) : assert(!lockPlate || initial != null, 'a locked plate needs a bike');
+  });
 
   @override
   State<BikeForm> createState() => _BikeFormState();
@@ -137,10 +138,28 @@ class _BikeFormState extends State<BikeForm> {
     }
   }
 
-  void _removePhoto() => setState(() {
-    _pickedBytes = null;
-    _photoRemoved = true;
-  });
+  /// Asks first, in the sliding confirmation panel — the page hosts a
+  /// [ConfirmPanelScope] for it. Declining, or leaving the panel any other way,
+  /// keeps the photo.
+  Future<void> _removePhoto() async {
+    // The panel slides up in the root Overlay, which a raised keyboard would
+    // cover; a tap on the close badge doesn't take focus from a field.
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final confirmed = await ConfirmPanelScope.of(context).confirm(
+      icon: Icons.delete,
+      title: 'Hapus Foto',
+      message: 'Yakin ingin menghapus foto motor ini?',
+      confirmLabel: 'Hapus',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() {
+      _pickedBytes = null;
+      _photoRemoved = true;
+    });
+  }
 
   /// Local, Bahasa-language required-field check — kept on this page rather
   /// than in the shared `Validators` helper, since that class's messages are
@@ -179,13 +198,18 @@ class _BikeFormState extends State<BikeForm> {
 
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
+      log('onSubmit Edit Bike');
+      log('plateNo: ${_plateController.text.toString()}');
+      log('unitId: ${_unitIdController.text.toString()}');
+      log('chasisNo: ${_chasisController.text.toString()}');
+      log('engineNo: ${_engineController.text.toString()}');
+      log('color: ${_colorController.text.toString()}');
+      log('year: ${_yearController.text.toString()}');
+      log('Photo: $_photoValue');
+
       widget.onSubmit(
         BikeFormValues(
-          // A locked plate goes back exactly as the list returned it — it is
-          // the record's key, so not re-trimmed or re-cased.
-          plateNo: widget.lockPlate
-              ? widget.initial!.plateNo
-              : _plateController.text.trim().toUpperCase(),
+          plateNo: _plateController.text.trim().toUpperCase(),
           unitId: _unitIdController.text.trim(),
           chasisNo: _chasisController.text.trim(),
           engineNo: _engineController.text.trim(),
@@ -257,23 +281,8 @@ class _BikeFormState extends State<BikeForm> {
                       hint: 'Contoh: L 1234 AB',
                       prefixIcon: Icons.confirmation_number_outlined,
                       textCapitalization: TextCapitalization.characters,
-                      enabled: !widget.lockPlate,
-                      // Not checked when locked: it is the stored value, which
-                      // the member cannot fix, so a plate that fails the format
-                      // rule here would block saving every other change.
-                      validator: widget.lockPlate
-                          ? null
-                          : _plateNumberValidator,
+                      validator: _plateNumberValidator,
                     ),
-                    if (widget.lockPlate)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'Nomor polisi tidak dapat diubah',
-                          key: const Key('plate-locked-note'),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
                     AuthTextField(
                       controller: _chasisController,
                       label: 'No Chasis',
