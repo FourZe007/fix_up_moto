@@ -63,4 +63,42 @@ class NotificationRepositoryImpl implements NotificationRepository {
       }
     });
   }
+
+  @override
+  Future<Either<Failure, void>> markAsRead({
+    required String notificationId,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure('No internet connection'));
+    }
+
+    final currentUserResult = await authRepository.getCurrentUser();
+
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        return const Left(AuthFailure('No signed-in member found'));
+      }
+
+      try {
+        await remoteDataSource.markAsRead(
+          memberId: user.id,
+          notificationId: notificationId,
+        );
+
+        return const Right(null);
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+    });
+  }
 }

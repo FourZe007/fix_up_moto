@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/helpers/external_link.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/chatbot/domain/entities/chat_message.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/bloc/chat_bloc.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/bloc/chat_event.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/bloc/chat_state.dart';
+import 'package:fix_up_moto/features/chatbot/presentation/models/agent_chat_link.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_bubble.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_composer.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/widgets/chat_empty_state.dart';
@@ -22,6 +26,10 @@ import 'package:fix_up_moto/features/chatbot/presentation/widgets/typing_indicat
 /// marked, with a tap to try again — nothing is ever dropped quietly. The
 /// conversation is kept for the rest of the app session, so leaving the page
 /// and coming back picks up where it was.
+///
+/// When Fima has no answer, the member can ask a person instead: a button under
+/// her apology, and a WhatsApp action in the top bar that is always there, both
+/// open the customer service's WhatsApp with the question typed in.
 class ChatbotPage extends StatelessWidget {
   const ChatbotPage({super.key});
 
@@ -77,6 +85,13 @@ class _ChatViewState extends State<_ChatView> {
   void _send(String text) =>
       context.read<ChatBloc>().add(ChatMessageSent(text));
 
+  /// The question Fima's answer at [index] is the answer to: the member's
+  /// message right before it, which is where an answer is always put.
+  static String? _questionBefore(List<ChatMessage> messages, int index) =>
+      index > 0 && messages[index - 1].isFromUser
+      ? messages[index - 1].text
+      : null;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,13 +146,17 @@ class _ChatViewState extends State<_ChatView> {
           index -= 1;
         }
 
-        final message = messages[messages.length - 1 - index];
+        final at = messages.length - 1 - index;
+        final message = messages[at];
 
         return Padding(
           key: ValueKey(message.id),
           padding: const EdgeInsets.only(bottom: 8),
           child: ChatBubble(
             message: message,
+            onContactAgent: message.unanswered
+                ? () => _openAgentChat(context, _questionBefore(messages, at))
+                : null,
             // Not while Fima is busy with another question: it would be
             // ignored, so it is not offered.
             onRetry: state.replying
@@ -152,9 +171,18 @@ class _ChatViewState extends State<_ChatView> {
   }
 }
 
+/// Opens the customer service's WhatsApp with [question] typed in (or just a
+/// greeting when there is none). Shared by the button under an apology and the
+/// top bar's, so both say the same when WhatsApp cannot be opened.
+void _openAgentChat(BuildContext context, String? question) => openExternalLink(
+  context,
+  agentChatUrl(question),
+  failureMessage: 'WhatsApp tidak dapat dibuka',
+);
+
 /// The page's top bar, set up like the app's other pages (flat, in the page's
 /// own colour, a `leading` back arrow), with Fima's name and badge as its
-/// title.
+/// title and a WhatsApp action to reach a person at any time.
 class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _ChatAppBar();
 
@@ -221,6 +249,22 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
+      actions: [
+        IconButton(
+          key: const Key('chat-agent-appbar'),
+          tooltip: 'Hubungi petugas',
+          icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 22),
+          style: IconButton.styleFrom(foregroundColor: onSurface),
+          // Read when tapped, not watched: the bar needs no rebuild as the
+          // chat goes on. The latest question is what the member is stuck on.
+          onPressed: () {
+            final messages = context.read<ChatBloc>().state.messages;
+            final lastQuestion = messages.where((m) => m.isFromUser).lastOrNull;
+            _openAgentChat(context, lastQuestion?.text);
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
       bottom: const PreferredSize(
         preferredSize: Size.fromHeight(1),
         child: Divider(height: 1),

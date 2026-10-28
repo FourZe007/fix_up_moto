@@ -59,6 +59,7 @@ void main() {
     ChatSender sender = ChatSender.user,
     ChatMessageStatus status = ChatMessageStatus.sent,
     Failure? failure,
+    bool unanswered = false,
   }) => ChatMessage(
     id: 'm',
     text: text,
@@ -66,6 +67,7 @@ void main() {
     status: status,
     failure: failure,
     createdAt: time,
+    unanswered: unanswered,
   );
 
   group('chatFailureText', () {
@@ -397,6 +399,130 @@ void main() {
         contrast(text.style!.color!, bubble.color!),
         greaterThanOrEqualTo(4.5),
       );
+    });
+
+    group('an answer Fima could not give', () {
+      const apology = 'Mohon Maaf, saya belum bisa menjawab pertanyaan anda.';
+      final contact = find.byKey(const Key('chat-agent-inline'));
+
+      ChatMessage unanswered() =>
+          message(apology, sender: ChatSender.fima, unanswered: true);
+
+      testWidgets('offers to reach a person on WhatsApp, under her words', (
+        tester,
+      ) async {
+        await pumpWidgetInPage(
+          tester,
+          ChatBubble(message: unanswered(), onContactAgent: () {}),
+          theme: AppTheme.light,
+        );
+
+        expect(contact, findsOneWidget);
+        expect(
+          find.descendant(
+            of: contact,
+            matching: find.text('Hubungi petugas lewat WhatsApp'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.getTopLeft(contact).dy,
+          greaterThan(tester.getBottomLeft(find.text(apology)).dy),
+        );
+      });
+
+      testWidgets('calls back when the button is tapped', (tester) async {
+        var taps = 0;
+        await pumpWidgetInPage(
+          tester,
+          ChatBubble(message: unanswered(), onContactAgent: () => taps++),
+          theme: AppTheme.light,
+        );
+
+        await tester.tap(contact);
+
+        expect(taps, 1);
+      });
+
+      testWidgets('has no button when the page gives no way to use it', (
+        tester,
+      ) async {
+        await pumpWidgetInPage(tester, ChatBubble(message: unanswered()));
+
+        expect(contact, findsNothing);
+      });
+
+      testWidgets('has no button under an answer she did give', (tester) async {
+        await pumpWidgetInPage(
+          tester,
+          ChatBubble(
+            message: message('Buka jam 8.', sender: ChatSender.fima),
+            onContactAgent: () {},
+          ),
+        );
+
+        expect(contact, findsNothing);
+      });
+
+      testWidgets('has no button on the member\'s own message', (tester) async {
+        await pumpWidgetInPage(
+          tester,
+          ChatBubble(message: message('Halo'), onContactAgent: () {}),
+        );
+
+        expect(contact, findsNothing);
+      });
+
+      for (final (name, theme) in [
+        ('light', AppTheme.light),
+        ('dark', AppTheme.dark),
+      ]) {
+        testWidgets('keeps the button readable in $name mode', (tester) async {
+          await pumpWidgetInPage(
+            tester,
+            ChatBubble(message: unanswered(), onContactAgent: () {}),
+            theme: theme,
+          );
+
+          final style = tester
+              .widget<FilledButton>(contact)
+              .style!;
+          expect(
+            contrast(
+              style.foregroundColor!.resolve({})!,
+              style.backgroundColor!.resolve({})!,
+            ),
+            greaterThanOrEqualTo(4.5),
+          );
+        });
+      }
+
+      testWidgets('fits a narrow screen at a large text size', (tester) async {
+        usePhone(tester, width: 320);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            builder: (context, page) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(1.5)),
+              child: page!,
+            ),
+            home: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ChatBubble(message: unanswered(), onContactAgent: () {}),
+              ),
+            ),
+          ),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getBottomRight(contact).dx,
+          lessThanOrEqualTo(320 - 16),
+        );
+      });
     });
   });
 

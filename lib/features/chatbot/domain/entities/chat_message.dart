@@ -32,6 +32,11 @@ class ChatMessage extends Equatable {
 
   final DateTime createdAt;
 
+  /// Fima's answer is an apology: she had nothing to say to the question. The
+  /// chat then offers the member a person to talk to. Only ever set on her
+  /// messages.
+  final bool unanswered;
+
   const ChatMessage({
     required this.id,
     required this.text,
@@ -39,6 +44,7 @@ class ChatMessage extends Equatable {
     required this.status,
     required this.createdAt,
     this.failure,
+    this.unanswered = false,
   });
 
   bool get isFromUser => sender == ChatSender.user;
@@ -70,5 +76,13 @@ class ChatMessage extends Equatable {
   );
 
   @override
-  List<Object?> get props => [id, text, sender, status, failure, createdAt];
+  List<Object?> get props => [
+    id,
+    text,
+    sender,
+    status,
+    failure,
+    createdAt,
+    unanswered,
+  ];
 }

@@ -62,6 +62,26 @@ void main() {
     });
   });
 
+  group('unanswered', () {
+    ChatMessage fima({required bool unanswered}) => ChatMessage(
+      id: 'm2',
+      text: 'Mohon Maaf',
+      sender: ChatSender.fima,
+      status: ChatMessageStatus.sent,
+      createdAt: time,
+      unanswered: unanswered,
+    );
+
+    test('is off unless said otherwise', () {
+      expect(message.unanswered, isFalse);
+    });
+
+    test('tells two otherwise identical messages apart', () {
+      expect(fima(unanswered: true), fima(unanswered: true));
+      expect(fima(unanswered: true), isNot(fima(unanswered: false)));
+    });
+  });
+
   test('is equal to another with the same everything', () {
     expect(
       message.asFailed(const NetworkFailure('x')),

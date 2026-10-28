@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/constants/chat_constants.dart';
 import 'package:fix_up_moto/features/chatbot/domain/entities/chat_message.dart';
+import 'package:fix_up_moto/features/chatbot/domain/entities/fima_apology.dart';
 import 'package:fix_up_moto/features/chatbot/domain/usecases/ask_fima_usecase.dart';
 import 'package:fix_up_moto/features/chatbot/domain/usecases/chat_history_usecases.dart';
 import 'chat_event.dart';
@@ -140,6 +141,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             sender: ChatSender.fima,
             status: ChatMessageStatus.sent,
             createdAt: _now(),
+            // An answer from her own file is not an apology, so only a
+            // question nobody could answer gets the offer of a person.
+            unanswered: isFimaApology(answer),
           ),
         );
       },

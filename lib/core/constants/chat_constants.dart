@@ -11,7 +11,8 @@ class ChatConstants {
   /// Answers `200` with `{ "message": "<answer>", "status": true }`. The answer
   /// is plain text, paragraphs separated by `\n\n`. When it has nothing useful
   /// to say it still answers `status: true`, with an apology as the message —
-  /// that is an answer like any other, not an error.
+  /// to the data layer that is an answer like any other, not an error; the
+  /// repository recognises it (isFimaApology) and tries [knowledgeAsset].
   ///
   /// `status: false` (also with `200`) is a refusal, with its reason as the
   /// message — an empty question, for one. Anything that goes wrong inside the
@@ -21,6 +22,11 @@ class ChatConstants {
   /// Dio uses it as is, ignoring its base URL.
   static const String askUrl =
       'https://wsip.yamaha-jatim.co.id:5000/api/chat/fixupmoto';
+
+  /// The markdown file Fima answers from when the service apologises — topics
+  /// with their keywords and answers (see KnowledgeBase for the format). Must
+  /// match an entry under `flutter: assets:` in pubspec.yaml.
+  static const String knowledgeAsset = 'assets/knowledge/fima_knowledge.md';
 
   /// The longest question the service survives, in characters as Dart counts
   /// them (UTF-16 units; an emoji is two).

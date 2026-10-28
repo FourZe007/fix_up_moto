@@ -112,6 +112,12 @@ class ApiConstants {
   /// member's. **UNVERIFIED** against the backend. See
   /// `BikesRemoteDataSourceImpl.deleteBike`.
   ///
+  /// Marking an inbox message read is `Mode: "2"` with `TransID:
+  /// "NOTIFICATION"` and a `Data` of `MemberID`, `NotificationID` (as the inbox
+  /// returns it) and `IsRead: "1"`. **UNVERIFIED** — inferred from the other
+  /// edits, not confirmed against the backend. See
+  /// `NotificationRemoteDataSourceImpl.markAsRead`.
+  ///
   /// The Google complete-profile flow creates its member through this same call
   /// (with `IsGoogle: "1"`), via `AuthRemoteDataSourceImpl.submitGoogleAccount`.
   static const String modify = '/apiSAMP/Modify';

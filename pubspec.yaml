@@ -122,6 +122,8 @@ flutter:
     - assets/icons/
     # Lottie JSON animation files
     - assets/animations/
+    # Markdown Fima answers from when the chat service cannot (ChatConstants)
+    - assets/knowledge/
 
   fonts:
     # Poppins — primary typeface; weights map to TextStyle fontWeight values

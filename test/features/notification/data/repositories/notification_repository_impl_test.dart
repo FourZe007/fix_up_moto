@@ -181,4 +181,86 @@ void main() {
       const Left(ServerFailure('Gagal', statusCode: 500)),
     );
   });
+
+  group('markAsRead', () {
+    void givenMarkAnswer(Future<void> Function() answer) {
+      when(
+        () => remote.markAsRead(
+          memberId: any(named: 'memberId'),
+          notificationId: any(named: 'notificationId'),
+        ),
+      ).thenAnswer((_) => answer());
+    }
+
+    Future<Either<Failure, void>> mark() =>
+        repository.markAsRead(notificationId: 'N1');
+
+    test('marks the message for the signed-in member, never one the caller names', () async {
+      givenOnlineAndSignedIn();
+      givenMarkAnswer(() async {});
+
+      final result = await mark();
+
+      expect(result.isRight(), isTrue);
+      verify(
+        () => remote.markAsRead(
+          memberId: '0101202300000003',
+          notificationId: 'N1',
+        ),
+      ).called(1);
+    });
+
+    test('is a NetworkFailure, without touching anything, when offline', () async {
+      when(() => network.isConnected).thenAnswer((_) async => false);
+
+      expect(await mark(), const Left(NetworkFailure('No internet connection')));
+      verifyNever(() => auth.getCurrentUser());
+    });
+
+    test('is an AuthFailure, and sends nothing, when nobody is signed in', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => auth.getCurrentUser()).thenAnswer((_) async => const Right(null));
+
+      expect(await mark(), const Left(AuthFailure('No signed-in member found')));
+      verifyNever(
+        () => remote.markAsRead(
+          memberId: any(named: 'memberId'),
+          notificationId: any(named: 'notificationId'),
+        ),
+      );
+    });
+
+    test('passes on the failure when the session cannot be read', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      when(() => auth.getCurrentUser()).thenAnswer(
+        (_) async => const Left(CacheFailure('storage broke')),
+      );
+
+      expect(await mark(), const Left(CacheFailure('storage broke')));
+    });
+
+    test('maps 401, 403, 404 and a refusal to their failures', () async {
+      givenOnlineAndSignedIn();
+
+      givenMarkAnswer(() async => throw const UnauthorizedException());
+      expect(
+        await mark(),
+        const Left(AuthFailure('Session expired. Please sign in again.')),
+      );
+
+      givenMarkAnswer(() async => throw const ForbiddenException());
+      expect(await mark(), const Left(PermissionFailure('Access denied')));
+
+      givenMarkAnswer(() async => throw const NotFoundException());
+      expect(await mark(), const Left(NotFoundFailure('Resource not found')));
+
+      givenMarkAnswer(
+        () async => throw const ServerException(message: 'Gagal', statusCode: 200),
+      );
+      expect(
+        await mark(),
+        const Left(ServerFailure('Gagal', statusCode: 200)),
+      );
+    });
+  });
 }

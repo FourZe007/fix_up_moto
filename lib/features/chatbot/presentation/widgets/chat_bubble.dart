@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/chatbot/domain/entities/chat_message.dart';
@@ -15,7 +16,16 @@ class ChatBubble extends StatelessWidget {
   /// also takes the invitation out of the text.
   final VoidCallback? onRetry;
 
-  const ChatBubble({super.key, required this.message, this.onRetry});
+  /// Called when the member taps "Hubungi petugas" under an answer Fima could
+  /// not give ([ChatMessage.unanswered]). Null takes the button away.
+  final VoidCallback? onContactAgent;
+
+  const ChatBubble({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.onContactAgent,
+  });
 
   /// How much of the screen's width a bubble may take.
   static const double maxWidthFactor = 0.78;
@@ -38,7 +48,11 @@ class ChatBubble extends StatelessWidget {
       excludeSemantics: true,
       child: message.isFromUser
           ? _UserMessage(message: message, maxWidth: maxWidth, onRetry: onRetry)
-          : _FimaMessage(message: message, maxWidth: maxWidth),
+          : _FimaMessage(
+              message: message,
+              maxWidth: maxWidth,
+              onContactAgent: onContactAgent,
+            ),
     );
   }
 }
@@ -169,8 +183,13 @@ class _FailedNote extends StatelessWidget {
 class _FimaMessage extends StatelessWidget {
   final ChatMessage message;
   final double maxWidth;
+  final VoidCallback? onContactAgent;
 
-  const _FimaMessage({required this.message, required this.maxWidth});
+  const _FimaMessage({
+    required this.message,
+    required this.maxWidth,
+    required this.onContactAgent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +208,28 @@ class _FimaMessage extends StatelessWidget {
               height: 1.4,
             ),
           ),
+          // Fima had nothing to say: a person might.
+          if (message.unanswered && onContactAgent != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                key: const Key('chat-agent-inline'),
+                onPressed: onContactAgent,
+                icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
+                label: const Text('Hubungi petugas lewat WhatsApp'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.peachLight,
+                  foregroundColor: AppColors.primaryDark,
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             ChatBubble.clock(message.createdAt),

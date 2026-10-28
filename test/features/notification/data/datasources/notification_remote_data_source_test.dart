@@ -157,4 +157,130 @@ void main() {
       throwsA(isA<UnauthorizedException>()),
     );
   });
+
+  group('markAsRead', () {
+    void givenModifyResponse(Object? body) {
+      when(
+        () => dio.post<dynamic>(
+          ApiConstants.modify,
+          data: any<dynamic>(named: 'data'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: ApiConstants.modify),
+          statusCode: 200,
+          data: body,
+        ),
+      );
+    }
+
+    Future<void> markAsRead() =>
+        dataSource.markAsRead(memberId: 'M-1', notificationId: 'N-7');
+
+    test('posts the update to Modify: Mode 2, NOTIFICATION, member and id', () async {
+      givenModifyResponse({
+        'Msg': 'Berhasil',
+        'Data': [
+          {'ResultMessage': 'OK'},
+        ],
+      });
+
+      await markAsRead();
+
+      verify(
+        () => dio.post<dynamic>(
+          ApiConstants.modify,
+          data: {
+            'Mode': '2',
+            'TransID': 'NOTIFICATION',
+            'Data': {
+              'MemberID': 'M-1',
+              'NotificationID': 'N-7',
+              'IsRead': '1',
+            },
+          },
+        ),
+      ).called(1);
+    });
+
+    test('any answer but an explicit Gagal counts as done', () async {
+      // The success wording is unknown, so nothing else is taken as a refusal.
+      for (final body in <Object?>[
+        {'Msg': 'Berhasil', 'Data': []},
+        {'Msg': 'Sukses'},
+        {'Data': []},
+        {'Msg': '   '},
+        'plain text',
+        null,
+      ]) {
+        givenModifyResponse(body);
+
+        await expectLater(markAsRead(), completes, reason: '$body');
+      }
+    });
+
+    test('a Gagal is a ServerException with the server\'s own reason', () async {
+      givenModifyResponse({
+        'Msg': 'Gagal',
+        'Data': [
+          {'ResultMessage': ' Notifikasi tidak ditemukan '},
+        ],
+      });
+
+      await expectLater(
+        markAsRead(),
+        throwsA(
+          isA<ServerException>()
+              .having((e) => e.message, 'message', 'Notifikasi tidak ditemukan')
+              .having((e) => e.statusCode, 'statusCode', 200),
+        ),
+      );
+    });
+
+    test('a Gagal in any case, with no reason given, falls back to a plain one', () async {
+      for (final body in <Object?>[
+        {'Msg': 'GAGAL'},
+        {'Msg': 'gagal', 'Data': []},
+        {
+          'Msg': 'Gagal',
+          'Data': [
+            {'ResultMessage': '  '},
+          ],
+        },
+      ]) {
+        givenModifyResponse(body);
+
+        await expectLater(
+          markAsRead(),
+          throwsA(
+            isA<ServerException>().having(
+              (e) => e.message,
+              'message',
+              'Gagal menandai notifikasi sebagai dibaca',
+            ),
+          ),
+          reason: '$body',
+        );
+      }
+    });
+
+    test('a 401 from the server becomes UnauthorizedException', () async {
+      when(
+        () => dio.post<dynamic>(
+          ApiConstants.modify,
+          data: any<dynamic>(named: 'data'),
+        ),
+      ).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ApiConstants.modify),
+          response: Response<dynamic>(
+            requestOptions: RequestOptions(path: ApiConstants.modify),
+            statusCode: 401,
+          ),
+        ),
+      );
+
+      await expectLater(markAsRead(), throwsA(isA<UnauthorizedException>()));
+    });
+  });
 }

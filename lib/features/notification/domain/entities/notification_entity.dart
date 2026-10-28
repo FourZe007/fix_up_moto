@@ -42,6 +42,22 @@ class NotificationEntity extends Equatable {
     required this.link,
   });
 
+  /// This message once the member has read it; the same one if it already was.
+  NotificationEntity asRead() => isRead
+      ? this
+      : NotificationEntity(
+          memberId: memberId,
+          id: id,
+          type: type,
+          message: message,
+          date: date,
+          isSent: isSent,
+          isRead: true,
+          numberOfNotifications: numberOfNotifications,
+          image: image,
+          link: link,
+        );
+
   @override
   List<Object?> get props => [
     memberId,

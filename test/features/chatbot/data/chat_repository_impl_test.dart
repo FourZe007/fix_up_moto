@@ -5,11 +5,15 @@ import 'package:mocktail/mocktail.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
+import 'package:fix_up_moto/features/chatbot/data/datasources/chat_knowledge_data_source.dart';
 import 'package:fix_up_moto/features/chatbot/data/datasources/chat_remote_data_source.dart';
 import 'package:fix_up_moto/features/chatbot/data/repositories/chat_repository_impl.dart';
 import 'package:fix_up_moto/features/chatbot/domain/entities/chat_message.dart';
 
 class MockChatRemoteDataSource extends Mock implements ChatRemoteDataSource {}
+
+class MockChatKnowledgeDataSource extends Mock
+    implements ChatKnowledgeDataSource {}
 
 class MockNetworkInfo extends Mock implements NetworkInfo {}
 
@@ -137,6 +141,114 @@ void main() {
 
         expect((await repository.ask('Halo?')).isLeft(), isTrue);
       });
+    });
+  });
+
+  group('when the service apologises', () {
+    const apology =
+        'Mohon Maaf untuk saat ini saya belum bisa menjawab pertanyaan anda.';
+    const file = '''
+## Poin
+Kata kunci: poin, point
+Poin didapat dari setiap servis.
+''';
+
+    late MockChatKnowledgeDataSource knowledge;
+    late ChatRepositoryImpl withKnowledge;
+
+    setUp(() {
+      knowledge = MockChatKnowledgeDataSource();
+      when(() => knowledge.load()).thenAnswer((_) async => file);
+      withKnowledge = ChatRepositoryImpl(
+        remoteDataSource: dataSource,
+        networkInfo: networkInfo,
+        knowledgeDataSource: knowledge,
+      );
+    });
+
+    test('answers from the file when a topic fits the question', () async {
+      givenAnswer(() async => apology);
+
+      expect(
+        await withKnowledge.ask('Bagaimana cara dapat poin?'),
+        const Right('Poin didapat dari setiap servis.'),
+      );
+    });
+
+    test('keeps the apology when no topic fits', () async {
+      givenAnswer(() async => apology);
+
+      expect(
+        await withKnowledge.ask('Apakah bengkel buka hari Minggu?'),
+        const Right(apology),
+      );
+    });
+
+    test('keeps the apology when Fima has no file at all', () async {
+      givenAnswer(() async => apology);
+
+      // The repository from setUp has no knowledge source.
+      expect(await repository.ask('Berapa poin saya?'), const Right(apology));
+    });
+
+    test('keeps the apology when the file cannot be read', () async {
+      when(() => knowledge.load()).thenThrow(StateError('no such asset'));
+      givenAnswer(() async => apology);
+
+      expect(await withKnowledge.ask('poin'), const Right(apology));
+    });
+
+    test('keeps the apology when the file is nonsense', () async {
+      when(() => knowledge.load()).thenAnswer((_) async => '\u0000 ## \n ##');
+      givenAnswer(() async => apology);
+
+      expect(await withKnowledge.ask('poin'), const Right(apology));
+    });
+
+    test(
+      'leaves a real answer alone and never reads the file for it',
+      () async {
+        givenAnswer(() async => 'Buka setiap hari pukul 08.00 sampai 17.00.');
+
+        expect(
+          await withKnowledge.ask('Jam buka dan poin?'),
+          const Right('Buka setiap hari pukul 08.00 sampai 17.00.'),
+        );
+        verifyNever(() => knowledge.load());
+      },
+    );
+
+    test('reads the file once, however many apologies there are', () async {
+      givenAnswer(() async => apology);
+
+      await withKnowledge.ask('poin');
+      await withKnowledge.ask('point');
+      await withKnowledge.ask('sesuatu lain');
+
+      verify(() => knowledge.load()).called(1);
+    });
+
+    test('does not go to the file for a service that failed', () async {
+      givenAnswer(
+        () => Future<String>.error(
+          const ServerException(message: 'Boom', statusCode: 500),
+        ),
+      );
+
+      expect(
+        (await withKnowledge.ask('poin')).isLeft(),
+        isTrue,
+        reason: 'a failure is retried, not answered from the file',
+      );
+      verifyNever(() => knowledge.load());
+    });
+
+    test('does not go to the file with no connection', () async {
+      when(() => networkInfo.isConnected).thenAnswer((_) async => false);
+      givenAnswer(() async => apology);
+
+      expect((await withKnowledge.ask('poin')).isLeft(), isTrue);
+      verifyNever(() => knowledge.load());
     });
   });
 

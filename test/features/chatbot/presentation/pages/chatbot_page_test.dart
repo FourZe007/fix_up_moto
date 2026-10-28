@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/chatbot/data/datasources/chat_knowledge_data_source.dart';
 import 'package:fix_up_moto/features/chatbot/data/datasources/chat_remote_data_source.dart';
 import '../../support/fake_chat_remote_data_source.dart';
 import 'package:fix_up_moto/features/chatbot/data/repositories/chat_repository_impl.dart';
@@ -65,11 +67,26 @@ class _Online implements NetworkInfo {
   Future<bool> get isConnected async => true;
 }
 
-/// The chat's real layers (repository, use cases, bloc) over [source].
-void registerChat(ChatRemoteDataSource source) {
+/// Fima's knowledge file, as the text it holds.
+class _KnowledgeFile implements ChatKnowledgeDataSource {
+  final String text;
+
+  _KnowledgeFile(this.text);
+
+  @override
+  Future<String> load() async => text;
+}
+
+/// The chat's real layers (repository, use cases, bloc) over [source], and over
+/// [knowledge] as Fima's own file when there is one.
+void registerChat(ChatRemoteDataSource source, {String? knowledge}) {
   sl.registerLazySingleton<ChatRemoteDataSource>(() => source);
   sl.registerLazySingleton<ChatRepository>(
-    () => ChatRepositoryImpl(remoteDataSource: sl(), networkInfo: _Online()),
+    () => ChatRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: _Online(),
+      knowledgeDataSource: knowledge == null ? null : _KnowledgeFile(knowledge),
+    ),
   );
   sl.registerLazySingleton(() => AskFimaUseCase(sl<ChatRepository>()));
   sl.registerLazySingleton(() => GetChatHistoryUseCase(sl<ChatRepository>()));
@@ -858,6 +875,252 @@ void main() {
 
       final bar = tester.widget<AppBar>(find.byType(AppBar));
       expect(bar.backgroundColor, AppTheme.dark.scaffoldBackgroundColor);
+    });
+  });
+
+  group('asking a person on WhatsApp', () {
+    const apology =
+        'Mohon Maaf untuk saat ini saya belum bisa menjawab pertanyaan anda.';
+    const greeting = 'https://wa.me/6285179798961?text='
+        'Halo%20FixUp%20Moto%2C%20saya%20butuh%20bantuan.';
+    final inline = find.byKey(const Key('chat-agent-inline'));
+    final appBarAction = find.byKey(const Key('chat-agent-appbar'));
+
+    /// Stands in for the url_launcher plugin: answers every launch with
+    /// [opens] and records the calls it received.
+    List<MethodCall> mockLauncher({required bool opens}) {
+      final calls = <MethodCall>[];
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return opens;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      return calls;
+    }
+
+    String urlOf(MethodCall call) => (call.arguments as Map)['url'] as String;
+
+    Future<void> openAndAsk(
+      WidgetTester tester,
+      String question,
+      String answer,
+    ) async {
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+      await ask(tester, question);
+      source.answer(answer);
+      await settle(tester);
+    }
+
+    testWidgets('offers it under Fima\'s apology', (tester) async {
+      await openAndAsk(tester, 'Berapa poin saya?', apology);
+
+      expect(find.text(apology), findsOneWidget);
+      expect(inline, findsOneWidget);
+    });
+
+    testWidgets('does not offer it under an answer she did give', (
+      tester,
+    ) async {
+      await openAndAsk(tester, 'Jam buka?', 'Buka setiap hari pukul 08.00.');
+
+      expect(inline, findsNothing);
+    });
+
+    testWidgets('opens WhatsApp with the question that was not answered', (
+      tester,
+    ) async {
+      final calls = mockLauncher(opens: true);
+      await openAndAsk(tester, 'Berapa poin saya?', apology);
+
+      await tester.tap(inline);
+      await tester.pump();
+
+      expect(calls, hasLength(1));
+      expect(
+        urlOf(calls.single),
+        'https://wa.me/6285179798961?text='
+        'Halo%20FixUp%20Moto%2C%20saya%20butuh%20bantuan.'
+        '%20Pertanyaan%20saya%3A%20%22Berapa%20poin%20saya%3F%22',
+      );
+      // Handed to WhatsApp (or the browser), not shown in an in-app web view.
+      expect((calls.single.arguments as Map)['useWebView'], isFalse);
+      expect(find.text('WhatsApp tidak dapat dibuka'), findsNothing);
+    });
+
+    testWidgets('gives each apology its own question, not the latest', (
+      tester,
+    ) async {
+      final calls = mockLauncher(opens: true);
+      await openAndAsk(tester, 'Pertanyaan satu', apology);
+      await ask(tester, 'Pertanyaan dua');
+      source.answer(apology);
+      await settle(tester);
+      expect(inline, findsNWidgets(2));
+
+      await tester.tap(inline.at(0));
+      await tester.pump();
+      await tester.tap(inline.at(1));
+      await tester.pump();
+
+      final texts = [
+        for (final call in calls) Uri.parse(urlOf(call)).queryParameters['text'],
+      ];
+      expect(texts, hasLength(2));
+      expect(
+        texts.any((t) => t!.endsWith('"Pertanyaan satu"')),
+        isTrue,
+        reason: texts.join(' | '),
+      );
+      expect(texts.any((t) => t!.endsWith('"Pertanyaan dua"')), isTrue);
+    });
+
+    testWidgets('is always in the top bar, even before anything is asked', (
+      tester,
+    ) async {
+      final calls = mockLauncher(opens: true);
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: appBarAction),
+        findsOneWidget,
+      );
+
+      await tester.tap(appBarAction);
+      await tester.pump();
+
+      // Nothing asked yet: a plain greeting, no question in it.
+      expect(urlOf(calls.single), greeting);
+    });
+
+    testWidgets('top bar action carries the latest question', (tester) async {
+      final calls = mockLauncher(opens: true);
+      await openAndAsk(tester, 'Pertanyaan satu', 'Jawaban satu');
+      await ask(tester, 'Pertanyaan dua');
+      source.answer('Jawaban dua');
+      await settle(tester);
+
+      await tester.tap(appBarAction);
+      await tester.pump();
+
+      expect(
+        Uri.parse(urlOf(calls.single)).queryParameters['text'],
+        'Halo FixUp Moto, saya butuh bantuan. Pertanyaan saya: '
+        '"Pertanyaan dua"',
+      );
+    });
+
+    testWidgets('top bar action is labelled', (tester) async {
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+
+      expect(tester.widget<IconButton>(appBarAction).tooltip, 'Hubungi petugas');
+    });
+
+    testWidgets('top bar action works while Fima is still answering', (
+      tester,
+    ) async {
+      final calls = mockLauncher(opens: true);
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+      await ask(tester, 'Sedang ditanya');
+
+      await tester.tap(appBarAction);
+      await tester.pump();
+
+      expect(calls, hasLength(1));
+    });
+
+    testWidgets('says so when WhatsApp cannot be opened', (tester) async {
+      mockLauncher(opens: false);
+      await openAndAsk(tester, 'Berapa poin saya?', apology);
+
+      await tester.tap(inline);
+      await tester.pump();
+
+      expect(find.text('WhatsApp tidak dapat dibuka'), findsOneWidget);
+    });
+
+    testWidgets('keeps the button when the chat is left and reopened', (
+      tester,
+    ) async {
+      await openAndAsk(tester, 'Berapa poin saya?', apology);
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      final router = GoRouter.of(tester.element(find.text('home-page')));
+      await openChat(tester, router);
+
+      expect(find.text(apology), findsOneWidget);
+      expect(inline, findsOneWidget);
+    });
+  });
+
+  group('answering from Fima\'s own file', () {
+    const apology =
+        'Mohon Maaf untuk saat ini saya belum bisa menjawab pertanyaan anda.';
+    const file = '''
+## Poin
+Kata kunci: poin, point
+Poin didapat dari setiap servis.
+''';
+    final inline = find.byKey(const Key('chat-agent-inline'));
+
+    setUp(() async {
+      // Replace the chat's layers with ones that have the file.
+      await sl.reset();
+      source = ScriptedChatDataSource();
+      registerChat(source, knowledge: file);
+    });
+
+    testWidgets('shows the file\'s answer when the service apologises and a '
+        'topic fits, with no apology and no button', (tester) async {
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+
+      await ask(tester, 'Bagaimana cara dapat poin?');
+      source.answer(apology);
+      await settle(tester);
+
+      expect(find.text('Poin didapat dari setiap servis.'), findsOneWidget);
+      expect(find.text(apology), findsNothing);
+      expect(inline, findsNothing);
+    });
+
+    testWidgets('still shows the apology, with the button, when no topic '
+        'fits', (tester) async {
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+
+      await ask(tester, 'Apakah bengkel buka hari Minggu?');
+      source.answer(apology);
+      await settle(tester);
+
+      expect(find.text(apology), findsOneWidget);
+      expect(inline, findsOneWidget);
+    });
+
+    testWidgets('leaves the service\'s own answer alone', (tester) async {
+      usePhone(tester);
+      final router = await pumpApp(tester);
+      await openChat(tester, router);
+
+      await ask(tester, 'Jam buka dan poin?');
+      source.answer('Buka setiap hari pukul 08.00.');
+      await settle(tester);
+
+      expect(find.text('Buka setiap hari pukul 08.00.'), findsOneWidget);
+      expect(find.text('Poin didapat dari setiap servis.'), findsNothing);
     });
   });
 }

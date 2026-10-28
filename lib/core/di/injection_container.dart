@@ -45,6 +45,7 @@ import 'package:fix_up_moto/features/membership/domain/usecases/get_rewards_usec
 import 'package:fix_up_moto/features/membership/domain/usecases/redeem_reward_usecase.dart';
 import 'package:fix_up_moto/features/membership/presentation/bloc/redeem_bloc.dart';
 import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_bloc.dart';
+import 'package:fix_up_moto/features/chatbot/data/datasources/chat_knowledge_data_source.dart';
 import 'package:fix_up_moto/features/chatbot/data/datasources/chat_remote_data_source.dart';
 import 'package:fix_up_moto/features/chatbot/data/repositories/chat_repository_impl.dart';
 import 'package:fix_up_moto/features/chatbot/domain/repositories/chat_repository.dart';
@@ -55,6 +56,7 @@ import 'package:fix_up_moto/features/notification/data/datasources/notification_
 import 'package:fix_up_moto/features/notification/data/repositories/notification_repository_impl.dart';
 import 'package:fix_up_moto/features/notification/domain/repositories/notification_repository.dart';
 import 'package:fix_up_moto/features/notification/domain/usecases/get_notifications_usecase.dart';
+import 'package:fix_up_moto/features/notification/domain/usecases/mark_notification_read_usecase.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_bloc.dart';
 import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/bikes_remote_data_source.dart';
@@ -379,7 +381,12 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(
     () => GetNotificationsUseCase(sl<NotificationRepository>()),
   );
-  sl.registerFactory(() => NotificationBloc(getNotifications: sl()));
+  sl.registerLazySingleton(
+    () => MarkNotificationReadUseCase(sl<NotificationRepository>()),
+  );
+  sl.registerFactory(
+    () => NotificationBloc(getNotifications: sl(), markNotificationRead: sl()),
+  );
 
   // ── Chatbot Feature ───────────────────────────────────────────────────────
   // Chat with Fima. The repository is app-scoped on purpose: it keeps the
@@ -390,8 +397,16 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<ChatRemoteDataSource>(
     () => ChatRemoteDataSourceImpl(sl<DioClient>().dio),
   );
+  // The markdown Fima answers from when that service apologises.
+  sl.registerLazySingleton<ChatKnowledgeDataSource>(
+    () => AssetChatKnowledgeDataSource(),
+  );
   sl.registerLazySingleton<ChatRepository>(
-    () => ChatRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+    () => ChatRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      knowledgeDataSource: sl(),
+    ),
   );
   sl.registerLazySingleton(() => AskFimaUseCase(sl<ChatRepository>()));
   sl.registerLazySingleton(() => GetChatHistoryUseCase(sl<ChatRepository>()));

@@ -7,12 +7,17 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:fix_up_moto/core/constants/translation_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
+import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/core/widgets/warm_section.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/notification/domain/entities/notification_entity.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_bloc.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_event.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_state.dart';
 import 'package:fix_up_moto/features/notification/presentation/models/notification_filter.dart';
+import 'package:fix_up_moto/features/notification/presentation/models/notification_group.dart';
+import 'package:fix_up_moto/features/notification/presentation/models/notification_icon.dart';
 import 'package:fix_up_moto/features/notification/presentation/models/notification_link.dart';
 
 /// The member's inbox.
@@ -20,9 +25,15 @@ import 'package:fix_up_moto/features/notification/presentation/models/notificati
 /// Page-scoped [NotificationBloc], created here and asked for the inbox as the
 /// page opens (it is a top-level route, so every visit starts fresh). Shows a
 /// spinner while loading, the error with a retry button, an empty message, or
-/// the messages as full-width rows, Gmail-style: no borders, no gaps. An unread
-/// row is filled with the brand colour (and has a dot and a bolder title); a
-/// read one sits on the page's own light grey. Pull down to reload.
+/// the messages grouped under day headings (Hari ini, Kemarin; anything older
+/// has none), one rounded card per group, in the same warm look as the Profile
+/// page.
+///
+/// It is a reading page that most members rarely open, so it is kept quiet: the
+/// only colour on a row is the small mark of an unread message — a dot, a bolder
+/// title and a very pale peach tint, with dark text throughout. An unread
+/// message has a "Tandai sudah dibaca" button that marks it read where it
+/// stands; if the server refuses, a snackbar says why. Pull down to reload.
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
 
@@ -117,75 +128,180 @@ class _NotificationViewState extends State<_NotificationView> {
           onApply: _apply,
         ),
       ),
-      body: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
-        appBar: AppBar(
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          title: const Text('Kotak Masuk'),
-          titleTextStyle: TextStyle(
-            color: AppColors.backgroundBlack,
-            fontWeight: FontWeight.w600,
-            fontSize: 20,
-          ),
-          backgroundColor: AppColors.backgroundLight,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
-            style: IconButton.styleFrom(
-              foregroundColor: AppColors.backgroundBlack,
+      // The page is light in dark mode too, so all of it — app bar included — is
+      // built from the light theme there: dark text, light cards. The wash is a
+      // fixed backdrop *around* a Scaffold whose own background and app bar are
+      // transparent (as on Profile), so it shows behind the bar and the cards
+      // scroll over it.
+      body: LightSurfaceScope(
+        child: WarmWash(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: AppBar(
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              centerTitle: false,
+              backgroundColor: Colors.transparent,
+              title: const _Title(),
+              titleTextStyle: TextStyle(
+                color: AppColors.backgroundBlack,
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.pop(),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.backgroundBlack,
+                ),
+              ),
+              actions: [
+                // Opens the filter panel. Same icon as the Bookings tab's filter.
+                IconButton(
+                  icon: const Icon(Icons.tune),
+                  tooltip: 'Filter',
+                  onPressed: _panelController.open,
+                  style: IconButton.styleFrom(
+                    foregroundColor: AppColors.backgroundBlack,
+                  ),
+                ),
+              ],
             ),
-          ),
-          actions: [
-            // Opens the filter panel. Same icon as the Bookings tab's filter.
-            IconButton(
-              icon: const Icon(Icons.tune),
-              tooltip: 'Filter',
-              onPressed: _panelController.open,
-              style: IconButton.styleFrom(
-                foregroundColor: AppColors.backgroundBlack,
-              ),
-            ),
-          ],
-        ),
-        // The page is light grey in dark mode too, so its content is built from
-        // the light theme there: dark text, light cards.
-        body: LightSurfaceScope(
-          child: BlocBuilder<NotificationBloc, NotificationState>(
-            // A reload keeps the list on screen under the pull indicator instead
-            // of swapping it for a spinner; only the answer changes it.
-            buildWhen: (previous, current) =>
-                !(previous is NotificationLoaded &&
-                    current is NotificationLoading),
-            builder: (context, state) => switch (state) {
-              NotificationInitial() || NotificationLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
-              NotificationError(:final message) => _ErrorView(
-                message: message,
-                // Under the current filter, not the defaults.
-                onRetry: () => context.read<NotificationBloc>().add(_request),
-              ),
-              NotificationLoaded(:final notifications) => RefreshIndicator(
-                onRefresh: () => _refresh(context),
-                child: notifications.isEmpty
-                    ? const _EmptyInbox()
-                    // No padding and no separators: the rows run edge to edge and
-                    // touch each other, like Gmail's list.
-                    : ListView.separated(
-                        // Always scrollable, so a short list can still be pulled.
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        separatorBuilder: (_, _) => const SizedBox(height: 1),
-                        itemCount: notifications.length,
-                        itemBuilder: (_, index) => _NotificationCard(
-                          notification: notifications[index],
-                        ),
+            body: BlocListener<NotificationBloc, NotificationState>(
+              // The list stays on screen when a "Tandai sudah dibaca" is
+              // refused, so the reason reaches the member as a snackbar.
+              listenWhen: (previous, current) =>
+                  current is NotificationLoaded &&
+                  current.markReadError != null,
+              listener: (context, state) {
+                if (state is! NotificationLoaded) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    // The backend shouts some of its wording in capitals, and
+                    // the failure messages are English.
+                    content: Text(
+                      TranslationConstants.translate(
+                        TextFormatter.fromUppercase(state.markReadError!),
                       ),
+                    ),
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    // Dismissable, and it also goes away on its own.
+                    showCloseIcon: true,
+                    duration: const Duration(seconds: 6),
+                    persist: false,
+                  ),
+                );
+              },
+              child: BlocBuilder<NotificationBloc, NotificationState>(
+                // A reload keeps the list on screen under the pull indicator
+                // instead of swapping it for a spinner; only the answer
+                // changes it.
+                buildWhen: (previous, current) =>
+                    !(previous is NotificationLoaded &&
+                        current is NotificationLoading),
+                builder: (context, state) => switch (state) {
+                  NotificationInitial() || NotificationLoading() =>
+                    const Center(child: CircularProgressIndicator()),
+                  NotificationError(:final message) => _ErrorView(
+                    message: message,
+                    // Under the current filter, not the defaults.
+                    onRetry: () =>
+                        context.read<NotificationBloc>().add(_request),
+                  ),
+                  NotificationLoaded(
+                    :final notifications,
+                    :final markingRead,
+                  ) =>
+                    RefreshIndicator(
+                      onRefresh: () => _refresh(context),
+                      child: notifications.isEmpty
+                          ? const _EmptyInbox()
+                          : _InboxList(
+                              groups: groupNotificationsByDay(notifications),
+                              markingRead: markingRead,
+                            ),
+                    ),
+                },
               ),
-            },
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The app bar's title: "Kotak Masuk", with a quiet count of the unread
+/// messages under it while there are any. The count is of what the list shows,
+/// so it follows the filter.
+class _Title extends StatelessWidget {
+  const _Title();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<NotificationBloc, NotificationState>(
+      // Only a new answer changes the count, not a reload on its way.
+      buildWhen: (previous, current) =>
+          !(previous is NotificationLoaded && current is NotificationLoading),
+      builder: (context, state) {
+        final unread = state is NotificationLoaded
+            ? state.notifications.where((n) => !n.isRead).length
+            : 0;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Kotak Masuk'),
+            if (unread > 0)
+              Text(
+                key: const Key('notification-unread-count'),
+                '$unread belum dibaca',
+                style: const TextStyle(
+                  color: AppColors.grey700,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The messages as day groups: a heading, then one rounded card of rows.
+class _InboxList extends StatelessWidget {
+  final List<NotificationGroup> groups;
+
+  /// The ids whose "mark as read" is waiting for the server's answer.
+  final Set<String> markingRead;
+
+  const _InboxList({required this.groups, required this.markingRead});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      // Always scrollable, so a short list can still be pulled.
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        for (final group in groups) ...[
+          // Older messages have no heading: the list is newest first, so what
+          // follows Kemarin is plainly older.
+          if (group.label case final label?) SectionHeader(label),
+          SectionCard(
+            children: [
+              for (final notification in group.notifications)
+                _NotificationRow(
+                  notification: notification,
+                  marking: markingRead.contains(notification.id),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
     );
   }
 }
@@ -370,6 +486,27 @@ class _FilterPanelState extends State<_FilterPanel> {
   }
 }
 
+/// The icon of the empty and error states, on a round peach tile like the ones
+/// beside the messages.
+class _StateIcon extends StatelessWidget {
+  final IconData icon;
+
+  const _StateIcon(this.icon);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: const BoxDecoration(
+        color: AppColors.peachLight,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, size: 32, color: AppColors.primary),
+    );
+  }
+}
+
 /// Nothing in the inbox. Scrollable, so pulling down still reloads it.
 class _EmptyInbox extends StatelessWidget {
   const _EmptyInbox();
@@ -385,7 +522,7 @@ class _EmptyInbox extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.notifications_none, size: 48),
+                _StateIcon(Icons.notifications_none),
                 SizedBox(height: 12),
                 Text('Belum ada notifikasi'),
               ],
@@ -412,7 +549,7 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           spacing: 12,
           children: [
-            const Icon(Icons.error_outline, size: 48),
+            const _StateIcon(Icons.error_outline),
             // The failure messages are English; show them in Indonesian when
             // there is a translation for them.
             Text(
@@ -431,26 +568,34 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-/// One inbox message as a full-width row, in the style of a Gmail list: flat,
-/// with no border, no rounded corners and no gap to the row above or below.
+/// One inbox message, as a row in its day group's card.
 ///
 /// ```
 /// ┌──────────────────────────────────────────┐
-/// │ ●  Booking Service Terkonfirmasi  12 Des │   title (translated) + date
-/// │    Booking Service Anda Telah ...        │   the message
-/// │                        [ Lihat Detail ↗ ]│   only when it has a link
+/// │ [▣]  Booking Service Terkonfirmasi     ● │   icon by type, title (translated), dot
+/// │      Booking Service Anda Telah ...      │   the message
+/// │      Lihat Detail ↗          12 Des 2023 │   link (only when it has one), date
+/// │      Tandai sudah dibaca ✓✓              │   only while unread
 /// └──────────────────────────────────────────┘
 /// ```
 ///
-/// An unread message (`IsRead` = 0) is filled with [AppColors.primary], so its
-/// text is white; a read one uses [AppColors.backgroundLight], the page's own
-/// colour. Colour is not the only cue: an unread row also has a dot and a
-/// bolder title, and a read row keeps the dot's (empty) space so every row's
-/// text lines up.
-class _NotificationCard extends StatelessWidget {
+/// An unread message (`IsRead` = 0) is marked three ways, none of them loud: a
+/// small brand-coloured dot, a bolder title, and a very pale peach tint behind
+/// the row (under a slightly deeper icon tile). Text is dark either way. A read
+/// row is plain, and the dot sits at the end of the title so the text of every
+/// row starts at the same place.
+///
+/// An unread row also offers "Tandai sudah dibaca" on a line of its own. It
+/// waits (a small spinner, not tappable) while the server answers, and it is
+/// gone once the row has turned read. The row itself is not tappable: there is
+/// no page of details to open.
+class _NotificationRow extends StatelessWidget {
   final NotificationEntity notification;
 
-  const _NotificationCard({required this.notification});
+  /// Whether this message's "mark as read" is waiting for the server.
+  final bool marking;
+
+  const _NotificationRow({required this.notification, this.marking = false});
 
   @override
   Widget build(BuildContext context) {
@@ -459,72 +604,150 @@ class _NotificationCard extends StatelessWidget {
     final date = DateTimeFormatter.toShortDate(notification.date);
     final link = NotificationLink.tryParse(notification.link);
 
-    // White on the brand colour; on the light row, whatever the theme says.
-    final Color? textColor = unread ? AppColors.textOnPrimary : null;
-
     return Container(
       key: Key('notification-${notification.id}'),
       width: double.infinity,
-      color: unread
-          ? AppColors.primary.withValues(alpha: 0.5)
-          : AppColors.backgroundLight,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Column(
+      // Only a colour, so the Container has no decoration: nothing here adds a
+      // border, corner or shadow to the card around it, which clips the tint to
+      // its own rounded corners.
+      color: unread ? AppColors.peachMist : null,
+      // The same 12 / 36 / 12 as ActionRow, which is where SectionCard's
+      // hairline starts (indent 60).
+      padding: const EdgeInsets.all(12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 4,
+        spacing: 12,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 8,
-            children: [
-              Expanded(
-                child: Text(
-                  // The backend sends the type in English.
-                  TranslationConstants.translate(notification.type),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: textColor,
-                    fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (date.isNotEmpty)
-                Text(
-                  date,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: unread
-                        ? AppColors.textOnPrimary.withValues(alpha: 0.85)
-                        : AppColors.grey600,
-                  ),
-                ),
-            ],
-          ),
-          Text(
-            notification.message,
-            style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-          ),
-          // A labelled button rather than the raw address: a URL is long and
-          // unreadable, and a link hidden in the text would never be found.
-          // What it says follows what the link leads to.
-          if (link != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                key: Key('notification-link-${notification.id}'),
-                onPressed: () => _openLink(context, link.uri),
-                style: TextButton.styleFrom(
-                  foregroundColor: unread
-                      ? AppColors.textOnPrimary
-                      : AppColors.primary,
-                  visualDensity: VisualDensity.compact,
-                ),
-                icon: Icon(_iconOf(link.kind), size: 16),
-                iconAlignment: IconAlignment.end,
-                label: Text(
-                  _labelOf(link.kind),
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
+          Container(
+            key: Key('notification-icon-${notification.id}'),
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              // Deeper on an unread row, where the tint would swallow the pale one.
+              color: unread ? AppColors.peachLight : AppColors.peachMist,
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(
+              notificationIconOf(notification.type),
+              size: 20,
+              color: AppColors.primary,
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 4,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        // The backend sends the type in English.
+                        TranslationConstants.translate(notification.type),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: unread
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (unread)
+                      // Colour alone would not tell a screen reader.
+                      Semantics(
+                        label: 'Belum dibaca',
+                        child: Container(
+                          key: Key('unread-dot-${notification.id}'),
+                          width: 8,
+                          height: 8,
+                          // Level with the title's first line.
+                          margin: const EdgeInsets.only(top: 5),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                Text(
+                  notification.message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.grey700,
+                  ),
+                ),
+                if (link != null || date.isNotEmpty)
+                  Row(
+                    children: [
+                      // A labelled button rather than the raw address: a URL is
+                      // long and unreadable, and a link hidden in the text would
+                      // never be found. What it says follows what the link leads
+                      // to. Dark red like the headings: the brand orange is only
+                      // 3.8:1 on a light row, too faint for small text.
+                      if (link != null)
+                        TextButton.icon(
+                          key: Key('notification-link-${notification.id}'),
+                          onPressed: () => _openLink(context, link.uri),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primaryDark,
+                            visualDensity: VisualDensity.compact,
+                            // No padding on the left, so the label starts where
+                            // the message above it does.
+                            padding: const EdgeInsets.only(right: 12),
+                            minimumSize: const Size(0, 32),
+                          ),
+                          icon: Icon(_iconOf(link.kind), size: 16),
+                          iconAlignment: IconAlignment.end,
+                          label: Text(
+                            _labelOf(link.kind),
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      const Spacer(),
+                      if (date.isNotEmpty)
+                        Text(
+                          date,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.grey700,
+                          ),
+                        ),
+                    ],
+                  ),
+                if (unread)
+                  TextButton.icon(
+                    key: Key('notification-mark-read-${notification.id}'),
+                    // Not tappable twice while the first is on its way.
+                    onPressed: marking
+                        ? null
+                        : () => context.read<NotificationBloc>().add(
+                            NotificationMarkReadRequested(notification.id),
+                          ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      visualDensity: VisualDensity.compact,
+                      // Starts where the message above it does, like the link.
+                      padding: const EdgeInsets.only(right: 12),
+                      minimumSize: const Size(0, 32),
+                    ),
+                    icon: marking
+                        ? const SizedBox(
+                            key: Key('mark-read-progress'),
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.done_all, size: 16),
+                    iconAlignment: IconAlignment.end,
+                    label: const Text(
+                      'Tandai sudah dibaca',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );

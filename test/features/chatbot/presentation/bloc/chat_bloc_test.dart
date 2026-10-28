@@ -68,13 +68,15 @@ void main() {
   );
 
   /// Fima's answer.
-  ChatMessage fima(String id, String text) => ChatMessage(
-    id: id,
-    text: text,
-    sender: ChatSender.fima,
-    status: ChatMessageStatus.sent,
-    createdAt: time,
-  );
+  ChatMessage fima(String id, String text, {bool unanswered = false}) =>
+      ChatMessage(
+        id: id,
+        text: text,
+        sender: ChatSender.fima,
+        status: ChatMessageStatus.sent,
+        createdAt: time,
+        unanswered: unanswered,
+      );
 
   void givenAnswer(String answer) =>
       when(() => ask(any())).thenAnswer((_) async => Right(answer));
@@ -279,6 +281,88 @@ void main() {
       expect(bloc.state.messages.map((m) => m.id).toSet(), hasLength(10));
       await bloc.close();
     });
+  });
+
+  group('an answer that is an apology', () {
+    const apology =
+        'Mohon Maaf untuk saat ini saya belum bisa menjawab pertanyaan anda.';
+
+    blocTest<ChatBloc, ChatState>(
+      'is marked unanswered, so the chat can offer a person to talk to',
+      setUp: () => givenAnswer(apology),
+      build: build,
+      act: (bloc) => bloc
+        ..add(const ChatStarted('M-1'))
+        ..add(const ChatMessageSent('Berapa poin saya?')),
+      skip: 2,
+      expect: () => [
+        ChatState(
+          messages: [
+            user('m1', 'Berapa poin saya?', ChatMessageStatus.sent),
+            fima('m2', apology, unanswered: true),
+          ],
+          loaded: true,
+        ),
+      ],
+    );
+
+    blocTest<ChatBloc, ChatState>(
+      'keeps that mark in the conversation it saves for the next visit',
+      setUp: () => givenAnswer(apology),
+      build: build,
+      act: (bloc) => bloc
+        ..add(const ChatStarted('M-1'))
+        ..add(const ChatMessageSent('Berapa poin saya?')),
+      verify: (_) => expect(lastSaved().last, fima('m2', apology, unanswered: true)),
+    );
+
+    blocTest<ChatBloc, ChatState>(
+      'is not marked once Fima could answer it herself: that answer is not an '
+      'apology',
+      setUp: () => givenAnswer('Poin didapat dari setiap servis.'),
+      build: build,
+      act: (bloc) => bloc
+        ..add(const ChatStarted('M-1'))
+        ..add(const ChatMessageSent('Bagaimana cara dapat poin?')),
+      skip: 2,
+      expect: () => [
+        ChatState(
+          messages: [
+            user('m1', 'Bagaimana cara dapat poin?', ChatMessageStatus.sent),
+            fima('m2', 'Poin didapat dari setiap servis.'),
+          ],
+          loaded: true,
+        ),
+      ],
+    );
+
+    blocTest<ChatBloc, ChatState>(
+      'is marked on a retry too, right after the question it answers',
+      setUp: () => givenAnswer(apology),
+      seed: () => ChatState(
+        messages: [
+          user(
+            'a',
+            'Berapa poin saya?',
+            ChatMessageStatus.failed,
+            failure: const NetworkFailure('offline'),
+          ),
+        ],
+        loaded: true,
+      ),
+      build: build,
+      act: (bloc) => bloc.add(const ChatRetryRequested('a')),
+      skip: 1,
+      expect: () => [
+        ChatState(
+          messages: [
+            user('a', 'Berapa poin saya?', ChatMessageStatus.sent),
+            fima('m1', apology, unanswered: true),
+          ],
+          loaded: true,
+        ),
+      ],
+    );
   });
 
   group('while Fima is answering', () {

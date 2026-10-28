@@ -13,4 +13,8 @@ abstract class NotificationRepository {
     required String isSent,
     required String isRead,
   });
+
+  /// Marks the message [notificationId] of the signed-in member's inbox as
+  /// read. Nothing comes back to use: the caller flips the message itself.
+  Future<Either<Failure, void>> markAsRead({required String notificationId});
 }

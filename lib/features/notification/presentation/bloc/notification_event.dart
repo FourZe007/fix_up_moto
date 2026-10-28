@@ -22,3 +22,14 @@ final class NotificationsRequested extends NotificationEvent {
   @override
   List<Object> get props => [isSent, isRead];
 }
+
+/// The member asked to mark one message as read ("Tandai sudah dibaca").
+final class NotificationMarkReadRequested extends NotificationEvent {
+  /// The message's own identifier.
+  final String id;
+
+  const NotificationMarkReadRequested(this.id);
+
+  @override
+  List<Object> get props => [id];
+}
