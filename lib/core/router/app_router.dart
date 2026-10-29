@@ -17,6 +17,7 @@ import 'package:fix_up_moto/features/chatbot/presentation/pages/chatbot_page.dar
 import 'package:fix_up_moto/features/feeds/presentation/pages/feeds_page.dart';
 import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
+import 'package:fix_up_moto/features/invoices/presentation/pages/invoices_page.dart';
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
@@ -214,6 +215,13 @@ class AppRouter {
       GoRoute(
         path: RouteNames.notification,
         builder: (_, _) => const NotificationPage(),
+      ),
+      // Opened from the Profile tab's "Riwayat Invoice" row — a focused
+      // full-screen page like the notification page above, so it is top-level
+      // too.
+      GoRoute(
+        path: RouteNames.invoices,
+        builder: (_, _) => const InvoicesPage(),
       ),
       // Opened from Home's "Motor Saya" button — same reasoning as the
       // routes above.

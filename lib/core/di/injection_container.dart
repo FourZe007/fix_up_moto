@@ -52,6 +52,11 @@ import 'package:fix_up_moto/features/chatbot/domain/repositories/chat_repository
 import 'package:fix_up_moto/features/chatbot/domain/usecases/ask_fima_usecase.dart';
 import 'package:fix_up_moto/features/chatbot/domain/usecases/chat_history_usecases.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/bloc/chat_bloc.dart';
+import 'package:fix_up_moto/features/invoices/data/datasources/invoices_remote_data_source.dart';
+import 'package:fix_up_moto/features/invoices/data/repositories/invoices_repository_impl.dart';
+import 'package:fix_up_moto/features/invoices/domain/repositories/invoices_repository.dart';
+import 'package:fix_up_moto/features/invoices/domain/usecases/get_invoices_usecase.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_bloc.dart';
 import 'package:fix_up_moto/features/notification/data/datasources/notification_remote_data_source.dart';
 import 'package:fix_up_moto/features/notification/data/repositories/notification_repository_impl.dart';
 import 'package:fix_up_moto/features/notification/domain/repositories/notification_repository.dart';
@@ -387,6 +392,23 @@ Future<void> initDependencies() async {
   sl.registerFactory(
     () => NotificationBloc(getNotifications: sl(), markNotificationRead: sl()),
   );
+
+  // ── Invoices Feature ──────────────────────────────────────────────────────
+  // The member's Servis and Sparepart invoices. The bloc is a factory and each
+  // tab of the page makes its own, so the two kinds load independently.
+
+  sl.registerLazySingleton<InvoicesRemoteDataSource>(
+    () => InvoicesRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<InvoicesRepository>(
+    () => InvoicesRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+      authRepository: sl(),
+    ),
+  );
+  sl.registerLazySingleton(() => GetInvoicesUseCase(sl<InvoicesRepository>()));
+  sl.registerFactory(() => InvoicesBloc(getInvoices: sl()));
 
   // ── Chatbot Feature ───────────────────────────────────────────────────────
   // Chat with Fima. The repository is app-scoped on purpose: it keeps the

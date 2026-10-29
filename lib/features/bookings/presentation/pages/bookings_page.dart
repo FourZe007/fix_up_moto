@@ -293,13 +293,27 @@ class _BookingsViewState extends State<_BookingsView>
                         ),
                       ),
                       BookingsLoading() => const Center(
-                        child: CircularProgressIndicator(),
+                        child: Column(
+                          spacing: 20,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            Text('Loading...'),
+                          ],
+                        ),
                       ),
                       BookingsError(:final message) => Center(
                         child: Text(message),
                       ),
                       BookingActionSuccess() => const Center(
-                        child: CircularProgressIndicator(),
+                        child: Column(
+                          spacing: 20,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            Text('Loading...'),
+                          ],
+                        ),
                       ),
                       BookingsLoaded(:final bookings) => _buildBookingsList(
                         context,
@@ -335,12 +349,20 @@ class _BookingsViewState extends State<_BookingsView>
           spacing: 12,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Belum ada pemesanan'),
+            Text('Belum ada pemesanan', style: TextStyle(fontSize: 14)),
 
             OutlinedButton.icon(
               onPressed: _loadBookings,
               icon: const Icon(Icons.refresh),
               label: const Text('Muat ulang'),
+              style: OutlinedButton.styleFrom(
+                iconSize: 16,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.all(16),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 16),
+              ),
             ),
           ],
         ),

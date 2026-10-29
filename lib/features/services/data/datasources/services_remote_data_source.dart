@@ -25,7 +25,7 @@ class ServicesRemoteDataSourceImpl implements ServicesRemoteDataSource {
         ApiConstants.browseTrans,
         // SAMP filters come through the body, not the query string.
         // An empty CategoryID means "all categories".
-        data: {'Jenis': serviceType, 'PlateNo': plateNo ?? 'B 6342 KUI'},
+        data: {'Jenis': serviceType, 'PlateNo': plateNo},
       );
       return SampEnvelope.rows(response).map(ServiceModel.fromJson).toList();
     } on DioException catch (e) {

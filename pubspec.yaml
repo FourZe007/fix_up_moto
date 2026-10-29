@@ -112,6 +112,34 @@ dev_dependencies:
   # mocktail: null-safe mock generation without code generation
   mocktail: ^1.0.4
 
+  # ── App Icon ──────────────────────────────────────────────────────────────
+  # flutter_launcher_icons: writes the Android and iOS launcher icons from the
+  # logo, configured in the flutter_launcher_icons block below. Re-run after
+  # changing it with:
+  #   dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher icon: the red FixUp Moto logo on Android (adaptive) and iOS only.
+# Web, Windows and macOS keep Flutter's default icons — this is a phone app.
+flutter_launcher_icons:
+  # The 1600x1600 logo: white text on solid red, no transparency.
+  image_path: "assets/images/fixupmoto_logo.jpg"
+
+  android: "ic_launcher"
+  min_sdk_android: 21
+  # Adaptive icon (Android 8+): a red plate with the logo on it. #FE0000 is the
+  # red the logo file itself is filled with, so the two read as one. The logo is
+  # pulled in by the inset so the wordmark stays inside the circle or rounded
+  # square the phone's launcher cuts the icon to, instead of losing the ends
+  # of "MOTO".
+  adaptive_icon_background: "#FE0000"
+  adaptive_icon_foreground: "assets/images/fixupmoto_logo.jpg"
+  adaptive_icon_foreground_inset: 16
+
+  ios: true
+  # The App Store rejects an icon with transparency.
+  remove_alpha_ios: true
+
 flutter:
   uses-material-design: true
 

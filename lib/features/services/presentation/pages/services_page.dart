@@ -58,8 +58,13 @@ class ServicesHistoryView extends StatelessWidget {
     return BlocBuilder<ServicesBloc, ServicesState>(
       builder: (context, state) {
         return switch (state) {
-          ServicesInitial() ||
-          ServicesLoading() => const Center(child: CircularProgressIndicator()),
+          ServicesInitial() || ServicesLoading() => const Center(
+            child: Column(
+              spacing: 20,
+              mainAxisSize: MainAxisSize.min,
+              children: [CircularProgressIndicator(), Text('Loading...')],
+            ),
+          ),
           ServicesError(:final message) => Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -70,7 +75,7 @@ class ServicesHistoryView extends StatelessWidget {
                   onPressed: () => context.read<ServicesBloc>().add(
                     const ServicesListRequested(),
                   ),
-                  child: const Text('Retry'),
+                  child: const Text('Muat Ulang'),
                 ),
               ],
             ),
@@ -85,7 +90,34 @@ class ServicesHistoryView extends StatelessWidget {
 
   Widget _buildList(BuildContext context, List<ServiceEntity> services) {
     if (services.isEmpty) {
-      return const Center(child: Text('No services available'));
+      return Center(
+        child: Column(
+          spacing: 16,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Tidak ada riwayat service tersedia',
+              style: TextStyle(fontSize: 14),
+            ),
+
+            OutlinedButton.icon(
+              onPressed: () => context.read<ServicesBloc>().add(
+                const ServicesListRequested(),
+              ),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Muat ulang'),
+              style: OutlinedButton.styleFrom(
+                iconSize: 16,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.all(16),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     // Check this function why it removed all history even though the data are exist

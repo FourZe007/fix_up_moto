@@ -126,6 +126,10 @@ Future<Mocks> pumpProfile(
         path: RouteNames.bookings,
         builder: (_, _) => const Scaffold(body: Text('bookings-page')),
       ),
+      GoRoute(
+        path: RouteNames.invoices,
+        builder: (_, _) => const Scaffold(body: Text('invoices-page')),
+      ),
     ],
   );
   await tester.pumpWidget(
@@ -167,6 +171,7 @@ void main() {
   final editRow = find.byKey(const Key('edit-profile'));
   final myBikesRow = find.byKey(const Key('my-bikes-row'));
   final bookingsRow = find.byKey(const Key('bookings-row'));
+  final invoicesRow = find.byKey(const Key('invoices-row'));
   final pointsRow = find.byKey(const Key('points-row'));
   final whatsappRow = find.byKey(const Key('whatsapp-service'));
   final instagramRow = find.byKey(const Key('instagram-link'));
@@ -698,6 +703,7 @@ void main() {
         find.text('Garasi'),
         myBikesRow,
         bookingsRow,
+        invoicesRow,
         find.text('FixUp Moto'),
         whatsappRow,
         privacyRow,
@@ -718,7 +724,7 @@ void main() {
 
       // The same card within a group, a different one for the next group.
       // Akun holds Kotak Masuk, Point & Voucher and Edit Profile; Garasi holds
-      // Motor Saya and Riwayat Booking.
+      // Motor Saya, Riwayat Booking and Riwayat Invoice.
       expect(
         identical(cardOf(tester, notificationRow), cardOf(tester, pointsRow)),
         isTrue,
@@ -729,6 +735,10 @@ void main() {
       );
       expect(
         identical(cardOf(tester, myBikesRow), cardOf(tester, bookingsRow)),
+        isTrue,
+      );
+      expect(
+        identical(cardOf(tester, bookingsRow), cardOf(tester, invoicesRow)),
         isTrue,
       );
       expect(
@@ -743,7 +753,7 @@ void main() {
         matching: find.byType(Divider),
       );
       expect(dividersIn(notificationRow), findsNWidgets(2));
-      expect(dividersIn(myBikesRow), findsNWidgets(1));
+      expect(dividersIn(myBikesRow), findsNWidgets(2));
     });
 
     testWidgets('start every label at the same x, whatever the icon', (
@@ -901,7 +911,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Material's minimum touch target is 48.
-      for (final row in [myBikesRow, bookingsRow, pointsRow]) {
+      for (final row in [myBikesRow, bookingsRow, invoicesRow, pointsRow]) {
         expect(tester.getSize(row).height, greaterThanOrEqualTo(48));
       }
     });
@@ -924,6 +934,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('bookings-page'), findsOneWidget);
+    });
+
+    testWidgets('Riwayat Invoice is in Garasi and opens the invoices page', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: invoicesRow,
+          matching: find.text('Riwayat Invoice'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(invoicesRow);
+      await tester.pumpAndSettle();
+
+      expect(find.text('invoices-page'), findsOneWidget);
     });
 
     testWidgets('Point & Voucher opens the Member tab', (tester) async {
@@ -1083,7 +1113,10 @@ void main() {
       final avatar = find.byKey(const Key('profile-avatar'));
       expect(tester.getSize(avatar), const Size(80, 80));
 
-      final disc = find.descendant(of: avatar, matching: find.byType(Container));
+      final disc = find.descendant(
+        of: avatar,
+        matching: find.byType(Container),
+      );
       final decoration =
           tester.widget<Container>(disc).decoration as BoxDecoration;
       expect(decoration.shape, BoxShape.circle);

@@ -302,6 +302,17 @@ class _ProfileBody extends StatelessWidget {
               ),
               onPressed: () => context.go(RouteNames.bookings),
             ),
+            // Invoices is a top-level route, so push: back returns to Profile.
+            ActionRow(
+              key: const Key('invoices-row'),
+              name: 'Riwayat Invoice',
+              icon: Icon(
+                Icons.receipt_long_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              onPressed: () => context.push(RouteNames.invoices),
+            ),
           ],
         ),
 

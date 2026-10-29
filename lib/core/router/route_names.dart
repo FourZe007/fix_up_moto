@@ -110,4 +110,9 @@ class RouteNames {
   /// so it is top-level too, without the bottom nav bar. Currently an empty
   /// placeholder page.
   static const String notification = '/notification';
+
+  /// The member's Servis and Sparepart invoices — opened from the Profile
+  /// tab's "Riwayat Invoice" row. A focused full-screen page like
+  /// [notification], so it is top-level too, without the bottom nav bar.
+  static const String invoices = '/invoices';
 }

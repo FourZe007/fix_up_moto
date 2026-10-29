@@ -55,8 +55,12 @@ class ApiConstants {
   /// for a member's booking history, or
   /// `{Jenis: "NOTIFICATION", MemberID, IsSent, IsRead}` for the member's
   /// inbox (`IsSent: "1"` = already sent, `IsRead: "1"` = read, `""` = no
-  /// filter). Backs the home dashboard stats, My Bikes' list, My Bookings and
-  /// the notification inbox; `Jenis` selects which projection is returned.
+  /// filter), or `{Jenis: "INVOICEBYMEMBER", MemberID, Kode, BeginDate,
+  /// EndDate}` for a member's invoices (`Kode` is `"SERVICE"` or `"SPAREPART"`,
+  /// the dates are `yyyy-MM-dd` and both included; each record carries its
+  /// lines in `Detail`). Backs the home dashboard stats, My Bikes' list, My
+  /// Bookings, the notification inbox and Riwayat Invoice; `Jenis` selects
+  /// which projection is returned.
   static const String browseTrans = '/apiSAMP/BrowseTrans';
 
   /// POST — body: `{PhoneNo, DecryptedPassword}` → envelope carrying

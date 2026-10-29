@@ -42,5 +42,5 @@ class AppConstants {
   /// is set to dark, and the Settings button is hidden from Profile. The
   /// dark theme, ThemeCubit and Settings page are all still in the code —
   /// turn this on to bring the feature back.
-  static const bool themeSwitchEnabled = true;
+  static const bool themeSwitchEnabled = false;
 }

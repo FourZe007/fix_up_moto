@@ -94,4 +94,62 @@ class DateTimeFormatter {
     if (diff == -1) return 'Yesterday';
     return toDisplayDate(date);
   }
+
+  // ── Bahasa Indonesia ──────────────────────────────────────────────────────
+  // Hand-written names rather than DateFormat('…', 'id_ID'), which would need
+  // the locale data initialised at startup. The formatters above stay English;
+  // use these where a screen is written in Bahasa Indonesia.
+
+  static const List<String> _weekdaysId = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
+
+  static const List<String> _monthsId = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
+  /// "Jum" — the first three letters of the weekday's Indonesian name.
+  static String shortWeekdayId(DateTime date) =>
+      _weekdaysId[date.weekday - 1].substring(0, 3);
+
+  /// "Okt" — the first three letters of the month's Indonesian name.
+  static String shortMonthId(DateTime date) =>
+      _monthsId[date.month - 1].substring(0, 3);
+
+  /// Formats [date] as "Jum, 30 Okt 2026".
+  /// Returns an empty string if [date] is null.
+  static String toDisplayDateId(DateTime? date) {
+    if (date == null) return '';
+    return '${shortWeekdayId(date)}, ${date.day} ${shortMonthId(date)} '
+        '${date.year}';
+  }
+
+  /// Formats [date] as "16 Sep 2024".
+  /// Returns an empty string if [date] is null.
+  static String toShortDateId(DateTime? date) {
+    if (date == null) return '';
+    return '${date.day} ${shortMonthId(date)} ${date.year}';
+  }
+
+  /// Formats [date] as "Jumat, 30 Oktober" — the full names, for screen readers.
+  static String toSpokenDateId(DateTime date) =>
+      '${_weekdaysId[date.weekday - 1]}, ${date.day} '
+      '${_monthsId[date.month - 1]}';
 }

@@ -11,6 +11,7 @@ import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
+import 'package:fix_up_moto/features/bookings/presentation/widgets/booking_date_strip.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
@@ -33,27 +34,41 @@ const _timeSlots = [
   _TimeSlot('14:00 - 15:00', TimeOfDay(hour: 14, minute: 0)),
 ];
 
-/// Workshop and date pickers sharing one card, split by a divider line.
+/// Saturday and Sunday can't be booked for — the calendar greys them out, so
+/// someone who wants a weekend day picks a weekday instead (e.g. the Friday
+/// before).
+bool isBookableDay(DateTime day) =>
+    day.weekday != DateTime.saturday && day.weekday != DateTime.sunday;
+
+/// [from], or the next day after it that [isBookableDay]. [showDatePicker]
+/// asserts that its initialDate passes selectableDayPredicate, so "tomorrow"
+/// can't be handed over as-is on a Friday or Saturday.
+DateTime firstBookableDay(DateTime from) {
+  var day = from;
+  while (!isBookableDay(day)) {
+    day = day.add(const Duration(days: 1));
+  }
+  return day;
+}
+
+/// Workshop and bike pickers sharing one card, split by a divider line.
 ///
 /// Each half keeps the exact row styling the standalone tiles used (icon,
 /// content, chevron) — only the outer shell changed, from two separate
 /// [Material] cards to one, so the pair reads as a single "booking setup"
 /// unit instead of two unrelated rows. Scoped to this file since Create
 /// Booking is the only page that needs them combined; Home still uses
-/// [WorkshopPickerTile] standalone.
+/// [WorkshopPickerTile] standalone. The date has its own section below
+/// (a [BookingDateStrip]), since a row that opens a popup hid the rules.
 class _BookingSetupCard extends StatelessWidget {
   final WorkshopEntity? selectedWorkshop;
   final VoidCallback onTapWorkshop;
-  final DateTime? selectedDate;
-  final VoidCallback onTapDate;
   final BikeEntity? selectedBike;
   final VoidCallback onTapBike;
 
   const _BookingSetupCard({
     required this.selectedWorkshop,
     required this.onTapWorkshop,
-    required this.selectedDate,
-    required this.onTapDate,
     required this.selectedBike,
     required this.onTapBike,
   });
@@ -61,7 +76,6 @@ class _BookingSetupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedWorkshop = this.selectedWorkshop;
-    final selectedDate = this.selectedDate;
     final selectedBike = this.selectedBike;
 
     return Material(
@@ -113,30 +127,6 @@ class _BookingSetupCard extends StatelessWidget {
             indent: 14,
             endIndent: 14,
           ),
-
-          _SetupRow(
-            icon: Icons.calendar_today_outlined,
-            onTap: onTapDate,
-            borderRadius: BorderRadius.zero,
-            content: selectedDate == null
-                ? const Text('Select a date')
-                : Text(
-                    // "Today"/"Tomorrow" for near dates — the common case,
-                    // since bookings are usually made a day or two ahead —
-                    // falling back to "Mon, 16 Mar 2026" further out.
-                    DateTimeFormatter.toRelativeLabel(selectedDate),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-          ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: Colors.grey.shade300,
-            indent: 14,
-            endIndent: 14,
-          ),
           _SetupRow(
             icon: Icons.two_wheeler_outlined,
             onTap: onTapBike,
@@ -144,7 +134,7 @@ class _BookingSetupCard extends StatelessWidget {
               bottom: Radius.circular(12),
             ),
             content: selectedBike == null
-                ? const Text('Select your bike')
+                ? const Text('Pilih motor Anda')
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -239,14 +229,28 @@ class _CreateBookingView extends StatefulWidget {
 }
 
 class _CreateBookingViewState extends State<_CreateBookingView> {
+  /// How far ahead a service can be booked — the strip and the full calendar
+  /// both stop here.
+  static const _bookingWindowDays = 90;
+
   final _notesController = TextEditingController();
-  DateTime? _selectedDate;
+  final _stripController = ScrollController();
+
+  /// The earliest day on offer: tomorrow, since there is no same-day booking.
+  /// Fixed when the page opens, so the strip doesn't shift if it stays open
+  /// past midnight.
+  late final DateTime _firstDay = DateUtils.dateOnly(
+    DateTime.now().add(const Duration(days: 1)),
+  );
+
+  late DateTime? _selectedDate = firstBookableDay(_firstDay);
   _TimeSlot? _selectedTimeSlot;
   BikeEntity? _selectedBike;
 
   @override
   void dispose() {
     _notesController.dispose();
+    _stripController.dispose();
     super.dispose();
   }
 
@@ -259,14 +263,35 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
     }
   }
 
+  /// The full calendar, for jumping to a date far beyond what the strip shows
+  /// at a glance. Same rules as the strip, then the strip follows the pick.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
+      initialDate: _selectedDate ?? firstBookableDay(_firstDay),
+      firstDate: _firstDay,
+      lastDate: DateUtils.addDaysToDate(_firstDay, _bookingWindowDays),
+      selectableDayPredicate: isBookableDay,
+      // Shown when a blocked date is typed in (keyboard mode) — the only place
+      // inside the popup where the rules can be explained.
+      errorInvalidText: 'Akhir pekan dan hari ini tidak tersedia',
+      errorFormatText: 'Format tanggal tidak valid',
+      helpText: 'Pilih tanggal',
+      cancelText: 'Batal',
+      confirmText: 'Pilih',
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+    if (picked == null || !mounted) return;
+    setState(() => _selectedDate = picked);
+    if (_stripController.hasClients) {
+      _stripController.animateTo(
+        BookingDateStrip.offsetFor(
+          _firstDay,
+          picked,
+        ).clamp(0.0, _stripController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   /// Bottom sheet rather than a full pushed route — unlike workshops (which
@@ -288,14 +313,14 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
   void _submit() {
     if (_selectedDate == null || _selectedTimeSlot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a date and time')),
+        const SnackBar(content: Text('Silakan pilih tanggal dan jam')),
       );
       return;
     }
     if (_selectedBike == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Please select your bike')));
+      ).showSnackBar(const SnackBar(content: Text('Silakan pilih motor Anda')));
       return;
     }
 
@@ -327,6 +352,84 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
     );
   }
 
+  /// The day strip, with the booking rules written once beneath it. The
+  /// weekend rule is [isBookableDay]; "Open Mon - Fri" and the legend line
+  /// state it, so change them together.
+  Widget _buildDateSection(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text('Pilih Tanggal', style: textTheme.labelLarge),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Buka Senin - Jumat',
+                style: textTheme.bodySmall,
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        BookingDateStrip(
+          controller: _stripController,
+          firstDay: _firstDay,
+          dayCount: _bookingWindowDays + 1,
+          selectedDate: _selectedDate,
+          isEnabled: isBookableDay,
+          onSelected: (day) => setState(() => _selectedDate = day),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '*Booking tidak tersedia pada hari Sabtu dan Minggu. Booking minimal satu hari sebelumnya.',
+          style: textTheme.bodySmall,
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _pickDate,
+            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            child: const Text(
+              'Lihat kalender lengkap',
+              style: TextStyle(fontSize: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Time slot picker — only these three windows are bookable, shown as three
+  /// equal chips across the page.
+  Widget _buildTimeSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Pilih Jam', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (var i = 0; i < _timeSlots.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: _TimeSlotChip(
+                  label: _timeSlots[i].label,
+                  selected: _selectedTimeSlot == _timeSlots[i],
+                  onTap: () =>
+                      setState(() => _selectedTimeSlot = _timeSlots[i]),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -334,7 +437,7 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
       // as one continuous orange surface — this is what shows through the
       // body's cut top corners below, not just an empty background.
       backgroundColor: AppTheme.brandBackdrop(context),
-      appBar: AppBar(title: const Text('Book Service')),
+      appBar: AppBar(title: const Text('Book Servis')),
       // top: false — the AppBar already accounts for the status bar itself;
       // this only guards "Confirm Booking" at the bottom from the gesture
       // nav bar, since this page has no bottomNavigationBar to reserve that
@@ -388,83 +491,203 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
                   );
                 }
               },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    BlocBuilder<SelectedWorkshopCubit, WorkshopEntity?>(
-                      builder: (context, selected) => _BookingSetupCard(
-                        selectedWorkshop: selected,
-                        onTapWorkshop: _changeWorkshop,
-                        selectedDate: _selectedDate,
-                        onTapDate: _pickDate,
-                        selectedBike: _selectedBike,
-                        onTapBike: _pickBike,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Time slot picker — only these three windows are bookable.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Select Time',
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final slot in _timeSlots)
-                          ChoiceChip(
-                            label: Text(slot.label),
-                            selected: _selectedTimeSlot == slot,
-                            onSelected: (_) =>
-                                setState(() => _selectedTimeSlot = slot),
-                            padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                children: [
+                  // The form scrolls; the summary bar below stays put, so the
+                  // Confirm button is always in reach (and the keyboard no
+                  // longer overflows the page when Notes is focused).
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          BlocBuilder<SelectedWorkshopCubit, WorkshopEntity?>(
+                            builder: (context, selected) => _BookingSetupCard(
+                              selectedWorkshop: selected,
+                              onTapWorkshop: _changeWorkshop,
+                              selectedBike: _selectedBike,
+                              onTapBike: _pickBike,
+                            ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Optional notes field
-                    TextFormField(
-                      controller: _notesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Notes (optional)',
-                        hintText:
-                            'Any special requests or information for the mechanic',
+                          const SizedBox(height: 20),
+                          _buildDateSection(context),
+                          const SizedBox(height: 20),
+                          _buildTimeSection(context),
+                          const SizedBox(height: 20),
+                          // Optional notes field
+                          TextFormField(
+                            controller: _notesController,
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              labelText: 'Catatan (opsional)',
+                              hintText:
+                                  'Permintaan khusus atau informasi untuk mekanik',
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
-                    // This page's BookingsBloc is its own instance (see
-                    // CreateBookingPage), so BookingsLoading here can only mean
-                    // "the booking is being created" — never a list refresh.
-                    BlocBuilder<BookingsBloc, BookingsState>(
-                      builder: (context, state) {
-                        final isLoading = state is BookingsLoading;
-                        return ElevatedButton(
-                          // Disabled while in flight to prevent a double-tap
-                          // from creating the same booking twice.
-                          onPressed: isLoading ? null : _submit,
-                          child: isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('Confirm Booking'),
-                        );
-                      },
+                  ),
+                  // This page's BookingsBloc is its own instance (see
+                  // CreateBookingPage), so BookingsLoading here can only mean
+                  // "the booking is being created" — never a list refresh.
+                  BlocBuilder<BookingsBloc, BookingsState>(
+                    builder: (context, state) => _SummaryBar(
+                      date: _selectedDate,
+                      timeLabel: _selectedTimeSlot?.label,
+                      bike: _selectedBike,
+                      isLoading: state is BookingsLoading,
+                      onConfirm: _submit,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One of the three bookable time windows — a full-width tap target, filled in
+/// the brand colour once chosen.
+class _TimeSlotChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TimeSlotChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(12);
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? AppColors.primary : AppColors.grey200,
+        borderRadius: radius,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: SizedBox(
+            height: 48,
+            child: Center(
+              // Scales down rather than wrapping on a narrow phone.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected ? Colors.white : null,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sticky bottom bar: repeats what is about to be booked next to the Confirm
+/// button, and says what is still missing instead of leaving the button
+/// disabled with no explanation.
+class _SummaryBar extends StatelessWidget {
+  final DateTime? date;
+  final String? timeLabel;
+  final BikeEntity? bike;
+  final bool isLoading;
+  final VoidCallback onConfirm;
+
+  const _SummaryBar({
+    required this.date,
+    required this.timeLabel,
+    required this.bike,
+    required this.isLoading,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final date = this.date;
+    final timeLabel = this.timeLabel;
+    final bike = this.bike;
+    final textTheme = Theme.of(context).textTheme;
+    final strong = textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600);
+    final muted = textTheme.bodyMedium?.copyWith(color: AppColors.grey600);
+    final complete = date != null && timeLabel != null && bike != null;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: date == null
+                        ? 'Pilih tanggal'
+                        : DateTimeFormatter.toDisplayDateId(date),
+                    style: date == null ? muted : strong,
+                  ),
+                  TextSpan(text: '  ·  ', style: muted),
+                  TextSpan(
+                    text: timeLabel ?? 'Pilih jam',
+                    style: timeLabel == null ? muted : strong,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              bike == null
+                  ? 'Pilih motor Anda'
+                  : '${bike.unitId} · ${bike.plateNo}',
+              style: textTheme.bodySmall?.copyWith(
+                color: bike == null ? AppColors.grey600 : null,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              // Disabled while in flight to prevent a double-tap from
+              // creating the same booking twice, and until everything is
+              // chosen.
+              onPressed: complete && !isLoading ? onConfirm : null,
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(32),
+                ),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Konfirmasi'),
+            ),
+          ],
         ),
       ),
     );
@@ -503,7 +726,7 @@ class _BikePickerSheet extends StatelessWidget {
                 bikes.isEmpty
                     ? const SizedBox(
                         height: 160,
-                        child: Center(child: Text('No bikes registered yet')),
+                        child: Center(child: Text('Belum ada motor terdaftar')),
                       )
                     : ListView.builder(
                         shrinkWrap: true,
