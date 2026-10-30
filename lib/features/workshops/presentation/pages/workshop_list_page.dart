@@ -1,8 +1,11 @@
+import 'package:fix_up_moto/core/helpers/external_link.dart';
+import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
@@ -62,7 +65,7 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
     return Scaffold(
       backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(
-        title: const Text('Select Workshop'),
+        title: const Text('Pilih Bengkel'),
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
@@ -93,7 +96,7 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
                       filled: true,
                       fillColor: AppColors.grey200,
                       prefixIcon: const Icon(Icons.search),
-                      hintText: 'Search by workshop name or address',
+                      hintText: 'Cari bengkel',
                       suffixIcon: _query.isEmpty
                           ? null
                           : IconButton(
@@ -172,10 +175,13 @@ class _WorkshopCard extends StatelessWidget {
   final WorkshopEntity workshop;
   const _WorkshopCard({required this.workshop});
 
-  Future<void> _call() async {
-    final digits = workshop.phoneNo.replaceAll(RegExp(r'[^0-9+]'), '');
-    await launchUrl(Uri.parse('tel:$digits'));
-  }
+  /// Opens a WhatsApp chat with the workshop's number. WhatsApp rather than a
+  /// phone call: the workshops answer on WhatsApp, and a chat leaves a record.
+  void _chatOnWhatsApp(BuildContext context, String url) => openExternalLink(
+    context,
+    url,
+    failureMessage: 'WhatsApp tidak dapat dibuka',
+  );
 
   Future<void> _openInMaps() async {
     await launchUrl(
@@ -195,6 +201,7 @@ class _WorkshopCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final whatsappUrl = PhoneNumber.toWhatsAppUrl(workshop.phoneNo);
 
     return Card(
       // Overrides cardTheme's default color (app_theme.dart) to match the
@@ -272,15 +279,19 @@ class _WorkshopCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Row(
+                spacing: 12,
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _call,
-                      icon: const Icon(Icons.call_outlined, size: 18),
-                      label: const Text('Call'),
+                      key: Key('workshop-whatsapp-${workshop.id}'),
+                      // Nothing to open when the backend sent no number.
+                      onPressed: whatsappUrl == null
+                          ? null
+                          : () => _chatOnWhatsApp(context, whatsappUrl),
+                      icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 18),
+                      label: const Text('WhatsApp'),
                     ),
                   ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _openInMaps,

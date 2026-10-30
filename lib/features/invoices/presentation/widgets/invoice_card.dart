@@ -17,17 +17,29 @@ import 'package:fix_up_moto/features/invoices/domain/entities/invoice_entity.dar
 /// │ Perawatan Berkala (Paket Service)        │   then subtotal, discount,
 /// │ ...                                      │   voucher
 /// │ ──────────────────────────────────────── │
-/// │                        [⬇ Unduh Struk]   │   visible, not pressable yet
+/// │                        [⬇ Unduh Struk]   │   saves the receipt as a PDF
 /// └──────────────────────────────────────────┘
 /// ```
 ///
 /// Tapping the card opens and closes its lines in place, so the list keeps its
 /// place. The backend shouts names in capitals, so they are re-cased for
 /// display; the invoice number is shown as it was sent.
+///
+/// The card downloads nothing itself: "Unduh Struk" calls [onDownload], and the
+/// page does the work. [onDownload] is null while the button cannot be pressed
+/// (another receipt is on its way); [downloading] is true while this card's own
+/// receipt is, and swaps the icon for a spinner.
 class InvoiceCard extends StatefulWidget {
   final InvoiceEntity invoice;
+  final VoidCallback? onDownload;
+  final bool downloading;
 
-  const InvoiceCard({super.key, required this.invoice});
+  const InvoiceCard({
+    super.key,
+    required this.invoice,
+    required this.onDownload,
+    this.downloading = false,
+  });
 
   /// The key of the invoice's "Unduh Struk" button.
   static Key downloadKeyFor(InvoiceEntity invoice) =>
@@ -83,19 +95,23 @@ class _InvoiceCardState extends State<InvoiceCard> {
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
             child: Align(
               alignment: Alignment.centerRight,
-              // Receipts can't be downloaded yet: the button is shown so
-              // members know it is coming, but has no onPressed.
-              child: Tooltip(
-                message: 'Segera hadir',
-                child: OutlinedButton.icon(
-                  key: InvoiceCard.downloadKeyFor(invoice),
-                  onPressed: null,
-                  icon: const Icon(Icons.download_outlined, size: 18),
-                  label: const Text('Unduh Struk'),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    textStyle: theme.textTheme.labelMedium,
-                  ),
+              child: OutlinedButton.icon(
+                key: InvoiceCard.downloadKeyFor(invoice),
+                // Not pressable while this receipt is on its way, so a second
+                // tap cannot ask for it again.
+                onPressed: widget.downloading ? null : widget.onDownload,
+                icon: widget.downloading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_outlined, size: 18),
+                label: Text(
+                  widget.downloading ? 'Mengunduh...' : 'Unduh Struk',
+                ),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: theme.textTheme.labelMedium,
                 ),
               ),
             ),

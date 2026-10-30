@@ -1,15 +1,20 @@
 import 'package:equatable/equatable.dart';
 
 /// The two kinds of invoice the backend keeps — Invoice Servis and Invoice
-/// Sparepart. [wireValue] is what its `Kode` field expects.
+/// Sparepart. [wireValue] is what its `Kode` field expects, [transId] what the
+/// receipt endpoint's `TransID` does.
 enum InvoiceType {
-  service('SERVICE'),
-  sparepart('SPAREPART');
+  service('SERVICE', 'SNT'),
+  sparepart('SPAREPART', 'PNT');
 
   /// The exact string `BrowseTrans` expects in `Kode`.
   final String wireValue;
 
-  const InvoiceType(this.wireValue);
+  /// The `TransID` of this kind's receipt: `SNT` for a service, `PNT` for a
+  /// sparepart (also the middle of its invoice numbers, e.g. "3101SNT26100001").
+  final String transId;
+
+  const InvoiceType(this.wireValue, this.transId);
 }
 
 /// One line of an invoice: a service done or a part sold.

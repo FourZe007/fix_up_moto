@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,11 +10,18 @@ import 'package:fix_up_moto/features/invoices/domain/entities/invoice_entity.dar
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_bloc.dart';
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_event.dart';
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_state.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_bloc.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_event.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_state.dart';
 import 'package:fix_up_moto/features/invoices/presentation/pages/invoices_page.dart';
 import 'package:fix_up_moto/features/invoices/presentation/widgets/invoice_card.dart';
 
 class MockInvoicesBloc extends MockBloc<InvoicesEvent, InvoicesState>
     implements InvoicesBloc {}
+
+class MockReceiptDownloadBloc
+    extends MockBloc<ReceiptDownloadEvent, ReceiptDownloadState>
+    implements ReceiptDownloadBloc {}
 
 const tService = InvoiceEntity(
   number: '3101SNT24090303',
@@ -80,13 +89,25 @@ const tPart = InvoiceEntity(
 /// Servis tab first, the Sparepart tab when it is first shown.
 late List<MockInvoicesBloc> blocs;
 
+/// The one bloc that downloads receipts for both tabs, and the stream a test
+/// pushes its states through.
+late MockReceiptDownloadBloc receipts;
+late StreamController<ReceiptDownloadState> receiptStates;
+
 /// Pumps the page with a mock bloc per tab: [servis] for the first, [sparepart]
-/// for the second.
+/// for the second. [receipt] is the state the download bloc starts in.
 Future<void> pumpPage(
   WidgetTester tester, {
   InvoicesState servis = const InvoicesLoaded([]),
   InvoicesState sparepart = const InvoicesLoaded([]),
+  ReceiptDownloadState receipt = const ReceiptDownloadInitial(),
 }) async {
+  receipts = MockReceiptDownloadBloc();
+  receiptStates = StreamController<ReceiptDownloadState>.broadcast();
+  addTearDown(receiptStates.close);
+  whenListen(receipts, receiptStates.stream, initialState: receipt);
+  sl.registerFactory<ReceiptDownloadBloc>(() => receipts);
+
   blocs = [];
   sl.registerFactory<InvoicesBloc>(() {
     final bloc = MockInvoicesBloc();
@@ -341,10 +362,12 @@ void main() {
       expect(find.text('Voucher: Diskon Oli'), findsOneWidget);
       expect(find.text('Rp 60.000'), findsWidgets);
     });
+  });
 
-    testWidgets('has an Unduh Struk button that is shown but not pressable', (
-      tester,
-    ) async {
+  group('Unduh Struk', () {
+    final button = find.byKey(InvoiceCard.downloadKeyFor(tServiceDated));
+
+    testWidgets('is on every card, and can be pressed', (tester) async {
       await pumpPage(tester, servis: InvoicesLoaded([tServiceDated, tPart]));
 
       for (final invoice in [tServiceDated, tPart]) {
@@ -354,23 +377,248 @@ void main() {
           find.descendant(of: button, matching: find.text('Unduh Struk')),
           findsOneWidget,
         );
-        expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+        expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
       }
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('does nothing when the disabled button is tapped', (
+    testWidgets('asks to download that invoice as a service receipt', (
       tester,
     ) async {
       await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
 
-      await tester.tap(
-        find.byKey(InvoiceCard.downloadKeyFor(tServiceDated)),
-        warnIfMissed: false,
+      await tester.tap(button);
+      await tester.pump();
+
+      verify(
+        () => receipts.add(
+          const ReceiptDownloadRequested(
+            type: InvoiceType.service,
+            number: '3101SNT24090303',
+          ),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('asks for a sparepart receipt from the Sparepart tab', (
+      tester,
+    ) async {
+      await pumpPage(tester, sparepart: InvoicesLoaded([tPart]));
+
+      await tester.tap(find.text('Sparepart'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(InvoiceCard.downloadKeyFor(tPart)));
+      await tester.pump();
+
+      verify(
+        () => receipts.add(
+          const ReceiptDownloadRequested(
+            type: InvoiceType.sparepart,
+            number: 'SPR-0001',
+          ),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('spins on the card being downloaded and holds the others', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        servis: InvoicesLoaded([tServiceDated, tPart]),
+        receipt: const ReceiptDownloading('3101SNT24090303'),
+      );
+
+      expect(
+        find.descendant(of: button, matching: find.text('Mengunduh...')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: button,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+
+      // The other card keeps its label but cannot start a second download.
+      final other = find.byKey(InvoiceCard.downloadKeyFor(tPart));
+      expect(
+        find.descendant(of: other, matching: find.text('Unduh Struk')),
+        findsOneWidget,
+      );
+      expect(tester.widget<OutlinedButton>(other).onPressed, isNull);
+    });
+
+    testWidgets('goes back to a pressable button when the download ends', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        servis: InvoicesLoaded([tServiceDated]),
+        receipt: const ReceiptDownloading('3101SNT24090303'),
+      );
+      expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+
+      receiptStates.add(const ReceiptDownloaded('3101SNT24090303'));
+      await tester.pump();
+
+      expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
+      expect(find.text('Unduh Struk'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('a saved receipt says so in a snackbar', (tester) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+      expect(find.byType(SnackBar), findsNothing);
+
+      receiptStates.add(const ReceiptDownloaded('3101SNT24090303'));
+      await tester.pump();
+
+      expect(
+        find.text('Struk 3101SNT24090303 tersimpan di folder Download.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a receipt that can be opened offers Buka beside the message', (
+      tester,
+    ) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      receiptStates.add(
+        const ReceiptDownloaded(
+          '3101SNT24090303',
+          location: 'content://media/external/downloads/42',
+        ),
       );
       await tester.pump();
 
+      expect(
+        find.text('Struk 3101SNT24090303 tersimpan di folder Download.'),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(SnackBar),
+          matching: find.widgetWithText(SnackBarAction, 'Buka'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pressing Buka asks to open the receipt where it was saved', (
+      tester,
+    ) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+      receiptStates.add(
+        const ReceiptDownloaded(
+          '3101SNT24090303',
+          location: 'content://media/external/downloads/42',
+        ),
+      );
+      // Settled, so the snackbar has slid up into view to be tapped.
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Buka'));
+      await tester.pump();
+
+      verify(
+        () => receipts.add(
+          const ReceiptOpenRequested('content://media/external/downloads/42'),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('a receipt that cannot be opened offers no Buka', (
+      tester,
+    ) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      receiptStates.add(const ReceiptDownloaded('3101SNT24090303'));
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.byType(SnackBarAction), findsNothing);
+      expect(find.text('Buka'), findsNothing);
+    });
+
+    testWidgets('no app to open the receipt says so in Indonesian', (
+      tester,
+    ) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      receiptStates.add(
+        const ReceiptOpenFailed('No app was found to open the receipt'),
+      );
+      await tester.pump();
+
+      expect(
+        find.text(
+          'Tidak ada aplikasi untuk membuka PDF. Struk ada di folder Download',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a new download takes the last snackbar down', (tester) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+      receiptStates.add(
+        const ReceiptDownloaded(
+          '3101SNT24090303',
+          location: 'content://media/external/downloads/42',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+
+      receiptStates.add(const ReceiptDownloading('3101SNT24090303'));
+      // Not pumpAndSettle: the card's spinner never stops.
+      await tester.pump();
+      // The first timed frame starts the slide down, the second finishes it.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+
       expect(find.byType(SnackBar), findsNothing);
-      expect(find.byType(InvoiceCard), findsOneWidget);
+    });
+
+    testWidgets('a failure shows its message in Indonesian', (tester) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      receiptStates.add(
+        const ReceiptDownloadFailed('The receipt could not be downloaded'),
+      );
+      await tester.pump();
+
+      expect(find.text('Struk tidak dapat diunduh'), findsOneWidget);
+    });
+
+    testWidgets('a failure nobody translated shows as it came', (tester) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      receiptStates.add(const ReceiptDownloadFailed('Something odd'));
+      await tester.pump();
+
+      expect(find.text('Something odd'), findsOneWidget);
+    });
+
+    testWidgets('starting a download shows no snackbar', (tester) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      receiptStates.add(const ReceiptDownloading('3101SNT24090303'));
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('closes its bloc when the page goes', (tester) async {
+      await pumpPage(tester, servis: InvoicesLoaded([tServiceDated]));
+
+      await tester.pumpWidget(const SizedBox());
+
+      verify(() => receipts.close()).called(1);
     });
   });
 

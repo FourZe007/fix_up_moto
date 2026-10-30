@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/helpers/currency_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
@@ -95,7 +96,7 @@ class _ServiceDetailView extends StatelessWidget {
                     const SizedBox(height: 16),
                   ],
                   Text(
-                    'Total: ₱${(service.amountService + service.amountPart).toStringAsFixed(0)}',
+                    'Total: ${CurrencyFormatter.rupiah(service.amountService + service.amountPart)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 32),

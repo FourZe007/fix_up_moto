@@ -41,7 +41,7 @@ class WorkshopPickerTile extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: selected == null
-                        ? const Text('Pilih bengkel dari daftar')
+                        ? const Text('Pilih bengkel favorit kamu')
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [

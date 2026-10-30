@@ -53,10 +53,14 @@ import 'package:fix_up_moto/features/chatbot/domain/usecases/ask_fima_usecase.da
 import 'package:fix_up_moto/features/chatbot/domain/usecases/chat_history_usecases.dart';
 import 'package:fix_up_moto/features/chatbot/presentation/bloc/chat_bloc.dart';
 import 'package:fix_up_moto/features/invoices/data/datasources/invoices_remote_data_source.dart';
+import 'package:fix_up_moto/features/invoices/data/datasources/receipt_storage_data_source.dart';
 import 'package:fix_up_moto/features/invoices/data/repositories/invoices_repository_impl.dart';
 import 'package:fix_up_moto/features/invoices/domain/repositories/invoices_repository.dart';
+import 'package:fix_up_moto/features/invoices/domain/usecases/download_receipt_usecase.dart';
+import 'package:fix_up_moto/features/invoices/domain/usecases/open_receipt_usecase.dart';
 import 'package:fix_up_moto/features/invoices/domain/usecases/get_invoices_usecase.dart';
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_bloc.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_bloc.dart';
 import 'package:fix_up_moto/features/notification/data/datasources/notification_remote_data_source.dart';
 import 'package:fix_up_moto/features/notification/data/repositories/notification_repository_impl.dart';
 import 'package:fix_up_moto/features/notification/domain/repositories/notification_repository.dart';
@@ -395,20 +399,33 @@ Future<void> initDependencies() async {
 
   // ── Invoices Feature ──────────────────────────────────────────────────────
   // The member's Servis and Sparepart invoices. The bloc is a factory and each
-  // tab of the page makes its own, so the two kinds load independently.
+  // tab of the page makes its own, so the two kinds load independently. The
+  // receipt download has one bloc for the whole page (also a factory).
 
   sl.registerLazySingleton<InvoicesRemoteDataSource>(
     () => InvoicesRemoteDataSourceImpl(sl<DioClient>().dio),
   );
+  // Writes the downloaded PDF into the phone's Download folder.
+  sl.registerLazySingleton<ReceiptStorageDataSource>(
+    () => FileSaverReceiptStorageDataSource(),
+  );
   sl.registerLazySingleton<InvoicesRepository>(
     () => InvoicesRepositoryImpl(
       remoteDataSource: sl(),
+      receiptStorage: sl(),
       networkInfo: sl(),
       authRepository: sl(),
     ),
   );
   sl.registerLazySingleton(() => GetInvoicesUseCase(sl<InvoicesRepository>()));
+  sl.registerLazySingleton(
+    () => DownloadReceiptUseCase(sl<InvoicesRepository>()),
+  );
   sl.registerFactory(() => InvoicesBloc(getInvoices: sl()));
+  sl.registerLazySingleton(() => OpenReceiptUseCase(sl<InvoicesRepository>()));
+  sl.registerFactory(
+    () => ReceiptDownloadBloc(downloadReceipt: sl(), openReceipt: sl()),
+  );
 
   // ── Chatbot Feature ───────────────────────────────────────────────────────
   // Chat with Fima. The repository is app-scoped on purpose: it keeps the

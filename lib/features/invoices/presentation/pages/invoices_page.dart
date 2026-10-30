@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,9 @@ import 'package:fix_up_moto/features/invoices/domain/entities/invoice_entity.dar
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_bloc.dart';
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_event.dart';
 import 'package:fix_up_moto/features/invoices/presentation/bloc/invoices_state.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_bloc.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_event.dart';
+import 'package:fix_up_moto/features/invoices/presentation/bloc/receipt_download_state.dart';
 import 'package:fix_up_moto/features/invoices/presentation/widgets/invoice_card.dart';
 
 /// The member's invoices: **Servis** and **Sparepart** as two tabs, each its
@@ -20,8 +24,9 @@ import 'package:fix_up_moto/features/invoices/presentation/widgets/invoice_card.
 /// owns its [InvoicesBloc], so one can load, fail or be refreshed without
 /// touching the other. A tab loads when it is first shown and then stays alive.
 /// The date range under the tabs opens on the last twelve months, and changing
-/// it reloads both tabs. Every card has an "Unduh Struk" button, shown but not
-/// pressable until receipt download exists.
+/// it reloads both tabs. Every card has an "Unduh Struk" button that saves the
+/// invoice's receipt as a PDF; one [ReceiptDownloadBloc] serves both tabs and
+/// reports the result in a snackbar.
 class InvoicesPage extends StatefulWidget {
   const InvoicesPage({super.key});
 
@@ -44,6 +49,9 @@ class _InvoicesPageState extends State<InvoicesPage>
 
   late DateTimeRange _range = _lastTwelveMonths();
 
+  /// Shared by both tabs: a download outlives the card that started it.
+  late final ReceiptDownloadBloc _receipts = sl<ReceiptDownloadBloc>();
+
   /// Today and the same day a year ago, at midnight.
   static DateTimeRange _lastTwelveMonths() {
     final now = DateTime.now();
@@ -57,7 +65,54 @@ class _InvoicesPageState extends State<InvoicesPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _receipts.close();
     super.dispose();
+  }
+
+  /// Tells the member how a download ended.
+  void _onReceiptState(BuildContext context, ReceiptDownloadState state) {
+    final messenger = ScaffoldMessenger.of(context);
+
+    switch (state) {
+      case ReceiptDownloaded(:final number, :final location):
+        // iOS has no Download folder; the file lands in the app's folder in
+        // the Files app.
+        final where = defaultTargetPlatform == TargetPlatform.iOS
+            ? 'aplikasi Files'
+            : 'folder Download';
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Struk $number tersimpan di $where.'),
+            // "Buka" shows the receipt at once, so a member who does not know
+            // where Download is never has to look for it. Only offered where
+            // the phone can open it.
+            action: location == null
+                ? null
+                : SnackBarAction(
+                    label: 'Buka',
+                    onPressed: () =>
+                        _receipts.add(ReceiptOpenRequested(location)),
+                  ),
+            // Longer than the default: there is something to read and press.
+            duration: location == null
+                ? const Duration(seconds: 4)
+                : const Duration(seconds: 6),
+          ),
+        );
+      case ReceiptDownloadFailed(:final message):
+      case ReceiptOpenFailed(:final message):
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(TranslationConstants.translate(message)),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      case ReceiptDownloading():
+        // A new download makes the last "tersimpan ... Buka" stale.
+        messenger.hideCurrentSnackBar();
+      case ReceiptDownloadInitial():
+        break;
+    }
   }
 
   Future<void> _pickRange() async {
@@ -81,6 +136,16 @@ class _InvoicesPageState extends State<InvoicesPage>
     // built from the light theme there. The wash is a fixed backdrop *around* a
     // Scaffold whose own background and app bar are transparent (as on Profile
     // and Kotak Masuk), so it shows behind the bar and the cards scroll over it.
+    return BlocProvider.value(
+      value: _receipts,
+      child: BlocListener<ReceiptDownloadBloc, ReceiptDownloadState>(
+        listener: _onReceiptState,
+        child: _buildPage(),
+      ),
+    );
+  }
+
+  Widget _buildPage() {
     return LightSurfaceScope(
       child: WarmWash(
         child: Scaffold(
@@ -232,6 +297,34 @@ class _InvoiceTabState extends State<_InvoiceTab>
         .then<void>((_) {});
   }
 
+  /// One invoice, its "Unduh Struk" button wired to the page's download bloc.
+  /// Only the card whose receipt is on its way shows the spinner, but every
+  /// button waits, since the bloc takes one download at a time.
+  Widget _card(BuildContext context, InvoiceEntity invoice) {
+    return BlocBuilder<ReceiptDownloadBloc, ReceiptDownloadState>(
+      // The snackbar outcomes change nothing on the cards.
+      buildWhen: (previous, current) =>
+          previous is ReceiptDownloading || current is ReceiptDownloading,
+      builder: (context, state) {
+        final busy = state is ReceiptDownloading;
+
+        return InvoiceCard(
+          invoice: invoice,
+          downloading:
+              state is ReceiptDownloading && state.number == invoice.number,
+          onDownload: busy
+              ? null
+              : () => context.read<ReceiptDownloadBloc>().add(
+                  ReceiptDownloadRequested(
+                    type: widget.type,
+                    number: invoice.number,
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // required by AutomaticKeepAliveClientMixin
@@ -260,7 +353,7 @@ class _InvoiceTabState extends State<_InvoiceTab>
                   itemCount: invoices.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) =>
-                      InvoiceCard(invoice: invoices[index]),
+                      _card(context, invoices[index]),
                 ),
         ),
       },

@@ -47,5 +47,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Makes the app's Documents folder show in the Files app, where downloaded
+	     receipts (Riwayat Invoice > Unduh Struk) are saved: iOS has no shared
+	     Downloads folder. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 </dict>
 </plist>

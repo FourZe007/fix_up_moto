@@ -105,10 +105,10 @@ void main() {
   ) async {
     final builds = await pumpShell(tester);
 
-    await openTab(tester, 'My Point');
+    await openTab(tester, 'MyPoint');
     await openTab(tester, 'Booking');
     await openTab(tester, 'Beranda');
-    await openTab(tester, 'My Point');
+    await openTab(tester, 'MyPoint');
 
     // Home and Member were each built once, even though both were left and
     // returned to — that rebuild is what used to refetch.
@@ -120,13 +120,13 @@ void main() {
   testWidgets('a tab keeps its state while hidden', (tester) async {
     await pumpShell(tester);
 
-    await openTab(tester, 'My Point');
+    await openTab(tester, 'MyPoint');
     await tester.tap(find.text('membership taps: 0'));
     await tester.pump();
     expect(find.text('membership taps: 1'), findsOneWidget);
 
     await openTab(tester, 'Booking');
-    await openTab(tester, 'My Point');
+    await openTab(tester, 'MyPoint');
 
     expect(find.text('membership taps: 1'), findsOneWidget);
   });
@@ -167,7 +167,7 @@ void main() {
     const tabs = [
       (Icons.home_outlined, Icons.home, 'Beranda'),
       (Icons.play_circle_outline, Icons.play_circle, 'Feed'),
-      (Icons.stars_outlined, Icons.stars, 'My Point'),
+      (Icons.stars_outlined, Icons.stars, 'MyPoint'),
       (Icons.calendar_month_outlined, Icons.calendar_month, 'Booking'),
       (Icons.person_outline, Icons.person, 'Saya'),
     ];
@@ -287,13 +287,13 @@ void main() {
     testWidgets('selecting a tab moves the style to it', (tester) async {
       await pumpShell(tester, theme: AppTheme.light);
 
-      await openTab(tester, 'My Point');
+      await openTab(tester, 'MyPoint');
 
-      // My Point is now filled and brand-coloured...
+      // MyPoint is now filled and brand-coloured...
       expect(find.byIcon(Icons.stars), findsOneWidget);
       expect(find.byIcon(Icons.stars_outlined), findsNothing);
       expect(iconStyle(tester, Icons.stars).color, AppColors.primary);
-      expect(labelStyle(tester, 'My Point').color, AppColors.primary);
+      expect(labelStyle(tester, 'MyPoint').color, AppColors.primary);
       // ...and Beranda, left behind, is outlined and no longer brand-coloured.
       expect(find.byIcon(Icons.home), findsNothing);
       expect(find.byIcon(Icons.home_outlined), findsOneWidget);

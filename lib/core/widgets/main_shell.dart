@@ -98,7 +98,7 @@ class MainShell extends StatelessWidget {
               NavigationDestination(
                 icon: Icon(Icons.credit_card_rounded),
                 selectedIcon: Icon(Icons.credit_card_rounded),
-                label: 'My Point',
+                label: 'MyPoint',
               ),
               NavigationDestination(
                 icon: Icon(Icons.calendar_month_outlined),

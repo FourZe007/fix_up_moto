@@ -91,7 +91,10 @@ dependencies:
   # a reel's caption and Instagram link.
   share_plus: ^13.3.1
   font_awesome_flutter: ^11.0.0
-
+  # file_saver: writes a downloaded receipt PDF into the phone's Download folder
+  # (Android, through MediaStore — no permission on Android 10+) or the app's
+  # folder in the Files app (iOS), with no dialog.
+  file_saver: ^0.7.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

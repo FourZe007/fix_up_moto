@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
@@ -14,6 +13,8 @@ import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dar
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
+import 'package:fix_up_moto/features/bookings/presentation/models/booking_date_range.dart';
+import 'package:fix_up_moto/features/bookings/presentation/widgets/booking_filter_sheet.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
@@ -61,33 +62,16 @@ class _BookingsViewState extends State<_BookingsView>
   // needed just to reach an inherited controller from inside the AppBar.
   late final TabController _tabController;
   final _searchController = TextEditingController();
-  final _panelController = PanelController();
   String _query = '';
-  DateTimeRange _dateRange = _tomorrowPlusOneMonth();
 
-  /// Date-only (midnight) bounds, matching how [_withinRange] compares days.
-  /// The end clamps to the target month's last day, so a 31st doesn't spill
-  /// into the month after (Jan 31 + 1 month would otherwise become Mar 3).
-  static DateTimeRange _tomorrowPlusOneMonth() {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day + 1);
-    final lastDayOfNextMonth = DateTime(start.year, start.month + 2, 0).day;
-    final end = DateTime(
-      start.year,
-      start.month + 1,
-      start.day < lastDayOfNextMonth ? start.day : lastDayOfNextMonth,
-    );
-    return DateTimeRange(start: start, end: end);
-  }
+  /// Date-only (midnight) bounds, matching how [_withinRange] compares days:
+  /// tomorrow to one month later until the member picks another range.
+  DateTimeRange _dateRange = BookingRangePreset.defaultRange(DateTime.now());
 
-  // Mounts the filter SlidingUpPanel into the app's root Overlay rather than
-  // this page's own widget tree — MainShell always paints its NavigationBar
-  // above this page's body in z-order (extendBody doesn't change that), so a
-  // panel living inside this Scaffold could only ever slide up *underneath*
-  // the nav bar. The root Overlay sits above MainShell entirely (the same
-  // layer showModalBottomSheet(useRootNavigator: true) uses), which is what
-  // actually lets the panel cover the bar when opened.
-  OverlayEntry? _filterOverlayEntry;
+  /// Whether the member is looking at something other than the default range.
+  /// The filter button and a chip under the tabs say so when it is.
+  bool get _filterActive =>
+      _dateRange != BookingRangePreset.defaultRange(DateTime.now());
 
   @override
   void initState() {
@@ -97,49 +81,38 @@ class _BookingsViewState extends State<_BookingsView>
         if (!_tabController.indexIsChanging) setState(() {});
       });
     _loadBookings();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _insertFilterOverlay());
   }
 
-  void _insertFilterOverlay() {
-    if (!mounted) return;
-    final entry = OverlayEntry(
-      builder: (context) => Positioned.fill(
-        child: SlidingUpPanel(
-          controller: _panelController,
-          minHeight: 0,
-          maxHeight: 300,
-          // Defaults to false — without it, sliding_up_panel skips its whole
-          // backdrop branch (panel.dart:275) and the dim/tap-to-close layer
-          // never exists at all, which is why touches and visuals were
-          // passing straight through to whatever's behind the panel.
-          backdropEnabled: true,
-          backdropColor: Colors.grey,
-          // Tapping the dimmed area closes the panel (this is already the
-          // package default, kept explicit here since it's the whole point
-          // of enabling the backdrop).
-          backdropTapClosesPanel: true,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          // The package's default panel colour is Colors.white — the same
-          // value as surfaceLight, so light mode is unchanged — but fixed, so
-          // it has to be read from the theme to turn light grey in dark mode.
-          color: Theme.of(context).colorScheme.surface,
-          panel: LightSurfaceScope(
-            child: _FilterPanel(
-              initialRange: _dateRange,
-              onApply: _applyDateRange,
-              onClose: _panelController.close,
-            ),
-          ),
-        ),
+  // Opens the filter SlidingUpPanel as a transparent route on the *root*
+  // navigator rather than inside this page's widget tree — MainShell always
+  // paints its NavigationBar above this page's body in z-order (extendBody
+  // doesn't change that), so a panel living inside this Scaffold could only
+  // ever slide up *underneath* the nav bar. The root navigator sits above
+  // MainShell entirely, which is what lets the panel cover the bar.
+  //
+  // It has to be a route, not a manual OverlayEntry in the root Overlay: the
+  // Navigator keeps every route below such entries, so the date range picker
+  // (also a root-navigator route) opened *under* the panel and its dimmed
+  // backdrop swallowed every tap on it. Routes stack in push order, so the
+  // picker lands on top of this one.
+  void _openFilter() {
+    showGeneralDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      // The panel's own backdrop dims the page and closes the panel on a tap,
+      // so the route adds neither a barrier nor a transition of its own.
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, _, _) => BookingFilterSheet(
+        initialRange: _dateRange,
+        onApply: _applyDateRange,
       ),
     );
-    _filterOverlayEntry = entry;
-    Overlay.of(context, rootOverlay: true).insert(entry);
   }
 
   @override
   void dispose() {
-    _filterOverlayEntry?.remove();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -172,15 +145,18 @@ class _BookingsViewState extends State<_BookingsView>
     BookingsListRequested(range: _dateRange),
   );
 
-  // The panel's "Clear" passes null; with a non-nullable range that means
-  // "back to the default", not "no filter". The new range is fetched from the
-  // backend rather than only filtered on the device.
-  void _applyDateRange(DateTimeRange? range) {
-    setState(() {
-      _dateRange = range ?? _tomorrowPlusOneMonth();
-    });
+  // The panel's "Reset" and the chip's cross both pass the default range.
+  // The new range is fetched from the backend rather than only filtered on the
+  // device.
+  void _applyDateRange(DateTimeRange range) {
+    // The panel is a route of its own and can outlive this page's State.
+    if (!mounted) return;
+    setState(() => _dateRange = range);
     _loadBookings();
   }
+
+  void _resetDateRange() =>
+      _applyDateRange(BookingRangePreset.defaultRange(DateTime.now()));
 
   @override
   Widget build(BuildContext context) {
@@ -218,8 +194,8 @@ class _BookingsViewState extends State<_BookingsView>
             // Same search bar, different target — swaps with the active tab
             // rather than being two separate fields.
             hintText: _onMyBookings
-                ? 'Search your bookings'
-                : 'Search service history',
+                ? 'Cari booking kamu'
+                : 'Cari riwayat servis',
             hintStyle: TextStyle(color: AppColors.grey400, fontSize: 14),
           ),
         ),
@@ -231,11 +207,18 @@ class _BookingsViewState extends State<_BookingsView>
             onPressed: () => context.push(RouteNames.myBikes),
           ),
 
-          // Advanced Filter Button
+          // Date filter button — a dot on it says a filter is on.
           IconButton(
-            icon: const Icon(Icons.tune),
-            tooltip: 'Advanced filter',
-            onPressed: _panelController.open,
+            icon: Badge(
+              isLabelVisible: _filterActive,
+              smallSize: 10,
+              backgroundColor: Colors.white,
+              child: const Icon(Icons.tune),
+            ),
+            tooltip: _filterActive
+                ? 'Filter tanggal (aktif)'
+                : 'Filter tanggal',
+            onPressed: _openFilter,
           ),
         ],
         bottom: TabBar(
@@ -243,7 +226,7 @@ class _BookingsViewState extends State<_BookingsView>
           controller: _tabController,
           tabs: const [
             Tab(text: 'My Bookings'),
-            Tab(text: 'History'),
+            Tab(text: 'Riwayat'),
           ],
         ),
       ),
@@ -254,76 +237,88 @@ class _BookingsViewState extends State<_BookingsView>
           // it wouldn't be visible against anything.
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        // SlidingUpPanel now lives in the root Overlay (see
-        // _insertFilterOverlay) rather than here, so this is back to plain
-        // page content — no LayoutBuilder/MediaQuery workaround needed
-        // either, since that was only ever fixing SlidingUpPanel's own
-        // `body:` sizing, which it no longer has.
+        // The filter SlidingUpPanel is a root-navigator route (see
+        // _openFilter) rather than part of this page, so this is plain page
+        // content — no LayoutBuilder/MediaQuery workaround needed either,
+        // since that was only ever fixing SlidingUpPanel's own `body:` sizing,
+        // which it no longer has.
         child: LightSurfaceScope(
-          child: TabBarView(
-            controller: _tabController,
+          child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: BlocConsumer<BookingsBloc, BookingsState>(
-                  listener: (context, state) {
-                    if (state is BookingActionSuccess) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(state.message)));
-                    }
-                  },
-                  builder: (context, state) {
-                    return switch (state) {
-                      // Only visible for the first frame: initState dispatches
-                      // the first load, which moves the bloc on to Loading.
-                      BookingsInitial() => Center(
-                        child: Column(
-                          spacing: 12,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text('Belum ada pemesanan'),
+              // Says which range the lists are cut to, once it is not the
+              // default; its cross goes back to the default.
+              if (_filterActive)
+                _ActiveRangeChip(
+                  range: _dateRange,
+                  onTap: _openFilter,
+                  onClear: _resetDateRange,
+                ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: BlocConsumer<BookingsBloc, BookingsState>(
+                        listener: (context, state) {
+                          if (state is BookingActionSuccess) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(state.message)),
+                            );
+                          }
+                        },
+                        builder: (context, state) {
+                          return switch (state) {
+                            // Only visible for the first frame: initState dispatches
+                            // the first load, which moves the bloc on to Loading.
+                            BookingsInitial() => Center(
+                              child: Column(
+                                spacing: 12,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('Belum ada pemesanan'),
 
-                            OutlinedButton.icon(
-                              onPressed: _loadBookings,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Muat ulang'),
+                                  OutlinedButton.icon(
+                                    onPressed: _loadBookings,
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Muat ulang'),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
+                            BookingsLoading() => const Center(
+                              child: Column(
+                                spacing: 20,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(),
+                                  Text('Loading...'),
+                                ],
+                              ),
+                            ),
+                            BookingsError(:final message) => Center(
+                              child: Text(message),
+                            ),
+                            BookingActionSuccess() => const Center(
+                              child: Column(
+                                spacing: 20,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(),
+                                  Text('Loading...'),
+                                ],
+                              ),
+                            ),
+                            BookingsLoaded(:final bookings) =>
+                              _buildBookingsList(context, bookings),
+                          };
+                        },
                       ),
-                      BookingsLoading() => const Center(
-                        child: Column(
-                          spacing: 20,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            Text('Loading...'),
-                          ],
-                        ),
-                      ),
-                      BookingsError(:final message) => Center(
-                        child: Text(message),
-                      ),
-                      BookingActionSuccess() => const Center(
-                        child: Column(
-                          spacing: 20,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            Text('Loading...'),
-                          ],
-                        ),
-                      ),
-                      BookingsLoaded(:final bookings) => _buildBookingsList(
-                        context,
-                        bookings,
-                      ),
-                    };
-                  },
+                    ),
+                    ServicesHistoryView(query: _query, dateRange: _dateRange),
+                  ],
                 ),
               ),
-              ServicesHistoryView(query: _query, dateRange: _dateRange),
             ],
           ),
         ),
@@ -511,112 +506,40 @@ class _BookingsViewState extends State<_BookingsView>
   }
 }
 
-/// Content of the sliding advanced-filter panel — a date range for now,
-/// per the current scope; more fields (status, workshop) can be added here
-/// later without touching how the panel itself is opened/closed.
-class _FilterPanel extends StatefulWidget {
-  final DateTimeRange? initialRange;
-  final ValueChanged<DateTimeRange?> onApply;
-  final VoidCallback onClose;
+/// The range the lists are cut to, as a chip under the tabs: tap it to change
+/// the range, its cross to go back to the default. Shown only while the range
+/// is not the default.
+class _ActiveRangeChip extends StatelessWidget {
+  final DateTimeRange range;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
 
-  const _FilterPanel({
-    required this.initialRange,
-    required this.onApply,
-    required this.onClose,
+  const _ActiveRangeChip({
+    required this.range,
+    required this.onTap,
+    required this.onClear,
   });
-
-  @override
-  State<_FilterPanel> createState() => _FilterPanelState();
-}
-
-class _FilterPanelState extends State<_FilterPanel> {
-  late DateTimeRange? _draft = widget.initialRange;
-
-  Future<void> _pickRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
-      initialDateRange: _draft,
-    );
-    if (picked != null) setState(() => _draft = picked);
-  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle — signals this whole area can be dragged, matching
-          // the sliding_up_panel convention.
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: AppColors.grey400,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: InputChip(
+          key: const Key('bookings-range-chip'),
+          avatar: const Icon(
+            Icons.date_range_outlined,
+            size: 18,
+            color: AppColors.primary,
           ),
-          Text(
-            'Advanced Filter',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _pickRange,
-            icon: const Icon(Icons.date_range_outlined),
-            label: Text(
-              _draft == null
-                  ? 'Select date range'
-                  : '${DateTimeFormatter.toShortDate(_draft!.start)} '
-                        '- ${DateTimeFormatter.toShortDate(_draft!.end)}',
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    setState(() => _draft = null);
-                    widget.onApply(null);
-                    widget.onClose();
-                  },
-                  // app_theme.dart gives ElevatedButton a themed 52-tall
-                  // minimumSize but has no matching outlinedButtonTheme, so
-                  // OutlinedButton was falling back to Material 3's default
-                  // (~40 tall) — explicitly matching Apply's height here.
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                  ),
-                  child: const Text('Clear'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    widget.onApply(_draft);
-                    widget.onClose();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                  child: const Text('Apply'),
-                ),
-              ),
-            ],
-          ),
-        ],
+          label: Text(range.chipLabel),
+          onPressed: onTap,
+          onDeleted: onClear,
+          deleteButtonTooltipMessage: 'Hapus filter tanggal',
+          backgroundColor: AppColors.peachMist,
+          side: const BorderSide(color: AppColors.peachHairline),
+        ),
       ),
     );
   }

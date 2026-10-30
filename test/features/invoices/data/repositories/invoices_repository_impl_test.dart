@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -8,11 +10,14 @@ import 'package:fix_up_moto/core/network/network_info.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
 import 'package:fix_up_moto/features/invoices/data/datasources/invoices_remote_data_source.dart';
+import 'package:fix_up_moto/features/invoices/data/datasources/receipt_storage_data_source.dart';
 import 'package:fix_up_moto/features/invoices/data/models/invoice_model.dart';
 import 'package:fix_up_moto/features/invoices/data/repositories/invoices_repository_impl.dart';
 import 'package:fix_up_moto/features/invoices/domain/entities/invoice_entity.dart';
 
 class MockRemote extends Mock implements InvoicesRemoteDataSource {}
+
+class MockReceiptStorage extends Mock implements ReceiptStorageDataSource {}
 
 class MockNetworkInfo extends Mock implements NetworkInfo {}
 
@@ -20,6 +25,7 @@ class MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
   late MockRemote remote;
+  late MockReceiptStorage storage;
   late MockNetworkInfo network;
   late MockAuthRepository auth;
   late InvoicesRepositoryImpl repository;
@@ -52,10 +58,12 @@ void main() {
 
   setUp(() {
     remote = MockRemote();
+    storage = MockReceiptStorage();
     network = MockNetworkInfo();
     auth = MockAuthRepository();
     repository = InvoicesRepositoryImpl(
       remoteDataSource: remote,
+      receiptStorage: storage,
       networkInfo: network,
       authRepository: auth,
     );
@@ -196,4 +204,206 @@ void main() {
       },
     );
   });
+
+  group('downloadReceipt', () {
+    final tPdf = Uint8List.fromList([0x25, 0x50, 0x44, 0x46, 0x2d]);
+    const tLocation = 'content://media/external/downloads/42';
+
+    void givenReceiptFetched({String? savedAt = tLocation}) {
+      when(
+        () => remote.downloadReceipt(
+          transId: any(named: 'transId'),
+          transNo: any(named: 'transNo'),
+        ),
+      ).thenAnswer((_) async => tPdf);
+      when(
+        () => storage.savePdf(
+          name: any(named: 'name'),
+          bytes: any(named: 'bytes'),
+        ),
+      ).thenAnswer((_) async => savedAt);
+    }
+
+    void givenRemoteThrows(Object error) {
+      when(
+        () => remote.downloadReceipt(
+          transId: any(named: 'transId'),
+          transNo: any(named: 'transNo'),
+        ),
+      ).thenThrow(error);
+    }
+
+    Future<Either<Failure, String?>> download({
+      InvoiceType type = InvoiceType.service,
+      String number = '3101SNT26100001',
+    }) => repository.downloadReceipt(type: type, number: number);
+
+    setUpAll(() {
+      registerFallbackValue(Uint8List(0));
+    });
+
+    test('fetches the receipt and saves it under the invoice number', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      givenReceiptFetched();
+
+      expect(await download(), const Right(tLocation));
+
+      verify(
+        () =>
+            remote.downloadReceipt(transId: 'SNT', transNo: '3101SNT26100001'),
+      ).called(1);
+      verify(
+        () => storage.savePdf(name: '3101SNT26100001', bytes: tPdf),
+      ).called(1);
+    });
+
+    test('a receipt saved where it cannot be opened has no location', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      givenReceiptFetched(savedAt: null);
+
+      expect(await download(), const Right<Failure, String?>(null));
+    });
+
+    test('asks for PNT for a sparepart invoice', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      givenReceiptFetched();
+
+      await download(type: InvoiceType.sparepart, number: '3101PNT26100002');
+
+      verify(
+        () =>
+            remote.downloadReceipt(transId: 'PNT', transNo: '3101PNT26100002'),
+      ).called(1);
+    });
+
+    test('needs no signed-in member', () async {
+      when(() => network.isConnected).thenAnswer((_) async => true);
+      givenReceiptFetched();
+
+      await download();
+
+      verifyNever(() => auth.getCurrentUser());
+    });
+
+    test(
+      'offline is a NetworkFailure, and nothing is asked or saved',
+      () async {
+        when(() => network.isConnected).thenAnswer((_) async => false);
+
+        expect(
+          await download(),
+          const Left(NetworkFailure('No internet connection')),
+        );
+
+        verifyNever(
+          () => remote.downloadReceipt(
+            transId: any(named: 'transId'),
+            transNo: any(named: 'transNo'),
+          ),
+        );
+        verifyNever(
+          () => storage.savePdf(
+            name: any(named: 'name'),
+            bytes: any(named: 'bytes'),
+          ),
+        );
+      },
+    );
+
+    group('maps what the data sources throw', () {
+      setUp(() {
+        when(() => network.isConnected).thenAnswer((_) async => true);
+      });
+
+      test('a server error to a ServerFailure, and nothing is saved', () async {
+        givenRemoteThrows(
+          const ServerException(
+            message: 'The receipt could not be downloaded',
+            statusCode: 200,
+          ),
+        );
+
+        expect(
+          await download(),
+          const Left(
+            ServerFailure(
+              'The receipt could not be downloaded',
+              statusCode: 200,
+            ),
+          ),
+        );
+        verifyNever(
+          () => storage.savePdf(
+            name: any(named: 'name'),
+            bytes: any(named: 'bytes'),
+          ),
+        );
+      });
+
+      test('404 to a NotFoundFailure', () async {
+        givenRemoteThrows(NotFoundException());
+
+        expect(
+          (await download()).swap().getOrElse(() => throw 'x'),
+          isA<NotFoundFailure>(),
+        );
+      });
+
+      test('a save that fails to a CacheFailure', () async {
+        when(
+          () => remote.downloadReceipt(
+            transId: any(named: 'transId'),
+            transNo: any(named: 'transNo'),
+          ),
+        ).thenAnswer((_) async => tPdf);
+        when(
+          () => storage.savePdf(
+            name: any(named: 'name'),
+            bytes: any(named: 'bytes'),
+          ),
+        ).thenThrow(
+          const CacheException(message: 'The receipt could not be saved'),
+        );
+
+        expect(
+          await download(),
+          const Left(CacheFailure('The receipt could not be saved')),
+        );
+      });
+    });
+  });
+
+  group('openReceipt', () {
+    const tLocation = 'content://media/external/downloads/42';
+
+    test('shows the receipt where it was saved', () async {
+      when(() => storage.openPdf(any())).thenAnswer((_) async {});
+
+      expect(await repository.openReceipt(location: tLocation), isRight());
+
+      verify(() => storage.openPdf(tLocation)).called(1);
+    });
+
+    test('needs no internet and no signed-in member', () async {
+      when(() => storage.openPdf(any())).thenAnswer((_) async {});
+
+      await repository.openReceipt(location: tLocation);
+
+      verifyNever(() => network.isConnected);
+      verifyNever(() => auth.getCurrentUser());
+    });
+
+    test('an app that cannot be found is a CacheFailure', () async {
+      when(() => storage.openPdf(any())).thenThrow(
+        const CacheException(message: 'No app was found to open the receipt'),
+      );
+
+      expect(
+        await repository.openReceipt(location: tLocation),
+        const Left(CacheFailure('No app was found to open the receipt')),
+      );
+    });
+  });
 }
+
+Matcher isRight() => equals(const Right<Failure, Unit>(unit));

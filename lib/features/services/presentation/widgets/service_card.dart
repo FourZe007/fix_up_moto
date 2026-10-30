@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_up_moto/core/helpers/currency_formatter.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
@@ -110,7 +111,7 @@ class _AmountBadge extends StatelessWidget {
         border: Border.all(color: color),
       ),
       child: Text(
-        '₱${amount.toStringAsFixed(0)}',
+        CurrencyFormatter.rupiah(amount),
         style: TextStyle(
           color: color,
           fontSize: 11,

@@ -48,4 +48,14 @@ class PhoneNumber {
 
     return digits;
   }
+
+  /// The WhatsApp chat of [input], or null when it holds no digits.
+  ///
+  /// `wa.me` wants the country code, then the number without its leading `0`:
+  /// `0812-3113-3383` becomes `https://wa.me/628123113383`. A landline has no
+  /// WhatsApp, so a link made from one opens a chat that says so.
+  static String? toWhatsAppUrl(String input) {
+    final number = toSubscriberNumber(input);
+    return number.isEmpty ? null : 'https://wa.me/62$number';
+  }
 }

@@ -44,4 +44,27 @@ void main() {
       expect(PhoneNumber.toSubscriberNumber('not a number'), '');
     });
   });
+
+  group('PhoneNumber.toWhatsAppUrl', () {
+    const expected = 'https://wa.me/6281231133383';
+
+    test('puts 62 in front of the number without its trunk zero', () {
+      expect(PhoneNumber.toWhatsAppUrl('081231133383'), expected);
+    });
+
+    test('reads a number the way the backend writes it', () {
+      expect(PhoneNumber.toWhatsAppUrl('0812-3113-3383'), expected);
+    });
+
+    test('does not double an existing country code', () {
+      expect(PhoneNumber.toWhatsAppUrl('+62 812-3113-3383'), expected);
+      expect(PhoneNumber.toWhatsAppUrl('6281231133383'), expected);
+    });
+
+    test('is null when there is no number to open', () {
+      expect(PhoneNumber.toWhatsAppUrl(''), isNull);
+      expect(PhoneNumber.toWhatsAppUrl('   '), isNull);
+      expect(PhoneNumber.toWhatsAppUrl('-'), isNull);
+    });
+  });
 }

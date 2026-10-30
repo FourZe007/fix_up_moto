@@ -29,6 +29,15 @@ class TranslationConstants {
         'Sesi berakhir. Silakan masuk kembali',
     'access denied': 'Akses ditolak',
     'resource not found': 'Data tidak ditemukan',
+    'the receipt could not be downloaded': 'Struk tidak dapat diunduh',
+    'the receipt could not be saved': 'Struk tidak dapat disimpan',
+    'storage permission is needed to save the receipt':
+        'Izin penyimpanan diperlukan untuk menyimpan struk. '
+        'Aktifkan di pengaturan ponsel',
+    'no app was found to open the receipt':
+        'Tidak ada aplikasi untuk membuka PDF. '
+        'Struk ada di folder Download',
+    'the receipt could not be opened': 'Struk tidak dapat dibuka',
   };
 
   /// The Indonesian text for [text], or [text] itself when there is no entry

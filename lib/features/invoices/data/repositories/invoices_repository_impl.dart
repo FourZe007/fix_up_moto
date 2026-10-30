@@ -4,11 +4,13 @@ import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
 import 'package:fix_up_moto/features/auth/domain/repositories/auth_repository.dart';
 import 'package:fix_up_moto/features/invoices/data/datasources/invoices_remote_data_source.dart';
+import 'package:fix_up_moto/features/invoices/data/datasources/receipt_storage_data_source.dart';
 import 'package:fix_up_moto/features/invoices/domain/entities/invoice_entity.dart';
 import 'package:fix_up_moto/features/invoices/domain/repositories/invoices_repository.dart';
 
 class InvoicesRepositoryImpl implements InvoicesRepository {
   final InvoicesRemoteDataSource remoteDataSource;
+  final ReceiptStorageDataSource receiptStorage;
   final NetworkInfo networkInfo;
 
   /// The invoices belong to one member, and the backend has no "who am I"
@@ -19,6 +21,7 @@ class InvoicesRepositoryImpl implements InvoicesRepository {
 
   const InvoicesRepositoryImpl({
     required this.remoteDataSource,
+    required this.receiptStorage,
     required this.networkInfo,
     required this.authRepository,
   });
@@ -64,5 +67,50 @@ class InvoicesRepositoryImpl implements InvoicesRepository {
         return Left(ServerFailure(e.message, statusCode: e.statusCode));
       }
     });
+  }
+
+  @override
+  Future<Either<Failure, String?>> downloadReceipt({
+    required InvoiceType type,
+    required String number,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure('No internet connection'));
+    }
+
+    // The receipt is asked for by invoice number alone: no member id, so no
+    // session to read here.
+    try {
+      final bytes = await remoteDataSource.downloadReceipt(
+        transId: type.transId,
+        transNo: number,
+      );
+      // Named after the invoice, so a member can tell their receipts apart.
+      final location = await receiptStorage.savePdf(name: number, bytes: bytes);
+
+      return Right(location);
+    } on UnauthorizedException {
+      return const Left(AuthFailure('Session expired. Please sign in again.'));
+    } on ForbiddenException catch (e) {
+      return Left(PermissionFailure(e.message));
+    } on NotFoundException catch (e) {
+      return Left(NotFoundFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message, statusCode: e.statusCode));
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> openReceipt({required String location}) async {
+    // Local only: the file is already on the phone, so no network check.
+    try {
+      await receiptStorage.openPdf(location);
+
+      return const Right(unit);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    }
   }
 }

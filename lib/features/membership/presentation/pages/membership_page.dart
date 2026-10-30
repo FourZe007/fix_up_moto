@@ -110,7 +110,7 @@ class _MembershipView extends StatelessWidget {
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text('My Point'),
+        title: const Text('MyPoint'),
         titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       ),
       body: DecoratedBox(
@@ -565,7 +565,9 @@ class _PointHistoryList extends StatelessWidget {
               title: Text(TextFormatter.fromUppercase(entry.pointName)),
               subtitle: Text(entry.transDate),
               trailing: Text(
-                entry.pointQty.toString(),
+                entry.pointQty.toString().trim().contains('-')
+                    ? entry.pointQty.toString()
+                    : '+${entry.pointQty.toString()}',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: entry.pointQty.toString().trim().contains('-')
                       ? Colors.red

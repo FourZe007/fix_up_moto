@@ -63,6 +63,22 @@ class ApiConstants {
   /// which projection is returned.
   static const String browseTrans = '/apiSAMP/BrowseTrans';
 
+  /// GET — the receipt (struk) of one invoice, as a PDF.
+  ///
+  /// Query: `PT=FIXUP` and `Param`, a JSON object with `TransID` (`SNT` for
+  /// Servis, `PNT` for Sparepart; see `InvoiceType.transId`), `Location: "0"`,
+  /// `Idx: "0"` and `TransNo`, the invoice number. Answers `200` with
+  /// `Content-Type: application/pdf` and the file as the body.
+  ///
+  /// It does not check the invoice number: an unknown one still answers `200`
+  /// with a PDF (an empty receipt), so the app only asks for numbers it listed.
+  ///
+  /// An absolute URL, since the host's port (2449) differs from [baseUrl]'s:
+  /// Dio uses it as is, ignoring its base URL. Its sibling `ViewPDF` (POST) only
+  /// generates the file on the server and returns JSON, not the PDF.
+  static const String receiptPdfUrl =
+      'https://wsip.yamaha-jatim.co.id:2449/CetakanSIP/DownloadPDF';
+
   /// POST — body: `{PhoneNo, DecryptedPassword}` → envelope carrying
   /// `MemberID`, `MemberName`, `Memo`, `Flag`. `Flag` gates whether sign-in is
   /// allowed; `Memo` is the server's wording, shown when it is not.
