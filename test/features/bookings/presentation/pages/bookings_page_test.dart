@@ -286,6 +286,34 @@ void main() {
       );
     });
 
+    testWidgets('typing a date uses a keyboard that has a "/" key', (
+      tester,
+    ) async {
+      await pumpBookings(tester);
+      await openPanel(tester);
+
+      await tester.tap(custom);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+
+      // The default datetime pad is digits-only on many phones, so a date could
+      // not be typed with its separators. Scoped to the picker: the page's own
+      // search box is a TextField too.
+      final fields = find.descendant(
+        of: picker,
+        matching: find.byType(TextField),
+      );
+      expect(fields, findsNWidgets(2));
+      for (var i = 0; i < 2; i++) {
+        expect(
+          tester.widget<TextField>(fields.at(i)).keyboardType,
+          TextInputType.text,
+          reason: i == 0 ? 'start date' : 'end date',
+        );
+      }
+    });
+
     testWidgets('Reset goes back to the default, closes and reloads', (
       tester,
     ) async {

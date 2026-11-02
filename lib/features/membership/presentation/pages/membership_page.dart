@@ -10,6 +10,7 @@ import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/services/screen_brightness_booster.dart';
+import 'package:fix_up_moto/core/widgets/copyable_member_id.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
@@ -289,7 +290,16 @@ class _MemberQrDialogState extends State<_MemberQrDialog> {
             // no URL): whatever scans this has to expect exactly that.
             _QrFrame(data: widget.memberId, semanticsLabel: 'Member QR code'),
             const SizedBox(height: 16),
-            Text(widget.memberId, style: textTheme.titleSmall),
+            // Copyable, so a member can paste it to support. No snackbar here:
+            // it would show on the page under this popup, dimmed by its
+            // barrier, so the icon turning into a check is the confirmation.
+            CopyableMemberId(
+              key: const Key('member-qr-id'),
+              memberId: widget.memberId,
+              style: CopyableMemberIdStyle.plain,
+              showSnackBar: false,
+              textStyle: textTheme.titleSmall,
+            ),
             const SizedBox(height: 4),
             Text(
               'Tunjukkan kode ini di bengkel terdekat',

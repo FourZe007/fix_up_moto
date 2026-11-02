@@ -86,6 +86,13 @@ class RouteNames {
   /// with a back button rather than inside the bottom-nav shell.
   static const String editProfile = '/edit-profile';
 
+  /// Change the member's password — opened from the Profile tab's Ganti
+  /// Password row, which only phone-registered accounts see: a Google account's
+  /// password is derived, not chosen, so changing it would lock the member out
+  /// of Google sign-in. Top-level like [editProfile], so it renders full-screen
+  /// with a back button rather than inside the bottom-nav shell.
+  static const String changePassword = '/change-password';
+
   /// Add a bike — reached from [myBikes], so this is a top-level route too
   /// rather than nested under Profile specifically.
   static const String addBike = '/bikes/add';

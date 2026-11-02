@@ -332,4 +332,134 @@ void main() {
       expect(result, const Left(CacheFailure('disk full')));
     });
   });
+
+  group('changePassword', () {
+    Future<Either<Failure, void>> change() => repository.changePassword(
+      oldPassword: 'JAngelus21',
+      newPassword: '123456789',
+    );
+
+    When<Future<void>> stubRemote() => when(
+      () => remote.changePassword(
+        memberId: any(named: 'memberId'),
+        phoneNo: any(named: 'phoneNo'),
+        oldPassword: any(named: 'oldPassword'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    );
+
+    void verifyNothingSent() => verifyNever(
+      () => remote.changePassword(
+        memberId: any(named: 'memberId'),
+        phoneNo: any(named: 'phoneNo'),
+        oldPassword: any(named: 'oldPassword'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    );
+
+    test('sends the member\'s id and stored login phone with both passwords, '
+        'and succeeds', () async {
+      givenSignedIn(tManual);
+      stubRemote().thenAnswer((_) async {});
+
+      final result = await change();
+
+      expect(result.isRight(), isTrue);
+      verify(
+        () => remote.changePassword(
+          memberId: 'M-001',
+          phoneNo: '81200000000',
+          oldPassword: 'JAngelus21',
+          newPassword: '123456789',
+        ),
+      ).called(1);
+    });
+
+    test('leaves the cached session alone: it holds no password', () async {
+      givenSignedIn(tManual);
+      stubRemote().thenAnswer((_) async {});
+
+      await change();
+
+      verifyNever(() => authRepository.saveUser(any()));
+    });
+
+    test('refuses a Google account, sending nothing', () async {
+      givenSignedIn(tGoogle);
+
+      final result = await change();
+
+      // Its password is derived and re-derived at every sign-in; changing it
+      // would end Google sign-in for good.
+      result.fold(
+        (f) => expect(f, isA<ValidationFailure>()),
+        (_) => fail('expected a failure'),
+      );
+      verifyNothingSent();
+    });
+
+    test('is a ValidationFailure, sending nothing, for a session cached before '
+        'the login id existed', () async {
+      givenSignedIn(tManualOldSession);
+
+      final result = await change();
+
+      result.fold((f) {
+        expect(f, isA<ValidationFailure>());
+        expect(f.message, contains('masuk kembali'));
+      }, (_) => fail('expected a failure'));
+      verifyNothingSent();
+    });
+
+    test('is a NetworkFailure, touching nothing, when offline', () async {
+      when(() => networkInfo.isConnected).thenAnswer((_) async => false);
+
+      final result = await change();
+
+      expect(result, const Left(NetworkFailure('No internet connection')));
+      verifyNever(() => authRepository.getCurrentUser());
+      verifyNothingSent();
+    });
+
+    test('is an AuthFailure when there is no signed-in member', () async {
+      givenSignedIn(null);
+
+      final result = await change();
+
+      expect(result, const Left(AuthFailure('No signed-in member found')));
+      verifyNothingSent();
+    });
+
+    test(
+      'passes on the server\'s reason for a refusal, status and all',
+      () async {
+        givenSignedIn(tManual);
+        stubRemote().thenThrow(
+          const ServerException(
+            message: 'Password lama salah',
+            statusCode: 200,
+          ),
+        );
+
+        final result = await change();
+
+        expect(
+          result,
+          const Left(ServerFailure('Password lama salah', statusCode: 200)),
+        );
+      },
+    );
+
+    test('maps a 401 to an AuthFailure', () async {
+      givenSignedIn(tManual);
+      stubRemote().thenThrow(const UnauthorizedException());
+
+      final result = await change();
+
+      expect(
+        result,
+        const Left(AuthFailure('Session expired. Please sign in again.')),
+      );
+    });
+  });
 }

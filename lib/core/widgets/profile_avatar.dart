@@ -13,7 +13,7 @@ class ProfileAvatar extends StatelessWidget {
 
   final double size;
 
-  const ProfileAvatar({super.key, required this.name, this.size = 80});
+  const ProfileAvatar({super.key, required this.name, this.size = 96});
 
   @override
   Widget build(BuildContext context) {

@@ -239,6 +239,33 @@ void main() {
     verify(() => blocs.single.add(any())).called(1);
   });
 
+  testWidgets(
+    'typing a date in the picker uses a keyboard that has a "/" key',
+    (tester) async {
+      await pumpPage(tester);
+
+      await tester.tap(find.byKey(const Key('invoices-range-chip')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+
+      // The default datetime pad is digits-only on many phones, so a date could
+      // not be typed with its separators.
+      final fields = find.descendant(
+        of: find.byType(DateRangePickerDialog),
+        matching: find.byType(TextField),
+      );
+      expect(fields, findsNWidgets(2));
+      for (var i = 0; i < 2; i++) {
+        expect(
+          tester.widget<TextField>(fields.at(i)).keyboardType,
+          TextInputType.text,
+          reason: i == 0 ? 'start date' : 'end date',
+        );
+      }
+    },
+  );
+
   group('loading and failing', () {
     for (final state in [const InvoicesInitial(), const InvoicesLoading()]) {
       testWidgets('${state.runtimeType} shows a spinner and no invoices', (

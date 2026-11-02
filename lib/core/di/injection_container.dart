@@ -79,6 +79,7 @@ import 'package:fix_up_moto/features/profile/domain/usecases/get_bikes_usecase.d
 import 'package:fix_up_moto/features/profile/domain/usecases/delete_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_bike_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/get_profile_usecase.dart';
+import 'package:fix_up_moto/features/profile/domain/usecases/change_password_usecase.dart';
 import 'package:fix_up_moto/features/profile/domain/usecases/update_profile_usecase.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
@@ -300,7 +301,16 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton(() => GetProfileUseCase(sl<ProfileRepository>()));
   sl.registerLazySingleton(() => UpdateProfileUseCase(sl<ProfileRepository>()));
-  sl.registerFactory(() => ProfileBloc(getProfile: sl(), updateProfile: sl()));
+  sl.registerLazySingleton(
+    () => ChangePasswordUseCase(sl<ProfileRepository>()),
+  );
+  sl.registerFactory(
+    () => ProfileBloc(
+      getProfile: sl(),
+      updateProfile: sl(),
+      changePassword: sl(),
+    ),
+  );
 
   // ── Bikes Feature ─────────────────────────────────────────────────────────
   // Split out from Profile's — see BikesRepository's own file and BikesBloc's

@@ -233,6 +233,24 @@ void main() {
       );
     });
 
+    testWidgets('types a date on a keyboard that has a "/" key', (
+      tester,
+    ) async {
+      await openCalendar(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+
+      // The default datetime pad is digits-only on many phones, so a date could
+      // not be typed with its separators.
+      final field = tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(DatePickerDialog),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(field.keyboardType, TextInputType.text);
+    });
+
     testWidgets('explains the rules when a blocked date is typed in', (
       tester,
     ) async {

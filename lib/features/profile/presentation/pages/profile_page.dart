@@ -10,11 +10,13 @@ import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
+import 'package:fix_up_moto/core/widgets/copyable_member_id.dart';
 import 'package:fix_up_moto/core/widgets/profile_avatar.dart';
 import 'package:fix_up_moto/core/widgets/warm_section.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
@@ -163,6 +165,12 @@ class _ProfileBody extends StatelessWidget {
       color: theme.brightness == Brightness.dark ? null : AppColors.grey700,
     );
 
+    // Fixed for the session, so read, not watched — same check as
+    // EditProfilePage.
+    final authState = context.read<AuthBloc>().state;
+    final isGoogle =
+        authState is AuthAuthenticated && authState.user.isGoogle == '1';
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -180,21 +188,36 @@ class _ProfileBody extends StatelessWidget {
                   ),
 
                   // User profile
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Username
-                      Text(
-                        stats.memberName,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                  // Flexible, so the column is bounded by the room beside the
+                  // avatar: a long name wraps, and the member ID below scales
+                  // down instead of overflowing on a narrow phone.
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Username
+                        Text(
+                          stats.memberName,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      if (_hasValue(stats.phoneNo))
-                        Text('0${stats.phoneNo}', style: contactStyle),
-                      if (_hasValue(stats.emailAddress))
-                        Text(stats.emailAddress, style: contactStyle),
-                    ],
+                        if (_hasValue(stats.phoneNo))
+                          Text('0${stats.phoneNo}', style: contactStyle),
+                        if (_hasValue(stats.emailAddress))
+                          Text(stats.emailAddress, style: contactStyle),
+                        // The ID, to read out or paste to a workshop or to
+                        // support, with its copy button.
+                        if (_hasValue(stats.memberId))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: CopyableMemberId(
+                              key: const Key('member-id'),
+                              memberId: stats.memberId,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -231,6 +254,21 @@ class _ProfileBody extends StatelessWidget {
               // push, so back returns to Profile.
               onPressed: () => context.push(RouteNames.editProfile),
             ),
+            // Phone-registered accounts only. A Google account's password is
+            // derived (GooglePassword), not chosen, and the app re-derives it
+            // to sign them back in, so changing it would lock them out.
+            if (!isGoogle)
+              ActionRow(
+                key: const Key('change-password'),
+                name: 'Ganti Password',
+                icon: Icon(
+                  Icons.lock_outline,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                // push, so back returns to Profile.
+                onPressed: () => context.push(RouteNames.changePassword),
+              ),
             // The balance sits in the row as a value. Member is a tab, where go
             // is right.
             ActionRow(

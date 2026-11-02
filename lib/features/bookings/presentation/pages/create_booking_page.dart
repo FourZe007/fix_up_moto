@@ -279,6 +279,9 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
       helpText: 'Pilih tanggal',
       cancelText: 'Batal',
       confirmText: 'Pilih',
+      // The default datetime pad is digits-only on many phones, with no "/" to
+      // type a date by hand.
+      keyboardType: TextInputType.text,
     );
     if (picked == null || !mounted) return;
     setState(() => _selectedDate = picked);

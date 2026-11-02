@@ -107,8 +107,19 @@ class ApiConstants {
   /// code proves nothing. The envelope's `Msg` is "Berhasil" or "Gagal", and on
   /// success `Data[0].ResultMessage` is the new member's id (on a refusal, the
   /// reason). `AuthRemoteDataSourceImpl.register` requires both before it logs
-  /// in. Edits to an existing member carry its `Data.MemberID` (and `OldPass`
-  /// when the password is changed).
+  /// in. Edits to an existing member carry its `Data.MemberID`.
+  ///
+  /// Changing a phone-registered member's password is `Mode: "3"` with the same
+  /// `TransID: "REGISTRATION"` and a `Data` of:
+  /// ```json
+  /// { "MemberID": "...", "MemberPass": "<new>", "PhoneNo": "<login id>",
+  ///   "OldPass": "<current>", "IsGoogle": "0" }
+  /// ```
+  /// (`PhoneNo` is the subscriber number the member signs in with.) The
+  /// answer is again HTTP 200 either way: `Data[0].ResultMessage` is the
+  /// member's id when the password changed, and the reason, as text, when it
+  /// did not (a wrong `OldPass`, say). See
+  /// `ProfileRemoteDataSourceImpl.changePassword`.
   ///
   /// The same call also carries other writes, picked by `TransID` (always
   /// `Mode: "1"`, answered with `{ResultMessage}`): `"REGISTERMOTOR"` adds a
@@ -236,6 +247,9 @@ enum ModifyMode {
   /// Mode '2' is "update" for any record, not only a member: an edited bike
   /// sends it too (see `BikesRemoteDataSourceImpl.updateBike`).
   updateProfile('2'),
+
+  /// Phone-registered members only — see the request in
+  /// [ApiConstants.modify]'s notes.
   changePassword('3'),
   delete('4'),
   forgotPassword('5');

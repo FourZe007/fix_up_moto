@@ -23,3 +23,17 @@ final class ProfileUpdateRequested extends ProfileEvent {
   @override
   List<Object?> get props => [name, phone, email];
 }
+
+/// The member asked to change their password. Both are exactly as typed —
+/// passwords are never trimmed.
+final class ProfileChangePasswordRequested extends ProfileEvent {
+  final String oldPassword;
+  final String newPassword;
+  const ProfileChangePasswordRequested({
+    required this.oldPassword,
+    required this.newPassword,
+  });
+
+  @override
+  List<Object?> get props => [oldPassword, newPassword];
+}

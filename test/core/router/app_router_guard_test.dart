@@ -26,6 +26,7 @@ void main() {
     RouteNames.createBooking,
     RouteNames.profile,
     RouteNames.editProfile,
+    RouteNames.changePassword,
   ];
 
   /// Where a logged-out person can be.

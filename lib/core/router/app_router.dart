@@ -21,6 +21,7 @@ import 'package:fix_up_moto/features/invoices/presentation/pages/invoices_page.d
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
+import 'package:fix_up_moto/features/profile/presentation/pages/change_password_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/edit_bike_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/edit_profile_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
@@ -237,6 +238,12 @@ class AppRouter {
       GoRoute(
         path: RouteNames.editProfile,
         builder: (_, _) => const EditProfilePage(),
+      ),
+      // Opened from the Profile tab's Ganti Password row — a focused
+      // full-screen page like Edit Profile above, so it is top-level too.
+      GoRoute(
+        path: RouteNames.changePassword,
+        builder: (_, _) => const ChangePasswordPage(),
       ),
       // Opened from the Profile tab's Kebijakan Privasi row — a focused
       // full-screen page like settings above, so it is top-level too.

@@ -126,6 +126,9 @@ class _InvoicesPageState extends State<InvoicesPage>
       cancelText: 'Batal',
       confirmText: 'Pilih',
       saveText: 'Pilih',
+      // The default datetime pad is digits-only on many phones, with no "/" to
+      // type a date by hand.
+      keyboardType: TextInputType.text,
     );
     if (picked != null && mounted) setState(() => _range = picked);
   }

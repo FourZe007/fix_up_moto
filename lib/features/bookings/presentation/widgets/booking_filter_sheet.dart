@@ -160,6 +160,9 @@ class _FilterPanelState extends State<_FilterPanel> {
       cancelText: 'Batal',
       confirmText: 'Simpan',
       saveText: 'Simpan',
+      // The default datetime pad is digits-only on many phones, with no "/" to
+      // type a date by hand.
+      keyboardType: TextInputType.text,
     );
     if (picked != null && mounted) setState(() => _draft = picked);
   }

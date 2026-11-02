@@ -70,6 +70,7 @@ Future<Mocks> pumpProfile(
   WidgetTester tester, {
   HomeState homeState = const HomeLoaded(tStats),
   ThemeData? theme,
+  UserEntity user = tUser,
 }) async {
   final homeBloc = MockHomeBloc();
   whenListen(
@@ -83,7 +84,7 @@ Future<Mocks> pumpProfile(
   whenListen(
     authBloc,
     const Stream<AuthState>.empty(),
-    initialState: const AuthAuthenticated(tUser),
+    initialState: AuthAuthenticated(user),
   );
 
   // A real router, so tapping a tile can be checked by where it lands.
@@ -109,6 +110,10 @@ Future<Mocks> pumpProfile(
       GoRoute(
         path: RouteNames.editProfile,
         builder: (_, _) => const Scaffold(body: Text('edit-profile-page')),
+      ),
+      GoRoute(
+        path: RouteNames.changePassword,
+        builder: (_, _) => const Scaffold(body: Text('change-password-page')),
       ),
       GoRoute(
         path: RouteNames.privacyPolicy,
@@ -305,7 +310,13 @@ void main() {
     Future<void> pressRow(WidgetTester tester) async {
       await pumpProfile(tester);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(row);
+      // The list only builds what is near the screen, so scroll down to the row
+      // rather than expecting it to exist already.
+      await tester.scrollUntilVisible(
+        row,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(row);
@@ -387,6 +398,221 @@ void main() {
     });
   });
 
+  group('the member ID', () {
+    final id = find.byKey(const Key('member-id'));
+
+    DashboardStatsEntity statsWith({
+      String memberId = 'M-001',
+      String memberName = 'Stats Member',
+    }) => DashboardStatsEntity(
+      status: 'AKTIF',
+      memberId: memberId,
+      memberName: memberName,
+      emailAddress: 'stats@example.com',
+      phoneNo: '87700001111',
+      active: true,
+      qty: 4,
+      point: 80,
+      detail: const [],
+      detail2: const [],
+    );
+
+    /// Records what the page puts on the clipboard.
+    List<String> mockClipboard() {
+      final copied = <String>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      return copied;
+    }
+
+    testWidgets('shows the ID with a copy icon, as a pill', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(id, findsOneWidget);
+      expect(
+        find.descendant(of: id, matching: find.text('M-001')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: id, matching: find.text('ID')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: id, matching: find.byIcon(Icons.content_copy)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('sits under the email, above the Akun group', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      final email = tester.getTopLeft(find.text('stats@example.com')).dy;
+      final pill = tester.getTopLeft(id).dy;
+      final akun = tester.getTopLeft(find.text('Akun')).dy;
+
+      expect(pill, greaterThan(email));
+      expect(pill, lessThan(akun));
+      // Lined up with the contact lines above it, not the avatar.
+      expect(
+        tester.getTopLeft(id).dx,
+        tester.getTopLeft(find.text('stats@example.com')).dx,
+      );
+    });
+
+    testWidgets('is left out when the backend has no ID', (tester) async {
+      await pumpProfile(
+        tester,
+        homeState: HomeLoaded(statsWith(memberId: ' ')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(id, findsNothing);
+    });
+
+    testWidgets('is left out when the backend sends a dash', (tester) async {
+      await pumpProfile(
+        tester,
+        homeState: HomeLoaded(statsWith(memberId: '-')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(id, findsNothing);
+    });
+
+    testWidgets('pressing it copies the ID and says so', (tester) async {
+      final copied = mockClipboard();
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(id);
+      await tester.pump();
+
+      expect(copied, ['M-001']);
+      expect(find.text('ID Member disalin'), findsOneWidget);
+      expect(
+        find.descendant(of: id, matching: find.byIcon(Icons.check)),
+        findsOneWidget,
+      );
+
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a name too long for the header wraps instead of overflowing', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        homeState: HomeLoaded(
+          statsWith(
+            memberName:
+                'Antonius Bagus Wijaya Kusuma Hadiningrat Santoso '
+                'Prasetyo Nugroho Wicaksono',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(id, findsOneWidget);
+    });
+  });
+
+  group('the Ganti Password row', () {
+    final row = find.byKey(const Key('change-password'));
+
+    /// A Google account: its password is derived, not chosen.
+    const googleUser = UserEntity(
+      id: 'M-001',
+      name: 'Test Member',
+      status: 'Active',
+      isActive: true,
+      isGoogle: '1',
+    );
+
+    testWidgets('is there, with its label, a lock and a chevron', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('Ganti Password')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.lock_outline)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('sits directly below Edit Profile and above Point & Voucher', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      final edit = tester.getTopLeft(editRow).dy;
+      final change = tester.getTopLeft(row).dy;
+      final points = tester.getTopLeft(pointsRow).dy;
+
+      expect(change, greaterThan(edit));
+      expect(change, lessThan(points));
+    });
+
+    testWidgets('pressing it opens the change password page', (tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(find.text('change-password-page'), findsOneWidget);
+    });
+
+    testWidgets('back from the change password page returns to Profile', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      // The stand-in page has no app bar, so pop the route like the system
+      // back button does.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('change-password-page'), findsNothing);
+      expect(row, findsOneWidget);
+    });
+
+    testWidgets('is not shown to a Google account', (tester) async {
+      await pumpProfile(tester, user: googleUser);
+      await tester.pumpAndSettle();
+
+      expect(row, findsNothing);
+      // The rest of the Akun card is untouched.
+      expect(editRow, findsOneWidget);
+      expect(pointsRow, findsOneWidget);
+    });
+  });
+
   group('the Kebijakan Privasi row', () {
     final row = find.byKey(const Key('privacy-policy'));
 
@@ -395,7 +621,13 @@ void main() {
     Future<void> pressRow(WidgetTester tester) async {
       await pumpProfile(tester);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(row);
+      // The list only builds what is near the screen, so scroll down to the row
+      // rather than expecting it to exist already.
+      await tester.scrollUntilVisible(
+        row,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(row);
@@ -698,6 +930,7 @@ void main() {
       final inOrder = [
         find.text('Akun'),
         editRow,
+        find.byKey(const Key('change-password')),
         pointsRow,
         notificationRow,
         find.text('Garasi'),
@@ -723,14 +956,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // The same card within a group, a different one for the next group.
-      // Akun holds Kotak Masuk, Point & Voucher and Edit Profile; Garasi holds
-      // Motor Saya, Riwayat Booking and Riwayat Invoice.
+      // Akun holds Kotak Masuk, Point & Voucher, Edit Profile and Ganti
+      // Password; Garasi holds Motor Saya, Riwayat Booking and Riwayat Invoice.
       expect(
         identical(cardOf(tester, notificationRow), cardOf(tester, pointsRow)),
         isTrue,
       );
       expect(
         identical(cardOf(tester, pointsRow), cardOf(tester, editRow)),
+        isTrue,
+      );
+      expect(
+        identical(
+          cardOf(tester, editRow),
+          cardOf(tester, find.byKey(const Key('change-password'))),
+        ),
         isTrue,
       );
       expect(
@@ -747,12 +987,12 @@ void main() {
         reason: 'Point & Voucher is not in Garasi',
       );
 
-      // One hairline between two rows, two between three.
+      // One hairline between two rows, two between three, three between four.
       Finder dividersIn(Finder row) => find.descendant(
         of: find.ancestor(of: row, matching: find.byType(Material)).first,
         matching: find.byType(Divider),
       );
-      expect(dividersIn(notificationRow), findsNWidgets(2));
+      expect(dividersIn(notificationRow), findsNWidgets(3));
       expect(dividersIn(myBikesRow), findsNWidgets(2));
     });
 
@@ -772,6 +1012,7 @@ void main() {
         'Kotak Masuk': notificationRow,
         'Point & Voucher': pointsRow,
         'Edit Profile': editRow,
+        'Ganti Password': find.byKey(const Key('change-password')),
         'Motor Saya': myBikesRow,
         'Layanan Whatsapp': whatsappRow,
         'Instagram': instagramRow,
@@ -798,6 +1039,7 @@ void main() {
     });
 
     testWidgets('are headings for screen readers', (tester) async {
+      useTallScreen(tester);
       final semantics = tester.ensureSemantics();
       await pumpProfile(tester);
       await tester.pumpAndSettle();
@@ -969,6 +1211,9 @@ void main() {
     testWidgets('grow instead of clipping at a large font size', (
       tester,
     ) async {
+      // Tall, because the header (member ID included) grows with the font and
+      // the list only builds the rows near the screen.
+      useTallScreen(tester);
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await pumpProfile(tester);
@@ -986,7 +1231,13 @@ void main() {
     Future<void> pressRow(WidgetTester tester, Finder row) async {
       await pumpProfile(tester);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(row);
+      // The list only builds what is near the screen, so scroll down to the row
+      // rather than expecting it to exist already.
+      await tester.scrollUntilVisible(
+        row,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(row);
@@ -1170,6 +1421,7 @@ void main() {
       testWidgets('are dark red on the light page, readable as text', (
         tester,
       ) async {
+        useTallScreen(tester);
         await pumpProfile(tester, theme: AppTheme.light);
         await tester.pumpAndSettle();
 
@@ -1191,6 +1443,7 @@ void main() {
       testWidgets('are the light orange on the dark theme\'s black page', (
         tester,
       ) async {
+        useTallScreen(tester);
         await pumpProfile(tester, theme: AppTheme.dark);
         await tester.pumpAndSettle();
 

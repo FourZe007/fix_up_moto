@@ -23,4 +23,20 @@ abstract class ProfileRepository {
     required String phone,
     required String email,
   });
+
+  /// Changes the signed-in member's password from [oldPassword] to
+  /// [newPassword].
+  ///
+  /// Only for a phone-registered account. A Google account never chose its
+  /// password — the app derives it, and signs the member in with the derived
+  /// one — so changing it would lock them out; that is a [ValidationFailure]
+  /// and nothing is sent. So is a session cached before the login ID was kept,
+  /// which has no phone to send until the member signs in again.
+  ///
+  /// A `Right` means the server confirmed the change. The session needs no
+  /// update: it stores no password, and the member stays signed in.
+  Future<Either<Failure, void>> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  });
 }

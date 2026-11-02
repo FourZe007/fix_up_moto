@@ -878,6 +878,49 @@ void main() {
       );
     });
 
+    testWidgets('has a copy icon beside the member ID', (tester) async {
+      await openPopup(tester);
+
+      final id = find.byKey(const Key('member-qr-id'));
+      expect(id, findsOneWidget);
+      expect(
+        find.descendant(of: id, matching: find.text('M-001')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: id, matching: find.byIcon(Icons.content_copy)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pressing the copy icon copies the ID and turns into a check, '
+        'with no snackbar behind the barrier', (tester) async {
+      final copied = <String>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await openPopup(tester);
+
+      await tester.tap(find.byKey(const Key('member-qr-id')));
+      await tester.pump();
+
+      expect(copied, ['M-001']);
+      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.text('ID Member disalin'), findsNothing);
+      // The popup stays open: copying is not leaving.
+      expect(qrImage, findsOneWidget);
+
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('the QR holds the member ID and nothing else', (tester) async {
       await openPopup(tester);
 
@@ -1175,10 +1218,8 @@ void main() {
     }
 
     /// The card that holds [title].
-    Finder cardWith(String title) => find.ancestor(
-      of: find.text(title),
-      matching: find.byType(Card),
-    );
+    Finder cardWith(String title) =>
+        find.ancestor(of: find.text(title), matching: find.byType(Card));
 
     group('loading it', () {
       testWidgets('the box opens on Voucher, which asks for the list', (
@@ -1546,20 +1587,21 @@ void main() {
         expect(find.text('DISKON JASA SERVICE Rp. 20.000,00'), findsNothing);
       });
 
-      testWidgets('the icon sits at the card\'s right edge, inside its padding', (
-        tester,
-      ) async {
-        await pumpMembership(tester);
+      testWidgets(
+        'the icon sits at the card\'s right edge, inside its padding',
+        (tester) async {
+          await pumpMembership(tester);
 
-        expect(
-          tester.getTopRight(icon('C00')).dx,
-          closeTo(tester.getTopRight(card('C00')).dx - 16, 0.5),
-        );
-        expect(
-          tester.getTopLeft(details('C00')).dx,
-          closeTo(tester.getTopLeft(card('C00')).dx + 16, 0.5),
-        );
-      });
+          expect(
+            tester.getTopRight(icon('C00')).dx,
+            closeTo(tester.getTopRight(card('C00')).dx - 16, 0.5),
+          );
+          expect(
+            tester.getTopLeft(details('C00')).dx,
+            closeTo(tester.getTopLeft(card('C00')).dx + 16, 0.5),
+          );
+        },
+      );
 
       testWidgets('the icon has a rounded box of its own', (tester) async {
         await pumpMembership(tester);
@@ -1587,7 +1629,10 @@ void main() {
         );
         // ...below both the details and the icon.
         final top = tester.getTopLeft(divider('C00')).dy;
-        expect(top, greaterThanOrEqualTo(tester.getBottomLeft(details('C00')).dy));
+        expect(
+          top,
+          greaterThanOrEqualTo(tester.getBottomLeft(details('C00')).dy),
+        );
         expect(top, greaterThanOrEqualTo(tester.getBottomLeft(icon('C00')).dy));
       });
 
@@ -1595,7 +1640,10 @@ void main() {
         await pumpMembership(tester);
 
         final paint = tester.widget<CustomPaint>(
-          find.descendant(of: divider('C00'), matching: find.byType(CustomPaint)),
+          find.descendant(
+            of: divider('C00'),
+            matching: find.byType(CustomPaint),
+          ),
         );
         expect(paint.painter, isNotNull);
         // A solid line would be one drawLine; dashes are many, with gaps.
@@ -1611,42 +1659,47 @@ void main() {
         }
       });
 
-      testWidgets('Klaim is in its own part below the line, not beside the text', (
-        tester,
-      ) async {
-        await pumpMembership(tester);
+      testWidgets(
+        'Klaim is in its own part below the line, not beside the text',
+        (tester) async {
+          await pumpMembership(tester);
 
-        final line = tester.getBottomLeft(divider('C00')).dy;
-        expect(tester.getTopLeft(klaim('C00')).dy, greaterThanOrEqualTo(line));
-        expect(
-          tester.getTopLeft(klaim('C00')).dy,
-          greaterThan(tester.getBottomLeft(icon('C00')).dy),
-        );
-        expect(
-          tester.getBottomLeft(klaim('C00')).dy,
-          lessThanOrEqualTo(tester.getBottomLeft(card('C00')).dy),
-        );
-      });
+          final line = tester.getBottomLeft(divider('C00')).dy;
+          expect(
+            tester.getTopLeft(klaim('C00')).dy,
+            greaterThanOrEqualTo(line),
+          );
+          expect(
+            tester.getTopLeft(klaim('C00')).dy,
+            greaterThan(tester.getBottomLeft(icon('C00')).dy),
+          );
+          expect(
+            tester.getBottomLeft(klaim('C00')).dy,
+            lessThanOrEqualTo(tester.getBottomLeft(card('C00')).dy),
+          );
+        },
+      );
 
-      testWidgets('Klaim is pushed to the right and centred in the bottom part', (
-        tester,
-      ) async {
-        await pumpMembership(tester);
+      testWidgets(
+        'Klaim is pushed to the right and centred in the bottom part',
+        (tester) async {
+          await pumpMembership(tester);
 
-        // Right: its edge is the card's, less the same 16 as the top part.
-        expect(
-          tester.getTopRight(klaim('C00')).dx,
-          closeTo(tester.getTopRight(card('C00')).dx - 16, 0.5),
-        );
-        // Centre: as much room above it (under the line) as below it.
-        final above =
-            tester.getTopLeft(klaim('C00')).dy -
-            tester.getBottomLeft(divider('C00')).dy;
-        final below =
-            tester.getBottomLeft(card('C00')).dy -
-            tester.getBottomLeft(klaim('C00')).dy;
-        expect(above, closeTo(below, 0.5));
-      });
+          // Right: its edge is the card's, less the same 16 as the top part.
+          expect(
+            tester.getTopRight(klaim('C00')).dx,
+            closeTo(tester.getTopRight(card('C00')).dx - 16, 0.5),
+          );
+          // Centre: as much room above it (under the line) as below it.
+          final above =
+              tester.getTopLeft(klaim('C00')).dy -
+              tester.getBottomLeft(divider('C00')).dy;
+          final below =
+              tester.getBottomLeft(card('C00')).dy -
+              tester.getBottomLeft(klaim('C00')).dy;
+          expect(above, closeTo(below, 0.5));
+        },
+      );
 
       testWidgets('a long name wraps beside the icon and never pushes it off', (
         tester,
@@ -1696,9 +1749,9 @@ void main() {
 
         Color colourOf(String text) {
           final finder = find.text(text);
-          final style = DefaultTextStyle.of(tester.element(finder)).style.merge(
-            tester.widget<Text>(finder).style,
-          );
+          final style = DefaultTextStyle.of(
+            tester.element(finder),
+          ).style.merge(tester.widget<Text>(finder).style);
           return style.color!;
         }
 
@@ -1747,14 +1800,15 @@ void main() {
         expect(find.text('Reward 29'), findsOneWidget);
       });
 
-      testWidgets('a short list does not need to scroll but still can be pulled', (
-        tester,
-      ) async {
-        await pumpMembership(tester);
+      testWidgets(
+        'a short list does not need to scroll but still can be pulled',
+        (tester) async {
+          await pumpMembership(tester);
 
-        expect(tester.takeException(), isNull);
-        expect(find.byType(ListView), findsOneWidget);
-      });
+          expect(tester.takeException(), isNull);
+          expect(find.byType(ListView), findsOneWidget);
+        },
+      );
     });
   });
 
@@ -1790,7 +1844,9 @@ void main() {
         expect(klaim('C02'), findsNothing);
       });
 
-      testWidgets('it is on for the voucher the balance covers', (tester) async {
+      testWidgets('it is on for the voucher the balance covers', (
+        tester,
+      ) async {
         await pumpMembership(tester);
 
         expect(isOn(tester, 'C00'), isTrue);
@@ -1834,10 +1890,7 @@ void main() {
         await pumpMembership(tester);
 
         expect(tester.takeException(), isNull);
-        expect(
-          tester.getBottomRight(klaim('C00')).dx,
-          lessThanOrEqualTo(360),
-        );
+        expect(tester.getBottomRight(klaim('C00')).dx, lessThanOrEqualTo(360));
       });
     });
 
@@ -1914,7 +1967,11 @@ void main() {
         await tester.pump(); // not settled: the spinner never stops
 
         for (final id in ['C00', 'C03']) {
-          expect(isOn(tester, id), isFalse, reason: '$id is off during a claim');
+          expect(
+            isOn(tester, id),
+            isFalse,
+            reason: '$id is off during a claim',
+          );
         }
         // The spinner is on the claimed card only; the other keeps its label.
         expect(
@@ -1937,9 +1994,8 @@ void main() {
 
     group('the outcome', () {
       /// Pumps the page with a stream the test can push redeem states into.
-      Future<(MockHomeBloc, StreamController<RedeemState>)> pumpWithRedeemStream(
-        WidgetTester tester,
-      ) async {
+      Future<(MockHomeBloc, StreamController<RedeemState>)>
+      pumpWithRedeemStream(WidgetTester tester) async {
         final controller = StreamController<RedeemState>();
         addTearDown(controller.close);
         givenRedeem(const RedeemInitial(), thenEmits: controller.stream);
@@ -1947,27 +2003,28 @@ void main() {
         return (home, controller);
       }
 
-      testWidgets('success says so, naming the voucher, and reloads the points', (
-        tester,
-      ) async {
-        final (home, redeem) = await pumpWithRedeemStream(tester);
+      testWidgets(
+        'success says so, naming the voucher, and reloads the points',
+        (tester) async {
+          final (home, redeem) = await pumpWithRedeemStream(tester);
 
-        redeem.add(
-          const RedeemSuccess(
-            voucherName: 'GRATIS CUCI MOTOR',
-            message: 'Berhasil',
-          ),
-        );
-        await tester.pump();
-        await tester.pump();
+          redeem.add(
+            const RedeemSuccess(
+              voucherName: 'GRATIS CUCI MOTOR',
+              message: 'Berhasil',
+            ),
+          );
+          await tester.pump();
+          await tester.pump();
 
-        expect(
-          find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
-          findsOneWidget,
-        );
-        // Once when the page opened, once because the points changed.
-        verify(() => home.add(const HomeStatsRequested())).called(2);
-      });
+          expect(
+            find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
+            findsOneWidget,
+          );
+          // Once when the page opened, once because the points changed.
+          verify(() => home.add(const HomeStatsRequested())).called(2);
+        },
+      );
 
       testWidgets('a refusal shows the server\'s words and keeps the points', (
         tester,
@@ -1983,26 +2040,30 @@ void main() {
         verify(() => home.add(const HomeStatsRequested())).called(1);
       });
 
-      testWidgets('a claim that finishes while Riwayat is showing is still reported', (
-        tester,
-      ) async {
-        final (home, redeem) = await pumpWithRedeemStream(tester);
-        await tester.tap(find.byKey(const Key('tab-history')));
-        await tester.pumpAndSettle();
-        expect(find.text('Service points'), findsOneWidget); // on Riwayat now
+      testWidgets(
+        'a claim that finishes while Riwayat is showing is still reported',
+        (tester) async {
+          final (home, redeem) = await pumpWithRedeemStream(tester);
+          await tester.tap(find.byKey(const Key('tab-history')));
+          await tester.pumpAndSettle();
+          expect(find.text('Service points'), findsOneWidget); // on Riwayat now
 
-        redeem.add(
-          const RedeemSuccess(voucherName: 'GRATIS CUCI MOTOR', message: 'ok'),
-        );
-        await tester.pump();
-        await tester.pump();
+          redeem.add(
+            const RedeemSuccess(
+              voucherName: 'GRATIS CUCI MOTOR',
+              message: 'ok',
+            ),
+          );
+          await tester.pump();
+          await tester.pump();
 
-        expect(
-          find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
-          findsOneWidget,
-        );
-        verify(() => home.add(const HomeStatsRequested())).called(2);
-      });
+          expect(
+            find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
+            findsOneWidget,
+          );
+          verify(() => home.add(const HomeStatsRequested())).called(2);
+        },
+      );
 
       testWidgets('merely idle or in flight shows nothing', (tester) async {
         final (_, redeem) = await pumpWithRedeemStream(tester);
@@ -2131,17 +2192,18 @@ void main() {
       verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
     });
 
-    testWidgets('does not pile a second request on vouchers not yet asked for', (
-      tester,
-    ) async {
-      givenRewards(const RewardsInitial());
-      await pumpMembership(tester);
+    testWidgets(
+      'does not pile a second request on vouchers not yet asked for',
+      (tester) async {
+        givenRewards(const RewardsInitial());
+        await pumpMembership(tester);
 
-      await pullDownWithoutSettling(tester);
+        await pullDownWithoutSettling(tester);
 
-      // Only the box's own first request when it opened — none from the pull.
-      verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
-    });
+        // Only the box's own first request when it opened — none from the pull.
+        verify(() => rewardsBloc.add(const RewardsRequested())).called(1);
+      },
+    );
 
     testWidgets('does not pile a second request on one still in flight', (
       tester,

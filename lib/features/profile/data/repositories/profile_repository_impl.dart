@@ -129,4 +129,68 @@ class ProfileRepositoryImpl implements ProfileRepository {
       );
     });
   }
+
+  @override
+  Future<Either<Failure, void>> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure('No internet connection'));
+    }
+
+    final currentUserResult = await authRepository.getCurrentUser();
+
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        return const Left(AuthFailure('No signed-in member found'));
+      }
+
+      // A Google account's password is derived from its email and re-derived at
+      // every sign-in (see GooglePassword). Changing it would end Google
+      // sign-in for good, so the page hides the way here; this is the backstop.
+      if (user.isGoogle == '1') {
+        return const Left(
+          ValidationFailure(
+            'Akun Google tidak memiliki sandi yang dapat diubah',
+          ),
+        );
+      }
+
+      // The login ID, as signed in with: the subscriber number. Only a session
+      // cached before it was kept lacks it, and signing in again stores it.
+      final loginId = user.loginId?.trim() ?? '';
+      if (loginId.isEmpty) {
+        return const Left(
+          ValidationFailure(
+            'Data akun belum lengkap. Silakan keluar lalu masuk kembali.',
+          ),
+        );
+      }
+
+      try {
+        await remoteDataSource.changePassword(
+          memberId: user.id,
+          phoneNo: loginId,
+          oldPassword: oldPassword,
+          newPassword: newPassword,
+        );
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        // A wrong old password arrives here, with the server's own wording.
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+
+      return const Right(null);
+    });
+  }
 }
