@@ -153,6 +153,57 @@ class ApiConstants {
   /// (with `IsGoogle: "1"`), via `AuthRemoteDataSourceImpl.submitGoogleAccount`.
   static const String modify = '/apiSAMP/Modify';
 
+  /// POST — sends an email through the backend's own mail sender, on the same
+  /// host as [baseUrl]. Body: `{EmailAddress, EmailSubject, EmailBody}`, where
+  /// `EmailBody` is HTML. Used to deliver a verification code to a Google
+  /// account: the app makes the code and this only carries it.
+  ///
+  /// The shape of its answer is **not confirmed**. Like the other writes it is
+  /// taken to have worked unless the envelope's `Msg` says "Gagal". See
+  /// `OtpRemoteDataSourceImpl.sendEmail`.
+  static const String sendEmail = '/apiSAMP/Modify/KirimEmail';
+
+  /// POST — the WhatsApp gateway (kirimwa.id), a **third-party service** on its
+  /// own host, not part of the SAMP backend. Body: `{phone_number, message,
+  /// device_id, message_type}`, JSON, where `phone_number` is the full number
+  /// starting with `62` (no `+`, no leading `0`), `message` is the text, and
+  /// [whatsAppDeviceId] and `"text"` are fixed. Used to deliver a verification
+  /// code to a phone account's WhatsApp.
+  ///
+  /// It needs an API key, sent as `Authorization: Bearer <key>` (see
+  /// [whatsAppApiKey]). **The header name and scheme are an assumption**: they
+  /// have not been checked against the gateway's documentation.
+  ///
+  /// It answers 2xx with a JSON record of the queued message, e.g. `{"id":
+  /// "kwid-14d0…", "status": "pending", "message": "Message is pending and
+  /// waiting to be processed.", "meta": {"location": "https://…/kwid-14d0…"}}`.
+  /// `"pending"` means *accepted for delivery*, not delivered. The shape of a
+  /// refusal is not confirmed: a non-2xx is one, and so is a 2xx whose `status`
+  /// says failed, rejected or error.
+  ///
+  /// An absolute URL: Dio uses it as is, ignoring its base URL. See
+  /// `OtpRemoteDataSourceImpl.sendWhatsApp`.
+  static const String whatsAppSendUrl =
+      'https://haryanto-agus-api.kirimwa.id/v1/messages';
+
+  /// The gateway's API key, read at build time from the `KIRIMWA_API_KEY`
+  /// define, so it is never written in the source or committed. Keep it in
+  /// `dart_defines.json` (git-ignored; see `dart_defines.example.json`) and
+  /// build with `--dart-define-from-file=dart_defines.json`. VS Code's launch
+  /// configuration already does for `Run`.
+  ///
+  /// Empty means "not set": no message is sent. **A key inside an app can be
+  /// extracted from it**: anyone with the APK could send WhatsApp messages from
+  /// the gateway account. A call relayed through the backend, which holds the
+  /// key itself, would not have that weakness.
+  static const String whatsAppApiKey = String.fromEnvironment(
+    'KIRIMWA_API_KEY',
+  );
+
+  /// The gateway's `device_id`: which linked WhatsApp device sends the message.
+  /// The same for every message.
+  static const String whatsAppDeviceId = 'poco-phone';
+
   /// POST — the shared master-data lookup. One endpoint, many lists: the
   /// `Jenis` field in the body picks which one comes back, so every list reuses
   /// this single constant instead of getting a path constant of its own.

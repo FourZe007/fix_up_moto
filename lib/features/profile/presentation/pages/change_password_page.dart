@@ -4,9 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dart';
@@ -120,15 +125,35 @@ class _ChangePasswordFormState extends State<_ChangePasswordForm> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      context.read<ProfileBloc>().add(
-        ProfileChangePasswordRequested(
-          oldPassword: _oldController.text,
-          newPassword: _newController.text,
-        ),
-      );
-    }
+  /// True while the OTP page is open, so a second tap cannot open another.
+  bool _verifying = false;
+
+  Future<void> _submit() async {
+    if (_verifying || !(_formKey.currentState?.validate() ?? false)) return;
+
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthAuthenticated) return;
+
+    // The new password is only sent once the member has typed the code sent to
+    // the WhatsApp of their account. Backing out returns here with the fields
+    // as they were, and nothing is sent.
+    _verifying = true;
+    final verified = await context.push<bool>(
+      RouteNames.otp,
+      extra: OtpRequest.forMember(
+        user: authState.user,
+        purpose: OtpPurpose.changePassword,
+      ),
+    );
+    _verifying = false;
+    if (verified != true || !mounted) return;
+
+    context.read<ProfileBloc>().add(
+      ProfileChangePasswordRequested(
+        oldPassword: _oldController.text,
+        newPassword: _newController.text,
+      ),
+    );
   }
 
   @override

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -9,13 +10,32 @@ import 'package:mocktail/mocktail.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
+import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
+import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/change_password_page.dart';
 
+import '../../../../support/otp_stand_in.dart';
+
 class MockProfileBloc extends MockBloc<ProfileEvent, ProfileState>
     implements ProfileBloc {}
+
+class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
+
+/// A phone-registered member: signs in with this number.
+const tManual = UserEntity(
+  id: 'M-001',
+  name: 'Test Member',
+  status: 'SUKSES',
+  isActive: true,
+  loginId: '87700001111',
+);
 
 /// What the page needs from the outside, so tests can drive and inspect it.
 class Harness {
@@ -24,18 +44,32 @@ class Harness {
   /// Pushes states into the page's ProfileBloc, as a save would.
   final StreamController<ProfileState> states;
 
-  const Harness(this.profile, this.states);
+  /// The stand-in for the code page that Simpan opens first.
+  final OtpStandIn otp;
+
+  const Harness(this.profile, this.states, this.otp);
 }
 
 /// Opens the page on top of a stand-in Profile page, the way the app does, so
 /// popping can be checked by where it lands.
-Future<Harness> pumpChangePassword(WidgetTester tester) async {
+Future<Harness> pumpChangePassword(
+  WidgetTester tester, {
+  UserEntity user = tManual,
+}) async {
   final profileBloc = MockProfileBloc();
   final states = StreamController<ProfileState>.broadcast();
   addTearDown(states.close);
   whenListen(profileBloc, states.stream, initialState: const ProfileInitial());
   sl.registerFactory<ProfileBloc>(() => profileBloc);
 
+  final authBloc = MockAuthBloc();
+  whenListen(
+    authBloc,
+    const Stream<AuthState>.empty(),
+    initialState: AuthAuthenticated(user),
+  );
+
+  final otp = OtpStandIn();
   final router = GoRouter(
     routes: [
       GoRoute(
@@ -46,13 +80,20 @@ Future<Harness> pumpChangePassword(WidgetTester tester) async {
         path: RouteNames.changePassword,
         builder: (_, _) => const ChangePasswordPage(),
       ),
+      otp.route,
     ],
   );
-  await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    BlocProvider<AuthBloc>.value(
+      value: authBloc,
+      child: MaterialApp.router(routerConfig: router),
+    ),
+  );
   unawaited(router.push(RouteNames.changePassword));
   await tester.pumpAndSettle();
 
-  return Harness(profileBloc, states);
+  return Harness(profileBloc, states, otp);
 }
 
 void main() {
@@ -170,10 +211,14 @@ void main() {
   });
 
   group('checking before it sends', () {
-    testWidgets('sends both passwords exactly as typed', (tester) async {
+    testWidgets('sends both passwords exactly as typed, once the code is '
+        'right', (tester) async {
       final harness = await pumpChangePassword(tester);
 
       await submit(tester, old: ' JAngelus21 ', fresh: 'Baru12345 ');
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
 
       verify(
         () => harness.profile.add(
@@ -183,6 +228,48 @@ void main() {
           ),
         ),
       ).called(1);
+    });
+
+    testWidgets('asks for a code on the member\'s WhatsApp first, and sends '
+        'nothing until it is typed', (tester) async {
+      final harness = await pumpChangePassword(tester);
+
+      await submit(tester);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, [
+        OtpRequest.toPhone(
+          purpose: OtpPurpose.changePassword,
+          phone: '87700001111',
+        ),
+      ]);
+      verifyNever(() => harness.profile.add(any()));
+    });
+
+    testWidgets('sends nothing, and keeps what was typed, when the code page '
+        'is backed out of', (tester) async {
+      final harness = await pumpChangePassword(tester);
+
+      await submit(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.cancel);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => harness.profile.add(any()));
+      expect(find.byType(ChangePasswordPage), findsOneWidget);
+      expect(textOf(tester, oldField), 'JAngelus21');
+      expect(textOf(tester, newField), 'Baru12345');
+    });
+
+    testWidgets('does not ask for a code while the form is not valid', (
+      tester,
+    ) async {
+      final harness = await pumpChangePassword(tester);
+
+      await submit(tester, fresh: 'Ab1');
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, isEmpty);
     });
 
     testWidgets('asks for every field when they are all blank', (tester) async {
@@ -308,6 +395,9 @@ void main() {
         'typed', (tester) async {
       final harness = await pumpChangePassword(tester);
       await submit(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
 
       harness.states.add(const ProfileError('Password lama salah'));
       await tester.pump();

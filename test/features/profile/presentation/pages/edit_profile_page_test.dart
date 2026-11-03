@@ -22,10 +22,14 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/edit_profile_page.dart';
+
+import '../../../../support/otp_stand_in.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -40,6 +44,7 @@ const tManual = UserEntity(
   name: 'Stats Member',
   status: 'SUKSES',
   isActive: true,
+  loginId: '87700001111',
 );
 
 /// A Google account: its email is the login credential.
@@ -49,6 +54,8 @@ const tGoogle = UserEntity(
   status: 'SUKSES',
   isActive: true,
   isGoogle: '1',
+  email: 'sari@gmail.com',
+  loginId: 'sari@gmail.com',
 );
 
 /// The backend sends the phone without its leading zero.
@@ -73,7 +80,10 @@ class Harness {
   /// Pushes states into the page's ProfileBloc, as a save would.
   final StreamController<ProfileState> profileStates;
 
-  const Harness(this.home, this.profile, this.profileStates);
+  /// The stand-in for the code page that a change of contact opens first.
+  final OtpStandIn otp;
+
+  const Harness(this.home, this.profile, this.profileStates, this.otp);
 }
 
 late DataRefreshCubit refreshCubit;
@@ -86,6 +96,12 @@ Future<Harness> pumpEditProfile(
   UserEntity user = tManual,
   ThemeData? theme,
 }) async {
+  // Tall enough to show the whole form: on the default 800 x 600 surface the
+  // Simpan button is below the fold, where a tap on it misses.
+  tester.view.physicalSize = const Size(800, 1600);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
   final homeBloc = MockHomeBloc();
   whenListen(
     homeBloc,
@@ -111,6 +127,7 @@ Future<Harness> pumpEditProfile(
     initialState: AuthAuthenticated(user),
   );
 
+  final otp = OtpStandIn();
   final router = GoRouter(
     routes: [
       GoRoute(
@@ -121,6 +138,7 @@ Future<Harness> pumpEditProfile(
         path: RouteNames.editProfile,
         builder: (_, _) => const EditProfilePage(),
       ),
+      otp.route,
     ],
   );
   await tester.pumpWidget(
@@ -141,7 +159,7 @@ Future<Harness> pumpEditProfile(
     await tester.pumpAndSettle();
   }
 
-  return Harness(homeBloc, profileBloc, profileStates);
+  return Harness(homeBloc, profileBloc, profileStates, otp);
 }
 
 void main() {
@@ -245,13 +263,15 @@ void main() {
 
   group('saving', () {
     testWidgets('sends the edited, trimmed name and email with the locked '
-        'phone', (tester) async {
+        'phone, once the code for the new email is right', (tester) async {
       final harness = await pumpEditProfile(tester);
 
       await tester.enterText(nameField, '  Budi Santoso ');
       await tester.enterText(emailField, 'budi@example.com ');
       await tester.tap(saveButton);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
 
       verify(
         () => harness.profile.add(
@@ -264,12 +284,15 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('accepts a blank email', (tester) async {
+    testWidgets('accepts a blank email, after a code, as it changes the '
+        'contact', (tester) async {
       final harness = await pumpEditProfile(tester);
 
       await tester.enterText(emailField, '');
       await tester.tap(saveButton);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
 
       verify(
         () => harness.profile.add(
@@ -466,7 +489,9 @@ void main() {
       await tester.enterText(nameField, 'Sari Dewi');
       await tester.enterText(googlePhoneField, '081299998888');
       await tester.tap(saveButton);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
 
       verify(
         () => harness.profile.add(
@@ -509,6 +534,117 @@ void main() {
 
       expect(find.text('Masukkan nomor telepon yang valid'), findsOneWidget);
       verifyNever(() => harness.profile.add(any()));
+      expect(harness.otp.opened, isEmpty);
+    });
+
+    testWidgets('a changed phone asks for a code by email, at the Gmail, '
+        'before saving', (tester) async {
+      final harness = await pumpEditProfile(tester, user: tGoogle);
+
+      await tester.enterText(googlePhoneField, '081299998888');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, [
+        OtpRequest.toEmail(
+          purpose: OtpPurpose.editProfile,
+          email: 'sari@gmail.com',
+        ),
+      ]);
+      verifyNever(() => harness.profile.add(any()));
+    });
+
+    testWidgets('the same phone typed another way is not a change, so there '
+        'is no code', (tester) async {
+      final harness = await pumpEditProfile(tester, user: tGoogle);
+
+      // The saved number, 087700001111, written with the country code.
+      await tester.enterText(googlePhoneField, '+62 877-0000-1111');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, isEmpty);
+      verify(() => harness.profile.add(any())).called(1);
+    });
+
+    testWidgets('a name-only edit saves straight away, with no code', (
+      tester,
+    ) async {
+      final harness = await pumpEditProfile(tester, user: tGoogle);
+
+      await tester.enterText(nameField, 'Sari Dewi');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, isEmpty);
+      verify(() => harness.profile.add(any())).called(1);
+    });
+  });
+
+  group('the code check for a phone-registered account', () {
+    testWidgets('a changed email asks for a code on WhatsApp, at the '
+        'account\'s phone, before saving', (tester) async {
+      final harness = await pumpEditProfile(tester);
+
+      await tester.enterText(emailField, 'budi@example.com');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, [
+        OtpRequest.toPhone(
+          purpose: OtpPurpose.editProfile,
+          phone: '87700001111',
+        ),
+      ]);
+      verifyNever(() => harness.profile.add(any()));
+    });
+
+    testWidgets('a name-only edit saves straight away, with no code', (
+      tester,
+    ) async {
+      final harness = await pumpEditProfile(tester);
+
+      await tester.enterText(nameField, 'Budi Santoso');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, isEmpty);
+      verify(
+        () => harness.profile.add(
+          const ProfileUpdateRequested(
+            name: 'Budi Santoso',
+            phone: '087700001111',
+            email: 'stats@example.com',
+          ),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('the same email in another case, or with spaces, is not a '
+        'change, so there is no code', (tester) async {
+      final harness = await pumpEditProfile(tester);
+
+      await tester.enterText(emailField, '  STATS@Example.com ');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.otp.opened, isEmpty);
+      verify(() => harness.profile.add(any())).called(1);
+    });
+
+    testWidgets('saves nothing, and keeps the form, when the code page is '
+        'backed out of', (tester) async {
+      final harness = await pumpEditProfile(tester);
+
+      await tester.enterText(emailField, 'budi@example.com');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+      await tester.tap(OtpStandIn.cancel);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => harness.profile.add(any()));
+      expect(find.byType(EditProfilePage), findsOneWidget);
+      expect(textOf(tester, emailField), 'budi@example.com');
     });
   });
 

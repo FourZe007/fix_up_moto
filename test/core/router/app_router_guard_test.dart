@@ -5,6 +5,9 @@ import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_channel.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 
 void main() {
   const user = UserEntity(
@@ -15,8 +18,17 @@ void main() {
   );
   const identity = GoogleAccountIdentity(email: 'a@b.c');
 
-  String? guard(AuthState state, String location, {Object? extra}) =>
-      AppRouter.guard(authState: state, location: location, extra: extra);
+  String? guard(
+    AuthState state,
+    String location, {
+    Object? extra,
+    bool welcomeSeen = false,
+  }) => AppRouter.guard(
+    authState: state,
+    location: location,
+    extra: extra,
+    welcomeSeen: welcomeSeen,
+  );
 
   /// Where a logged-in member can be: the tabs and the pages pushed from them.
   const appLocations = [
@@ -35,6 +47,16 @@ void main() {
     RouteNames.login,
     RouteNames.register,
   ];
+
+  // Every state that is not a session: no session, a failed attempt, and a
+  // Google account picked but not yet turned into one.
+  final loggedOutStates = <String, AuthState>{
+    'unauthenticated': const AuthUnauthenticated(),
+    'error': const AuthError('Wrong password'),
+    'google identity obtained': const AuthGoogleIdentityObtained(
+      email: 'a@b.c',
+    ),
+  };
 
   group('while the session is still being checked (cold start)', () {
     test('stays on the splash', () {
@@ -81,17 +103,7 @@ void main() {
   });
 
   group('logged out', () {
-    // Every state that is not a session: no session, a failed attempt, and a
-    // Google account picked but not yet turned into one.
-    final states = <String, AuthState>{
-      'unauthenticated': const AuthUnauthenticated(),
-      'error': const AuthError('Wrong password'),
-      'google identity obtained': const AuthGoogleIdentityObtained(
-        email: 'a@b.c',
-      ),
-    };
-
-    for (final MapEntry(key: name, value: state) in states.entries) {
+    for (final MapEntry(key: name, value: state) in loggedOutStates.entries) {
       group(name, () {
         test('starts at the welcome screen, from the splash', () {
           expect(guard(state, RouteNames.splash), RouteNames.welcome);
@@ -128,6 +140,123 @@ void main() {
         RouteNames.login,
       );
     });
+  });
+
+  group('logged out, after the welcome screen has been seen', () {
+    for (final MapEntry(key: name, value: state) in loggedOutStates.entries) {
+      group(name, () {
+        test('starts at login, from the splash', () {
+          expect(
+            guard(state, RouteNames.splash, welcomeSeen: true),
+            RouteNames.login,
+          );
+        });
+
+        for (final location in appLocations) {
+          test('sends $location to login, not the welcome screen', () {
+            expect(guard(state, location, welcomeSeen: true), RouteNames.login);
+          });
+        }
+
+        // Seen once does not wall Welcome off: it is still a place to be.
+        for (final location in authLocations) {
+          test('still lets $location through', () {
+            expect(guard(state, location, welcomeSeen: true), isNull);
+          });
+        }
+      });
+    }
+
+    test('changes nothing for a cold start, a live session or a request in '
+        'flight', () {
+      expect(
+        guard(const AuthInitial(), RouteNames.login, welcomeSeen: true),
+        RouteNames.splash,
+      );
+      expect(
+        guard(
+          const AuthAuthenticated(user),
+          RouteNames.welcome,
+          welcomeSeen: true,
+        ),
+        RouteNames.home,
+      );
+      expect(
+        guard(const AuthLoading(), RouteNames.login, welcomeSeen: true),
+        isNull,
+      );
+    });
+  });
+
+  group('the code page (/otp)', () {
+    const request = OtpRequest(
+      purpose: OtpPurpose.register,
+      channel: OtpChannel.whatsapp,
+      destination: '81234567890',
+    );
+
+    test('is open to a logged-out member, who registers through it', () {
+      for (final state in loggedOutStates.values) {
+        expect(guard(state, RouteNames.otp, extra: request), isNull);
+      }
+    });
+
+    test('is open to a logged-in member, who changes a password or edits '
+        'a contact through it: not bounced home like an auth route', () {
+      expect(
+        guard(const AuthAuthenticated(user), RouteNames.otp, extra: request),
+        isNull,
+      );
+    });
+
+    test('is left alone while an operation is in flight', () {
+      expect(
+        guard(const AuthLoading(), RouteNames.otp, extra: request),
+        isNull,
+      );
+    });
+
+    test('is held back on the splash during a cold start', () {
+      expect(
+        guard(const AuthInitial(), RouteNames.otp, extra: request),
+        RouteNames.splash,
+      );
+    });
+
+    test('still opens for a logged-out member who has seen Welcome', () {
+      expect(
+        guard(
+          const AuthUnauthenticated(),
+          RouteNames.otp,
+          extra: request,
+          welcomeSeen: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('sends a logged-out member to login when it has lost its request, '
+        'instead of crashing on the missing extra', () {
+      for (final state in loggedOutStates.values) {
+        expect(guard(state, RouteNames.otp), RouteNames.login);
+      }
+      // A request of some other type is as good as none.
+      expect(
+        guard(const AuthUnauthenticated(), RouteNames.otp, extra: 'nope'),
+        RouteNames.login,
+      );
+    });
+
+    test('sends a logged-in member home when it has lost its request', () {
+      expect(
+        guard(const AuthAuthenticated(user), RouteNames.otp),
+        RouteNames.home,
+      );
+    });
+  });
+
+  test('the OTP route is /otp', () {
+    expect(RouteNames.otp, '/otp');
   });
 
   test('the welcome route is /welcome', () {

@@ -7,6 +7,8 @@ import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_app_bar.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/core/helpers/phone_input_formatter.dart';
 import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
@@ -52,19 +54,36 @@ class _RegisterPageState extends State<RegisterPage> {
         stack[stack.length - 2].matchedLocation == RouteNames.login;
   }
 
-  void _onRegisterPressed() {
-    if (_formKey.currentState?.validate() ?? false) {
-      final email = _emailController.text.trim();
-      context.read<AuthBloc>().add(
-        AuthRegisterRequested(
-          name: _nameController.text.trim(),
-          phone: _phoneController.text.trim(),
-          // Left blank on the form means "no email", not "empty string".
-          email: email.isEmpty ? '' : email,
-          password: _passwordController.text,
-        ),
-      );
-    }
+  /// True while the OTP page is open, so a second tap cannot open another.
+  bool _verifying = false;
+
+  Future<void> _onRegisterPressed() async {
+    if (_verifying || !(_formKey.currentState?.validate() ?? false)) return;
+
+    // The account is only made once the member has typed the code sent to the
+    // WhatsApp of the number they gave. Backing out of the OTP page returns
+    // here with the form exactly as it was, and nothing is sent.
+    _verifying = true;
+    final verified = await context.push<bool>(
+      RouteNames.otp,
+      extra: OtpRequest.toPhone(
+        purpose: OtpPurpose.register,
+        phone: _phoneController.text,
+      ),
+    );
+    _verifying = false;
+    if (verified != true || !mounted) return;
+
+    final email = _emailController.text.trim();
+    context.read<AuthBloc>().add(
+      AuthRegisterRequested(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        // Left blank on the form means "no email", not "empty string".
+        email: email.isEmpty ? '' : email,
+        password: _passwordController.text,
+      ),
+    );
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/go_router_refresh_stream.dart';
@@ -19,6 +20,8 @@ import 'package:fix_up_moto/features/home/presentation/pages/home_page.dart';
 import 'package:fix_up_moto/features/membership/presentation/pages/membership_page.dart';
 import 'package:fix_up_moto/features/invoices/presentation/pages/invoices_page.dart';
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
+import 'package:fix_up_moto/features/otp/presentation/pages/otp_verification_page.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/change_password_page.dart';
@@ -33,6 +36,7 @@ import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
+import 'package:fix_up_moto/core/router/welcome_seen.dart';
 
 /// Centralised GoRouter configuration for the entire app.
 ///
@@ -59,12 +63,21 @@ class AppRouter {
   /// location being resolved and its `extra`, so every branch can be tested
   /// without building a router. Returns the path to redirect to, or null to
   /// let the navigation proceed.
+  ///
+  /// [welcomeSeen] says whether this install has already been through the
+  /// welcome screen (see [WelcomeSeen]): a logged-out member who has goes
+  /// straight to login instead of back to Welcome.
   static String? guard({
     required AuthState authState,
     required String location,
     required Object? extra,
+    bool welcomeSeen = false,
   }) {
     final onSplash = location == RouteNames.splash;
+    // Not an auth route: logged-out members register through it and logged-in
+    // ones change a password or edit a contact through it, so an auth-route
+    // rule (bounce the logged-in home) would break half of its uses.
+    final onOtp = location == RouteNames.otp;
     final onCompleteGoogleProfile =
         location == RouteNames.completeGoogleProfile;
     final onAuthRoute =
@@ -96,6 +109,16 @@ class AppRouter {
       return onSplash ? null : RouteNames.splash;
     }
 
+    // The OTP page needs the OtpRequest it was pushed with, and `extra` is
+    // in-memory only: a restored route or a deep link arrives without it, and
+    // the page's `state.extra as OtpRequest` would crash. There is no code to
+    // ask for then, so go back to where the member can start over.
+    if (onOtp && extra is! OtpRequest) {
+      return authState is AuthAuthenticated
+          ? RouteNames.home
+          : RouteNames.login;
+    }
+
     // Live session — bounce off splash and the auth routes, allow the rest.
     if (authState is AuthAuthenticated) {
       return (onSplash || onAuthRoute) ? RouteNames.home : null;
@@ -107,10 +130,12 @@ class AppRouter {
     // authenticated check so a completed login is handled above.
     if (authState is AuthLoading) return null;
 
-    // Unauthenticated — the only pages reachable are the auth ones, and
-    // everyone else starts at the welcome screen: a cold start with no
-    // session, a logout and an expired session all land there.
-    return onAuthRoute ? null : RouteNames.welcome;
+    // Unauthenticated — the only pages reachable are the auth ones. Everyone
+    // else starts at the welcome screen the first time, and at login once they
+    // have been through it: a cold start with no session, a logout and an
+    // expired session all land on whichever applies.
+    if (onAuthRoute || onOtp) return null;
+    return welcomeSeen ? RouteNames.login : RouteNames.welcome;
   }
 
   static final GoRouter router = GoRouter(
@@ -135,6 +160,7 @@ class AppRouter {
       authState: sl<AuthBloc>().state,
       location: state.matchedLocation,
       extra: state.extra,
+      welcomeSeen: WelcomeSeen.read(sl<SharedPreferences>()),
     ),
 
     routes: [
@@ -148,7 +174,10 @@ class AppRouter {
         // in from.
         pageBuilder: (_, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const WelcomePage(),
+          // Tapping through Welcome is what counts as having seen it.
+          child: WelcomePage(
+            onLeave: () => WelcomeSeen.mark(sl<SharedPreferences>()),
+          ),
           transitionsBuilder: (_, animation, _, child) =>
               FadeTransition(opacity: animation, child: child),
         ),
@@ -166,6 +195,14 @@ class AppRouter {
       GoRoute(
         path: RouteNames.register,
         builder: (_, _) => const RegisterPage(),
+      ),
+      // The one-time-code check. Pushed from Register, the Google profile form,
+      // Ganti Password and Edit Profile with an OtpRequest as `extra`; the
+      // guard sends it home or to login when that is missing.
+      GoRoute(
+        path: RouteNames.otp,
+        builder: (_, state) =>
+            OtpVerificationPage(request: state.extra as OtpRequest),
       ),
       GoRoute(
         path: RouteNames.completeGoogleProfile,

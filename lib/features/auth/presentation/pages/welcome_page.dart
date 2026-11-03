@@ -11,8 +11,9 @@ import 'package:fix_up_moto/features/auth/presentation/widgets/welcome_social_li
 /// and two ways on — "Get started" to register, or "Masuk" for members who
 /// already have an account.
 ///
-/// [AppRouter] sends every logged-out state here first (a cold start with no
-/// session, a logout, an expired session). It holds no state and reads no BLoC.
+/// [AppRouter] sends a logged-out first launch here; once [onLeave] has fired
+/// (the member tapped through), later logged-out launches go straight to Login.
+/// It holds no state and reads no BLoC.
 ///
 /// Layout: the logo, headline and feature carousel scroll as one block, spaced
 /// out to fill a tall screen; the buttons are pinned below it, so they are on
@@ -22,7 +23,11 @@ import 'package:fix_up_moto/features/auth/presentation/widgets/welcome_social_li
 /// in from the top edge over it, and the colour is carried by the carousel's
 /// peach cards and the button — the same family as the Membership tab.
 class WelcomePage extends StatelessWidget {
-  const WelcomePage({super.key});
+  /// Called when the member taps "Get started" or "Masuk", just before the
+  /// next screen opens. The router uses it to remember Welcome has been seen.
+  final VoidCallback? onLeave;
+
+  const WelcomePage({super.key, this.onLeave});
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +117,7 @@ class WelcomePage extends StatelessWidget {
               ),
 
               // ── Pinned actions ──────────────────────────────────────────────
-              _Reveal(start: 0.6, child: const _Actions()),
+              _Reveal(start: 0.6, child: _Actions(onLeave: onLeave)),
             ],
           ),
         ),
@@ -124,7 +129,9 @@ class WelcomePage extends StatelessWidget {
 /// "Get started" at full width, with the way in for existing members under it,
 /// and FixUp Moto's social pages in a quiet footer under that.
 class _Actions extends StatelessWidget {
-  const _Actions();
+  final VoidCallback? onLeave;
+
+  const _Actions({this.onLeave});
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +145,10 @@ class _Actions extends StatelessWidget {
           // Register show a back arrow that returns to it.
           ElevatedButton(
             key: const Key('welcome-get-started'),
-            onPressed: () => context.push(RouteNames.register),
+            onPressed: () {
+              onLeave?.call();
+              context.push(RouteNames.register);
+            },
             style: ElevatedButton.styleFrom(
               // The same pill as the Sign In button.
               shape: RoundedRectangleBorder(
@@ -156,7 +166,10 @@ class _Actions extends StatelessWidget {
               const Text('Sudah punya akun?'),
               TextButton(
                 key: const Key('welcome-login'),
-                onPressed: () => context.push(RouteNames.login),
+                onPressed: () {
+                  onLeave?.call();
+                  context.push(RouteNames.login);
+                },
                 // Colour comes from textButtonTheme, so dark mode works.
                 child: const Text(
                   'Masuk',

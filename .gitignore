@@ -44,6 +44,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Build-time secrets — NEVER commit the real file.
+# dart_defines.json holds the WhatsApp gateway's API key; copy
+# dart_defines.example.json to it and fill it in. It reaches the app through
+# --dart-define-from-file (see .vscode/launch.json).
+/dart_defines.json
+
 # Release signing — NEVER commit these.
 # key.properties holds the keystore passwords in plain text, and the keystore
 # itself is the only thing proving a build came from you. Losing it means you

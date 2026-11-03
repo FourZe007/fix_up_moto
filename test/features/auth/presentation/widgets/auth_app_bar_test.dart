@@ -95,9 +95,9 @@ void main() {
         expect(tester.widget<AppBar>(appBar).title, isNull);
       });
 
-      testWidgets('has that bar set up like the app\'s other pages: flat, in '
-          'the page\'s own colour, with the arrow in the theme\'s text '
-          'colour', (tester) async {
+      testWidgets('has that bar set up like the app\'s other warm-wash pages: '
+          'flat and transparent, so the page behind it shows through, with '
+          'the arrow in the theme\'s text colour', (tester) async {
         await pumpAt(
           tester,
           at: RouteNames.welcome,
@@ -109,7 +109,15 @@ void main() {
         final theme = Theme.of(tester.element(appBar));
         expect(bar.elevation, 0);
         expect(bar.scrolledUnderElevation, 0);
-        expect(bar.backgroundColor, theme.scaffoldBackgroundColor);
+        // Transparent, not the scaffold colour: Login's warm wash has to show
+        // behind the bar, and on Register the scaffold's own colour does.
+        expect(bar.backgroundColor, Colors.transparent);
+        // Dark status-bar icons: a transparent bar would otherwise count as a
+        // dark one and get white icons, invisible on this light page.
+        expect(
+          bar.systemOverlayStyle?.statusBarIconBrightness,
+          Brightness.dark,
+        );
 
         final arrow = tester.widget<IconButton>(backArrow);
         expect(
@@ -129,9 +137,18 @@ void main() {
         );
 
         final theme = Theme.of(tester.element(appBar));
+        // Transparent, so it is whatever the dark page behind it is.
         expect(
           tester.widget<AppBar>(appBar).backgroundColor,
-          theme.scaffoldBackgroundColor,
+          Colors.transparent,
+        );
+        // ...with light status-bar icons, to show on that dark page.
+        expect(
+          tester
+              .widget<AppBar>(appBar)
+              .systemOverlayStyle
+              ?.statusBarIconBrightness,
+          Brightness.light,
         );
         expect(
           tester
@@ -154,15 +171,17 @@ void main() {
         expect(p.page, findsNothing);
       });
 
-      testWidgets('goes to the welcome screen when there is nothing under it '
-          'to go back to', (tester) async {
+      testWidgets('has no back arrow when there is nothing under it to go '
+          'back to', (tester) async {
         final router = await pumpAt(tester, at: p.location);
         expect(router.canPop(), isFalse);
 
-        await tapBack(tester);
-
-        expect(welcome, findsOneWidget);
-        expect(p.page, findsNothing);
+        // Login is the first screen for a member who has already seen
+        // Welcome: the bar stays, with nothing in it to tap.
+        expect(p.page, findsOneWidget);
+        expect(appBar, findsOneWidget);
+        expect(backArrow, findsNothing);
+        expect(find.byType(BackButton), findsNothing);
       });
 
       testWidgets('leaves the headline below the bar, not behind it', (

@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "fix_up_moto",
+      "request": "launch",
+      "type": "dart",
+      // Hands the build-time secrets (the WhatsApp gateway's API key) to the
+      // app. The file is not in git: copy dart_defines.example.json to it.
+      "toolArgs": ["--dart-define-from-file=dart_defines.json"]
+    }
+  ]
+}

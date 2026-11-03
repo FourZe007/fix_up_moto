@@ -26,6 +26,12 @@ class RouteNames {
   /// Registration screen — reachable from [welcome] and from the login page.
   static const String register = '/register';
 
+  /// The one-time-code check that stands in front of registering, changing a
+  /// password and editing a contact. Pushed with an `OtpRequest` as `extra` and
+  /// awaited as a `bool`: `true` only when the right code was typed. Reachable
+  /// logged-out and logged-in alike, so it is deliberately not an auth route.
+  static const String otp = '/otp';
+
   /// Reached only after a successful Google identity pick, before any backend
   /// session exists — collects name/phone (email is prefilled from Google).
   /// Treated as an auth route by the redirect guard, the same as [login] and

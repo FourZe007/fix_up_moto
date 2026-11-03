@@ -28,11 +28,15 @@ Future<void> pumpWelcome(
   ThemeData? theme,
   bool disableAnimations = false,
   bool settle = true,
+  VoidCallback? onLeave,
 }) async {
   final router = GoRouter(
     initialLocation: RouteNames.welcome,
     routes: [
-      GoRoute(path: RouteNames.welcome, builder: (_, _) => const WelcomePage()),
+      GoRoute(
+        path: RouteNames.welcome,
+        builder: (_, _) => WelcomePage(onLeave: onLeave),
+      ),
       GoRoute(
         path: RouteNames.register,
         builder: (_, _) => const Scaffold(body: Text('register-page')),
@@ -244,6 +248,27 @@ void main() {
       await tester.tap(masuk);
       await tester.pumpAndSettle();
 
+      expect(find.text('login-page'), findsOneWidget);
+    });
+
+    testWidgets('each report that Welcome was left, once, when tapped', (
+      tester,
+    ) async {
+      usePhone(tester);
+      var left = 0;
+      await pumpWelcome(tester, onLeave: () => left++);
+      expect(left, 0, reason: 'showing the page is not leaving it');
+
+      await tester.tap(getStarted);
+      await tester.pumpAndSettle();
+      expect(left, 1);
+
+      GoRouter.of(tester.element(find.text('register-page'))).pop();
+      await tester.pumpAndSettle();
+
+      await tester.tap(masuk);
+      await tester.pumpAndSettle();
+      expect(left, 2);
       expect(find.text('login-page'), findsOneWidget);
     });
 

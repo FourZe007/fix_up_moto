@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
 import 'package:fix_up_moto/core/widgets/profile_avatar.dart';
@@ -16,6 +17,8 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dart';
@@ -80,9 +83,7 @@ class EditProfilePage extends StatelessWidget {
           body: BlocBuilder<HomeBloc, HomeState>(
             builder: (context, state) => switch (state) {
               HomeInitial() ||
-              HomeLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
+              HomeLoading() => const Center(child: CircularProgressIndicator()),
               HomeError(:final message) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -135,13 +136,17 @@ class _LockedNote extends StatelessWidget {
           child: Row(
             spacing: 12,
             children: [
-              const Icon(Icons.lock_outline, color: AppColors.primary, size: 20),
+              const Icon(
+                Icons.lock_outline,
+                color: AppColors.primary,
+                size: 20,
+              ),
               Expanded(
                 child: Text(
                   message,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.grey700,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.grey700),
                 ),
               ),
             ],
@@ -227,16 +232,51 @@ class _EditProfileFormState extends State<_EditProfileForm> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      context.read<ProfileBloc>().add(
-        ProfileUpdateRequested(
-          name: _nameController.text.trim(),
-          phone: _phoneController.text.trim(),
-          email: _emailController.text.trim(),
+  /// Whether the contact this account may edit here was changed: the email of a
+  /// phone account, the phone of a Google one. The other contact is locked, so
+  /// it can never be what changed.
+  bool get _editableContactChanged {
+    if (widget.isGoogle) {
+      return PhoneNumber.toSubscriberNumber(_phoneController.text) !=
+          PhoneNumber.toSubscriberNumber(_phoneFrom(widget.stats.phoneNo));
+    }
+    return _emailController.text.trim().toLowerCase() !=
+        _valueOrEmpty(widget.stats.emailAddress).toLowerCase();
+  }
+
+  /// True while the OTP page is open, so a second tap cannot open another.
+  bool _verifying = false;
+
+  Future<void> _submit() async {
+    if (_verifying || !(_formKey.currentState?.validate() ?? false)) return;
+
+    // A change of contact asks for a code first, sent to the contact that
+    // defines the account (its WhatsApp, or its Gmail): whoever is holding the
+    // phone cannot quietly point the account somewhere else. A name-only edit
+    // goes straight through. Backing out returns here with the form as it was.
+    if (_editableContactChanged) {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is! AuthAuthenticated) return;
+
+      _verifying = true;
+      final verified = await context.push<bool>(
+        RouteNames.otp,
+        extra: OtpRequest.forMember(
+          user: authState.user,
+          purpose: OtpPurpose.editProfile,
         ),
       );
+      _verifying = false;
+      if (verified != true || !mounted) return;
     }
+
+    context.read<ProfileBloc>().add(
+      ProfileUpdateRequested(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+      ),
+    );
   }
 
   @override

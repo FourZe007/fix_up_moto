@@ -10,6 +10,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
@@ -18,6 +19,10 @@ import 'package:fix_up_moto/features/auth/presentation/pages/complete_google_pro
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_logo.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
+
+import '../../../../support/otp_stand_in.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -111,7 +116,7 @@ double hintOpacity(WidgetTester tester, String hint) => tester
     .opacity;
 
 void main() {
-  /// The logo now lives on the welcome screen only.
+  /// The logo lives on the welcome screen and on Login; Register has none yet.
   final logo = find.byType(AuthLogo);
 
   /// The page is the app's normal light grey, not a colour of its own: the
@@ -127,10 +132,31 @@ void main() {
   }
 
   group('page background', () {
-    testWidgets('LoginPage is the app light grey', (tester) async {
+    testWidgets('LoginPage sits on the warm wash, over the app light grey', (
+      tester,
+    ) async {
       await pumpPage(tester, const LoginPage(), theme: AppTheme.light);
 
-      expectThemeBackground(tester);
+      final wash = find.byType(WarmWash);
+      expect(wash, findsOneWidget);
+      // From the very top edge, so it shows behind the transparent bar.
+      expect(tester.getTopLeft(wash).dy, 0);
+      // The wash is the backdrop, so the Scaffold itself paints nothing...
+      expect(
+        tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+        Colors.transparent,
+      );
+      // ...and underneath the wash is still the app's light grey.
+      expect(
+        tester
+            .widget<ColoredBox>(
+              find
+                  .descendant(of: wash, matching: find.byType(ColoredBox))
+                  .first,
+            )
+            .color,
+        AppColors.backgroundLight,
+      );
     });
 
     testWidgets('RegisterPage is the app light grey', (tester) async {
@@ -141,12 +167,28 @@ void main() {
   });
 
   group('LoginPage', () {
-    testWidgets('has no logo, so the headline leads', (tester) async {
+    testWidgets('shows the logo, centred, above the headline', (tester) async {
       await pumpPage(tester, const LoginPage());
 
-      expect(logo, findsNothing);
-      expect(find.byKey(const Key('auth-logo-image')), findsNothing);
+      expect(logo, findsOneWidget);
+      expect(find.byKey(const Key('auth-logo-image')), findsOneWidget);
       expect(find.text('Welcome back'), findsOneWidget);
+
+      // 176 px wide: smaller than Welcome's 220, but still the main mark.
+      expect(tester.getSize(find.byKey(const Key('auth-logo-box'))).width, 176);
+      // Centred on the screen...
+      expect(
+        tester.getCenter(logo).dx,
+        closeTo(
+          tester.view.physicalSize.width / tester.view.devicePixelRatio / 2,
+          0.5,
+        ),
+      );
+      // ...and above the headline.
+      expect(
+        tester.getBottomLeft(logo).dy,
+        lessThan(tester.getTopLeft(find.text('Welcome back')).dy),
+      );
     });
 
     testWidgets('keeps the form on screen', (tester) async {
@@ -198,7 +240,7 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('still has no logo while a login is in flight', (tester) async {
+    testWidgets('keeps the logo while a login is in flight', (tester) async {
       await pumpPage(
         tester,
         const LoginPage(),
@@ -206,8 +248,113 @@ void main() {
         settle: false,
       );
 
-      expect(logo, findsNothing);
+      expect(logo, findsOneWidget);
       expect(find.text('Welcome back'), findsOneWidget);
+    });
+
+    group('the Google button', () {
+      final google = find.byKey(const Key('login-google-button'));
+
+      testWidgets('is a labelled button under an "atau" divider', (
+        tester,
+      ) async {
+        await pumpPage(tester, const LoginPage());
+
+        expect(find.text('Masuk dengan Google'), findsOneWidget);
+        expect(find.text('atau'), findsOneWidget);
+        expect(find.text('atau masuk dengan'), findsNothing);
+        // Under Sign In, so Sign In stays the first and loudest button.
+        expect(
+          tester.getTopLeft(google).dy,
+          greaterThan(tester.getBottomLeft(find.text('Sign In')).dy),
+        );
+      });
+
+      testWidgets('asks for the Google identity once when tapped', (
+        tester,
+      ) async {
+        final bloc = unauthenticatedBloc();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BlocProvider<AuthBloc>.value(
+              value: bloc,
+              child: const LoginPage(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tapText(tester, 'Masuk dengan Google');
+
+        verify(() => bloc.add(const AuthGoogleIdentityRequested())).called(1);
+      });
+
+      testWidgets('is switched off while a login is in flight', (tester) async {
+        await pumpPage(
+          tester,
+          const LoginPage(),
+          state: const AuthLoading(),
+          settle: false,
+        );
+
+        expect(tester.widget<OutlinedButton>(google).onPressed, isNull);
+      });
+    });
+
+    testWidgets('puts the Daftar disini link last, below the Google button', (
+      tester,
+    ) async {
+      await pumpPage(tester, const LoginPage());
+
+      expect(
+        tester.getTopLeft(find.text('Daftar disini')).dy,
+        greaterThan(
+          tester.getBottomLeft(find.byKey(const Key('login-google-button'))).dy,
+        ),
+      );
+    });
+
+    // Two tests, not one test with two pumps: swapping the app's light theme
+    // for its dark one mid-test makes Flutter animate between the two, which
+    // throws (their text styles do not interpolate).
+    Color? subtitleColor(WidgetTester tester) => tester
+        .widget<Text>(find.text('Sign in to manage your bookings'))
+        .style
+        ?.color;
+
+    testWidgets('has the subtitle in the darker grey in light mode', (
+      tester,
+    ) async {
+      await pumpPage(tester, const LoginPage(), theme: AppTheme.light);
+
+      expect(subtitleColor(tester), AppColors.grey700);
+    });
+
+    testWidgets('keeps the subtitle in the theme\'s own colour in dark mode, '
+        'where grey700 would vanish on black', (tester) async {
+      await pumpPage(tester, const LoginPage(), theme: AppTheme.dark);
+
+      expect(subtitleColor(tester), isNot(AppColors.grey700));
+    });
+
+    testWidgets('fits a small phone with the keyboard up, with Sign In within '
+        'reach', (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+      addTearDown(tester.view.reset);
+      addTearDown(tester.view.resetViewInsets);
+
+      await pumpPage(tester, const LoginPage(), theme: AppTheme.light);
+      expect(tester.takeException(), isNull);
+
+      final signIn = find.text('Sign In');
+      await tester.ensureVisible(signIn);
+      await tester.pumpAndSettle();
+
+      // Above the keyboard: the logo in the page costs height, but the form
+      // scrolls instead of being cut off.
+      expect(tester.getBottomLeft(signIn).dy, lessThanOrEqualTo(640 - 250));
     });
 
     testWidgets('does not overflow in dark mode on a short screen', (
@@ -385,17 +532,24 @@ void main() {
       /// The page with its bloc, the keyboard already up (so nothing rebuilds
       /// the page between typing the password and tapping the button), and the
       /// form filled in with [confirmation] as the second password.
-      Future<MockAuthBloc> fillWithKeyboardUp(
+      Future<({MockAuthBloc bloc, OtpStandIn otp})> fillWithKeyboardUp(
         WidgetTester tester, {
         required String confirmation,
       }) async {
         final bloc = unauthenticatedBloc();
+        final otp = OtpStandIn();
+        // A router, because signing up now goes through the code page.
+        final router = GoRouter(
+          routes: [
+            GoRoute(path: '/', builder: (_, _) => const RegisterPage()),
+            otp.route,
+          ],
+        );
+        addTearDown(router.dispose);
         await tester.pumpWidget(
-          MaterialApp(
-            home: BlocProvider<AuthBloc>.value(
-              value: bloc,
-              child: const RegisterPage(),
-            ),
+          BlocProvider<AuthBloc>.value(
+            value: bloc,
+            child: MaterialApp.router(routerConfig: router),
           ),
         );
         tester.view.viewInsets = const FakeViewPadding(bottom: 250);
@@ -408,49 +562,88 @@ void main() {
         await tester.enterText(fields.at(3), 'Password1');
         await tester.enterText(fields.at(4), confirmation);
         await tapText(tester, 'Buat Akun');
-        return bloc;
+        return (bloc: bloc, otp: otp);
       }
 
+      const signUp = AuthRegisterRequested(
+        name: 'Budi Santoso',
+        phone: '81234567890',
+        email: '',
+        password: 'Password1',
+      );
+
       testWidgets('accepts an identical confirmation even while the keyboard '
-          'stays up, and signs up with the bare number', (tester) async {
-        final bloc = await fillWithKeyboardUp(
+          'stays up, and asks for a code on the bare number before signing '
+          'up', (tester) async {
+        final (:bloc, :otp) = await fillWithKeyboardUp(
           tester,
           confirmation: 'Password1',
         );
 
         expect(find.text('Passwords do not match'), findsNothing);
-        verify(
-          () => bloc.add(
-            const AuthRegisterRequested(
-              name: 'Budi Santoso',
-              phone: '81234567890',
-              email: '',
-              password: 'Password1',
-            ),
+        // The code page is open, for a WhatsApp code to the bare number...
+        expect(otp.opened, [
+          OtpRequest.toPhone(
+            purpose: OtpPurpose.register,
+            phone: '81234567890',
           ),
-        ).called(1);
+        ]);
+        // ...and nothing is signed up until it has been typed.
+        verifyNever(() => bloc.add(signUp));
       });
 
-      testWidgets('still rejects a confirmation that differs, and does not '
-          'sign up', (tester) async {
-        final bloc = await fillWithKeyboardUp(
+      testWidgets('signs up with the bare number once the code is right', (
+        tester,
+      ) async {
+        final (:bloc, :otp) = await fillWithKeyboardUp(
+          tester,
+          confirmation: 'Password1',
+        );
+
+        await tester.tap(OtpStandIn.correct);
+        await tester.pumpAndSettle();
+
+        verify(() => bloc.add(signUp)).called(1);
+        expect(find.byType(RegisterPage), findsOneWidget);
+      });
+
+      testWidgets('does not sign up when the code page is backed out of, and '
+          'keeps what was typed', (tester) async {
+        final (:bloc, :otp) = await fillWithKeyboardUp(
+          tester,
+          confirmation: 'Password1',
+        );
+
+        await tester.tap(OtpStandIn.cancel);
+        await tester.pumpAndSettle();
+
+        verifyNever(() => bloc.add(signUp));
+        expect(find.byType(RegisterPage), findsOneWidget);
+        // The typed name, read from the field itself: "Budi Santoso" is also
+        // the field's hint, so finding the text would match both.
+        final name = tester.widget<TextField>(
+          find
+              .descendant(
+                of: find.byType(TextFormField).at(0),
+                matching: find.byType(TextField),
+              )
+              .first,
+        );
+        expect(name.controller!.text, 'Budi Santoso');
+      });
+
+      testWidgets('still rejects a confirmation that differs, and neither '
+          'asks for a code nor signs up', (tester) async {
+        final (:bloc, :otp) = await fillWithKeyboardUp(
           tester,
           confirmation: 'Password2',
         );
 
         expect(find.text('Passwords do not match'), findsOneWidget);
+        expect(otp.opened, isEmpty);
         // Same event the passing test expects, so this cannot pass by the
         // event merely differing in some detail.
-        verifyNever(
-          () => bloc.add(
-            const AuthRegisterRequested(
-              name: 'Budi Santoso',
-              phone: '81234567890',
-              email: '',
-              password: 'Password1',
-            ),
-          ),
-        );
+        verifyNever(() => bloc.add(signUp));
       });
     });
 
@@ -622,6 +815,111 @@ void main() {
 
       expect(find.byType(LoginPage), findsOneWidget);
       expect(find.byType(RegisterPage), findsNothing);
+    });
+  });
+
+  group('CompleteGoogleProfilePage', () {
+    const identity = GoogleAccountIdentity(
+      displayName: 'Budi',
+      email: 'budi@gmail.com',
+    );
+    const submitted = AuthGoogleAccountSubmitted(
+      name: 'Budi',
+      phone: '081234567890',
+      email: 'budi@gmail.com',
+    );
+
+    Future<({MockAuthBloc bloc, OtpStandIn otp})> fillAndSubmit(
+      WidgetTester tester,
+    ) async {
+      final bloc = unauthenticatedBloc();
+      final otp = OtpStandIn();
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) =>
+                const CompleteGoogleProfilePage(identity: identity),
+          ),
+          otp.route,
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        BlocProvider<AuthBloc>.value(
+          value: bloc,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(1), '081234567890');
+      await tapText(tester, 'Finish setting up');
+      return (bloc: bloc, otp: otp);
+    }
+
+    testWidgets('asks for a code by email, at the Google address, before '
+        'finishing', (tester) async {
+      final (:bloc, :otp) = await fillAndSubmit(tester);
+
+      expect(otp.opened, [
+        OtpRequest.toEmail(
+          purpose: OtpPurpose.register,
+          email: 'budi@gmail.com',
+        ),
+      ]);
+      verifyNever(() => bloc.add(submitted));
+    });
+
+    testWidgets('finishes setting up once the code is right', (tester) async {
+      final (:bloc, :otp) = await fillAndSubmit(tester);
+
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(submitted)).called(1);
+    });
+
+    testWidgets('does nothing when the code page is backed out of', (
+      tester,
+    ) async {
+      final (:bloc, :otp) = await fillAndSubmit(tester);
+
+      await tester.tap(OtpStandIn.cancel);
+      await tester.pumpAndSettle();
+
+      verifyNever(() => bloc.add(submitted));
+      expect(find.byType(CompleteGoogleProfilePage), findsOneWidget);
+    });
+
+    testWidgets('does not ask for a code while the form is not valid', (
+      tester,
+    ) async {
+      final bloc = unauthenticatedBloc();
+      final otp = OtpStandIn();
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) =>
+                const CompleteGoogleProfilePage(identity: identity),
+          ),
+          otp.route,
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        BlocProvider<AuthBloc>.value(
+          value: bloc,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // No phone number typed.
+      await tapText(tester, 'Finish setting up');
+
+      expect(otp.opened, isEmpty);
     });
   });
 

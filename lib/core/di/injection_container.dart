@@ -100,6 +100,12 @@ import 'package:fix_up_moto/features/services/domain/repositories/services_repos
 import 'package:fix_up_moto/features/services/domain/usecases/get_service_detail_usecase.dart';
 import 'package:fix_up_moto/features/services/domain/usecases/get_services_usecase.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
+import 'package:fix_up_moto/features/otp/data/datasources/otp_remote_data_source.dart';
+import 'package:fix_up_moto/features/otp/data/repositories/otp_repository_impl.dart';
+import 'package:fix_up_moto/features/otp/domain/otp_code_generator.dart';
+import 'package:fix_up_moto/features/otp/domain/repositories/otp_repository.dart';
+import 'package:fix_up_moto/features/otp/domain/usecases/send_otp_usecase.dart';
+import 'package:fix_up_moto/features/otp/presentation/bloc/otp_bloc.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/network/dio_client.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
@@ -311,6 +317,21 @@ Future<void> initDependencies() async {
       changePassword: sl(),
     ),
   );
+
+  // ── OTP Feature ───────────────────────────────────────────────────────────
+  // The one-time-code check in front of registering, changing a password and
+  // editing a contact. The bloc is a factory: each OTP page gets its own, so a
+  // code can never carry over from one verification to the next.
+
+  sl.registerLazySingleton<OtpRemoteDataSource>(
+    () => OtpRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<OtpRepository>(
+    () => OtpRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+  );
+  sl.registerLazySingleton(() => SendOtpUseCase(sl<OtpRepository>()));
+  sl.registerLazySingleton(() => OtpCodeGenerator());
+  sl.registerFactory(() => OtpBloc(sendOtp: sl(), generator: sl()));
 
   // ── Bikes Feature ─────────────────────────────────────────────────────────
   // Split out from Profile's — see BikesRepository's own file and BikesBloc's
