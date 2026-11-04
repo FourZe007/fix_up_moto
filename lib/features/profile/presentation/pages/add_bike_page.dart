@@ -1,3 +1,4 @@
+import 'package:fix_up_moto/core/helpers/haptics.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/profile/presentation/widgets/bike_form.dart';
@@ -81,6 +82,7 @@ class _AddBikeView extends StatelessWidget {
             child: BlocListener<BikesBloc, BikesState>(
               listener: (context, state) {
                 if (state is BikesAdded) {
+                  Haptics.success();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Motor berhasil ditambah!')),
                   );

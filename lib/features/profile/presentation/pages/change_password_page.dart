@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
@@ -248,7 +249,7 @@ class _ChangePasswordFormState extends State<_ChangePasswordForm> {
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(
+                            child: AppSpinner(
                               strokeWidth: 2,
                               color: Colors.white,
                             ),

@@ -20,6 +20,7 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
+import '../../../../support/haptic_recorder.dart';
 
 class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
     implements BikesBloc {}
@@ -102,6 +103,32 @@ void main() {
 
     expect(await result, isTrue);
     expect(find.text('my-bikes'), findsOneWidget);
+  });
+
+  testWidgets('adding a bike gives a success tap on iOS', (tester) async {
+    final haptics = HapticRecorder.start();
+
+    await onDevice(TargetPlatform.iOS, () async {
+      await openAddBikePage(tester);
+
+      states.add(const BikesAdded('Bike added successfully'));
+      await tester.pumpAndSettle();
+
+      expect(haptics.taps, [successTap]);
+    });
+  });
+
+  testWidgets('a failed add gives no tap', (tester) async {
+    final haptics = HapticRecorder.start();
+
+    await onDevice(TargetPlatform.iOS, () async {
+      await openAddBikePage(tester);
+
+      states.add(const BikesError('Server down'));
+      await tester.pumpAndSettle();
+
+      expect(haptics.taps, isEmpty);
+    });
   });
 
   testWidgets('a failed add does not signal anything', (tester) async {

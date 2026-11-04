@@ -1,7 +1,7 @@
 name: fix_up_moto
 description: "Motorcycle repair and service booking application."
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+17
 
 environment:
   sdk: ^3.10.4
@@ -40,6 +40,9 @@ dependencies:
   shared_preferences: ^2.3.3
   # flutter_secure_storage: OS keychain/keystore for auth tokens
   flutter_secure_storage: ^11.1.1
+  # path_provider: finds the cache and app-support folders, so the 2.0 first
+  # launch can delete the image cache that 1.0 left behind (LocalDataReset)
+  path_provider: ^2.1.5
 
   # ── Functional Error Handling ─────────────────────────────────────────────
   # dartz: provides Either<Failure, T> — forces callers to handle both

@@ -1,3 +1,4 @@
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/helpers/external_link.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
@@ -114,7 +115,7 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
                     builder: (context, state) {
                       return switch (state) {
                         WorkshopsInitial() || WorkshopsLoading() =>
-                          const Center(child: CircularProgressIndicator()),
+                          const Center(child: AppSpinner()),
                         WorkshopsError(:final message) => _ErrorView(
                           message: message,
                           onRetry: () => context.read<WorkshopsBloc>().add(
@@ -155,7 +156,7 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
       );
     }
 
-    return RefreshIndicator(
+    return RefreshIndicator.adaptive(
       onRefresh: () async =>
           context.read<WorkshopsBloc>().add(const WorkshopsRequested()),
       child: ListView.builder(

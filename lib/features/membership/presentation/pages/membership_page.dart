@@ -1,3 +1,5 @@
+import 'package:fix_up_moto/core/widgets/adaptive_dialog.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode, visibleForTesting;
 import 'package:flutter/material.dart';
@@ -124,7 +126,7 @@ class _MembershipView extends StatelessWidget {
                   spacing: 20,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(color: AppColors.backgroundLight),
+                    AppSpinner(color: AppColors.backgroundLight),
 
                     Text(
                       'Loading...',
@@ -618,7 +620,7 @@ class _VoucherList extends StatelessWidget {
         RewardsInitial() || RewardsLoading() => Column(
           spacing: 20,
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [CircularProgressIndicator(), Text('Loading...')],
+          children: [AppSpinner(), Text('Loading...')],
         ),
         RewardsError(:final message) => LightSurfaceScope(
           child: Container(
@@ -711,9 +713,9 @@ class _VoucherList extends StatelessWidget {
   Future<void> _confirmClaim(BuildContext context, RewardEntity reward) async {
     final redeem = context.read<RedeemBloc>();
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AdaptiveAlertDialog(
         title: const Text('Klaim voucher?'),
         content: Text(
           'Tukarkan ${reward.pointQty} pts untuk '
@@ -721,13 +723,15 @@ class _VoucherList extends StatelessWidget {
           'Sisa point Anda: ${balance - reward.pointQty} pts.',
         ),
         actions: [
-          TextButton(
+          AdaptiveDialogAction(
             key: const Key('klaim-cancel'),
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Batal'),
           ),
-          TextButton(
+          AdaptiveDialogAction(
             key: const Key('klaim-confirm'),
+            // Bold on iOS, the suggested choice; no change on Android.
+            isDefault: true,
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Ya, Klaim'),
           ),
@@ -984,7 +988,7 @@ class _VoucherCard extends StatelessWidget {
               child: claimingThis
                   ? const SizedBox.square(
                       dimension: 18,
-                      child: CircularProgressIndicator(
+                      child: AppSpinner(
                         strokeWidth: 2,
                         color: AppColors.textOnPrimary,
                       ),
@@ -1479,7 +1483,7 @@ class _MembershipBody extends StatelessWidget {
     // the remaining height (Expanded), so it runs down to the bottom of the
     // page. This page's body ends where MainShell's navigation bar begins, so
     // that is already just above the bar. Only the box's own list scrolls.
-    return RefreshIndicator(
+    return RefreshIndicator.adaptive(
       // The box's list is a second Scrollable nested under the page's, so its
       // notifications arrive one level deeper; the default (depth 0 only) would
       // ignore pulls that start inside the box.

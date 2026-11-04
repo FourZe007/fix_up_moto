@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/features/feeds/domain/entities/feed_entity.dart';
 import 'package:fix_up_moto/features/feeds/presentation/bloc/feeds_bloc.dart';
@@ -45,7 +46,7 @@ class _FeedsView extends StatelessWidget {
           builder: (context, state) {
             return switch (state) {
               FeedsInitial() || FeedsLoading() => const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+                child: AppSpinner(color: Colors.white),
               ),
               FeedsError(:final message) => _ErrorView(
                 message: message,

@@ -1,3 +1,4 @@
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -102,7 +103,7 @@ class ProfilePage extends StatelessWidget {
         body: BlocBuilder<HomeBloc, HomeState>(
           builder: (context, state) => switch (state) {
             HomeInitial() ||
-            HomeLoading() => const Center(child: CircularProgressIndicator()),
+            HomeLoading() => const Center(child: AppSpinner()),
             HomeError(:final message) => Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

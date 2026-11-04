@@ -1,4 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/cupertino.dart' show CupertinoAlertDialog;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
@@ -23,12 +25,18 @@ class MockServicesBloc extends MockBloc<ServicesEvent, ServicesState>
 
 late DataRefreshCubit refreshCubit;
 
-Future<MockBookingsBloc> pumpBookings(WidgetTester tester) async {
+/// Opens Bookings with a mock bloc in [state] (no bookings unless told), on
+/// [theme] (the default theme unless told).
+Future<MockBookingsBloc> pumpBookings(
+  WidgetTester tester, {
+  BookingsState state = const BookingsLoaded([]),
+  ThemeData? theme,
+}) async {
   final bookings = MockBookingsBloc();
   whenListen(
     bookings,
     const Stream<BookingsState>.empty(),
-    initialState: const BookingsLoaded([]),
+    initialState: state,
   );
   sl.registerFactory<BookingsBloc>(() => bookings);
 
@@ -42,6 +50,7 @@ Future<MockBookingsBloc> pumpBookings(WidgetTester tester) async {
 
   await tester.pumpWidget(
     MaterialApp(
+      theme: theme,
       home: BlocProvider.value(
         value: refreshCubit,
         child: const BookingsPage(),
@@ -106,6 +115,84 @@ void main() {
     await tester.pump();
 
     verify(() => bloc.add(any(that: isA<BookingsListRequested>()))).called(1);
+  });
+
+  group('cancelling a booking', () {
+    // A few days out: after tomorrow's start of the default range and before
+    // its month-long end, so the page lists it, and it has not happened yet.
+    final upcoming = BookingEntity(
+      id: 'B1',
+      bsName: 'FIXUP MOTO - KUTISARI',
+      bsAddress: 'Jl. Kutisari',
+      scheduledAt: DateTime.now().add(const Duration(days: 3)),
+      plateNo: 'L 1234 AB',
+      unitId: 'YAMAHA R25',
+      status: 'MENUNGGU KONFIRMASI',
+    );
+
+    Future<MockBookingsBloc> pumpWithBooking(
+      WidgetTester tester, {
+      ThemeData? theme,
+    }) => pumpBookings(tester, state: BookingsLoaded([upcoming]), theme: theme);
+
+    Future<void> longPressBooking(WidgetTester tester) async {
+      await tester.longPress(find.byType(Card).first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('long-pressing an upcoming booking asks first', (tester) async {
+      final bloc = await pumpWithBooking(tester);
+
+      await longPressBooking(tester);
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('Cancel Booking'), findsOneWidget);
+      // Nothing is cancelled just by asking.
+      verifyNever(() => bloc.add(any(that: isA<BookingCancelRequested>())));
+    });
+
+    testWidgets('No closes the question and cancels nothing', (tester) async {
+      final bloc = await pumpWithBooking(tester);
+      await longPressBooking(tester);
+
+      await tester.tap(find.text('No'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      verifyNever(() => bloc.add(any(that: isA<BookingCancelRequested>())));
+    });
+
+    testWidgets('Yes, Cancel closes it and cancels that booking, once', (
+      tester,
+    ) async {
+      final bloc = await pumpWithBooking(tester);
+      await longPressBooking(tester);
+
+      await tester.tap(find.text('Yes, Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      verify(() => bloc.add(const BookingCancelRequested('B1'))).called(1);
+    });
+
+    testWidgets('on iOS the question is an iOS alert, and still works', (
+      tester,
+    ) async {
+      final bloc = await pumpWithBooking(
+        tester,
+        theme: ThemeData(platform: TargetPlatform.iOS),
+      );
+
+      await longPressBooking(tester);
+      expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+
+      await tester.tap(find.text('Yes, Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CupertinoAlertDialog), findsNothing);
+      verify(() => bloc.add(const BookingCancelRequested('B1'))).called(1);
+    });
   });
 
   group('Date filter panel', () {

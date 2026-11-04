@@ -14,6 +14,7 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/edit_bike_page.dart';
+import '../../../../support/haptic_recorder.dart';
 
 class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
     implements BikesBloc {}
@@ -511,6 +512,21 @@ void main() {
       expect(await result, isTrue);
       expect(find.text('my-bikes'), findsOneWidget);
       expect(find.text('Motor berhasil diperbarui!'), findsOneWidget);
+    });
+
+    testWidgets('gives a success tap on iOS once the bike is updated', (
+      tester,
+    ) async {
+      final haptics = HapticRecorder.start();
+
+      await onDevice(TargetPlatform.iOS, () async {
+        await openEditBikePage(tester);
+
+        states.add(const BikesUpdated('Bike updated successfully'));
+        await tester.pumpAndSettle();
+
+        expect(haptics.taps, [successTap]);
+      });
     });
 
     testWidgets('stays put and shows the reason when saving fails', (

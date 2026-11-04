@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/cupertino.dart' show CupertinoAlertDialog;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1933,6 +1934,32 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(AlertDialog), findsNothing);
+        verify(
+          () => redeemBloc.add(
+            const RedeemRequested(
+              pointId: 'C00',
+              voucherName: 'GRATIS CUCI MOTOR',
+            ),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('on iOS the question is an iOS alert, and Ya, Klaim still '
+          'sends the claim once', (tester) async {
+        await pumpMembership(
+          tester,
+          theme: ThemeData(platform: TargetPlatform.iOS),
+        );
+
+        await tapKlaim(tester, 'C00');
+        expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.textContaining('Sisa point Anda: 30 pts'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('klaim-confirm')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
         verify(
           () => redeemBloc.add(
             const RedeemRequested(

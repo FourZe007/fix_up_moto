@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/helpers/haptics.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 
@@ -80,10 +81,11 @@ class MainShell extends StatelessWidget {
             // Tapping the tab you are already on goes back to its first page
             // (e.g. out of a service's detail); tapping another switches to
             // it, keeping whatever it was showing.
-            onDestinationSelected: (index) => navigationShell.goBranch(
-              index,
-              initialLocation: index == current,
-            ),
+            onDestinationSelected: (index) {
+              // A light click on iPhone, nothing on Android.
+              Haptics.selection();
+              navigationShell.goBranch(index, initialLocation: index == current);
+            },
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),

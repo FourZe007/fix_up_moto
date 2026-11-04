@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/constants/translation_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
@@ -340,13 +341,13 @@ class _InvoiceTabState extends State<_InvoiceTab>
           !(previous is InvoicesLoaded && current is InvoicesLoading),
       builder: (context, state) => switch (state) {
         InvoicesInitial() ||
-        InvoicesLoading() => const Center(child: CircularProgressIndicator()),
+        InvoicesLoading() => const Center(child: AppSpinner()),
         InvoicesError(:final message) => _ErrorView(
           type: widget.type,
           message: message,
           onRetry: () => _bloc.add(_request),
         ),
-        InvoicesLoaded(:final invoices) => RefreshIndicator(
+        InvoicesLoaded(:final invoices) => RefreshIndicator.adaptive(
           onRefresh: _refresh,
           child: invoices.isEmpty
               ? _EmptyView(type: widget.type)

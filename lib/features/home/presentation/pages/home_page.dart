@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +11,7 @@ import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/features/chatbot/presentation/widgets/fima_avatar.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
@@ -62,7 +64,7 @@ class _HomeView extends StatelessWidget {
             builder: (context, state) {
               return switch (state) {
                 HomeInitial() || HomeLoading() => const Center(
-                  child: CircularProgressIndicator(),
+                  child: AppSpinner(),
                 ),
                 HomeError(:final message) => _ErrorView(
                   message: message,
@@ -85,7 +87,7 @@ class _HomeBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
+    return RefreshIndicator.adaptive(
       onRefresh: () async =>
           context.read<HomeBloc>().add(const HomeStatsRequested()),
       child: ListView(
@@ -308,7 +310,7 @@ class _PromoCarouselViewState extends State<_PromoCarouselView> {
             child: Column(
               spacing: 8,
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [CircularProgressIndicator(), Text('Loading...')],
+              children: [AppSpinner(), Text('Loading...')],
             ),
           ),
           // No promotions endpoint content to show is not worth a banner of
@@ -466,10 +468,7 @@ class _ChatWithMikaButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.chat_bubble_outline,
-                    color: AppColors.primary,
-                  ),
+                  const FimaAvatar(),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

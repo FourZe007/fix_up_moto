@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
-import 'package:fix_up_moto/core/router/route_names.dart';
-import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
-import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
@@ -49,24 +46,26 @@ class _CompleteGoogleProfilePageState extends State<CompleteGoogleProfilePage> {
   }
 
   /// True while the OTP page is open, so a second tap cannot open another.
-  bool _verifying = false;
+  // bool _verifying = false;
 
   Future<void> _onSubmitPressed() async {
-    if (_verifying || !(_formKey.currentState?.validate() ?? false)) return;
+    if ( /*_verifying ||*/ !(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
 
     // A Google account is reached on its Gmail, so that is where the code goes.
     // The account is only made once the member has typed it; backing out
     // returns here with the form as it was.
-    _verifying = true;
-    final verified = await context.push<bool>(
-      RouteNames.otp,
-      extra: OtpRequest.toEmail(
-        purpose: OtpPurpose.register,
-        email: widget.identity.email,
-      ),
-    );
-    _verifying = false;
-    if (verified != true || !mounted) return;
+    // _verifying = true;
+    // final verified = await context.push<bool>(
+    //   RouteNames.otp,
+    //   extra: OtpRequest.toEmail(
+    //     purpose: OtpPurpose.register,
+    //     email: widget.identity.email,
+    //   ),
+    // );
+    // _verifying = false;
+    // if (verified != true || !mounted) return;
 
     context.read<AuthBloc>().add(
       AuthGoogleAccountSubmitted(
@@ -152,7 +151,7 @@ class _CompleteGoogleProfilePageState extends State<CompleteGoogleProfilePage> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(
+                              child: AppSpinner(
                                 strokeWidth: 2,
                                 color: Colors.white,
                               ),

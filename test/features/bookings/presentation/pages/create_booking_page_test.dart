@@ -15,6 +15,7 @@ import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.d
 import 'package:fix_up_moto/features/bookings/presentation/pages/create_booking_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/widgets/booking_date_strip.dart';
 import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
+import '../../../../support/haptic_recorder.dart';
 
 class MockBookingsBloc extends MockBloc<BookingsEvent, BookingsState>
     implements BookingsBloc {}
@@ -75,6 +76,34 @@ void main() {
     expect(refreshCubit.state.kind, DataKind.bookings);
     // ...and goes back to the tab that is now reloading.
     expect(find.text('bookings-tab'), findsOneWidget);
+  });
+
+  testWidgets('a successful booking gives a success tap on iOS', (
+    tester,
+  ) async {
+    final haptics = HapticRecorder.start();
+
+    await onDevice(TargetPlatform.iOS, () async {
+      await openCreatePage(tester);
+
+      states.add(const BookingActionSuccess('Booking confirmed!'));
+      await tester.pumpAndSettle();
+
+      expect(haptics.taps, [successTap]);
+    });
+  });
+
+  testWidgets('a failed booking gives no tap', (tester) async {
+    final haptics = HapticRecorder.start();
+
+    await onDevice(TargetPlatform.iOS, () async {
+      await openCreatePage(tester);
+
+      states.add(const BookingsError('Server down'));
+      await tester.pumpAndSettle();
+
+      expect(haptics.taps, isEmpty);
+    });
   });
 
   testWidgets('a failed booking does not signal anything', (tester) async {

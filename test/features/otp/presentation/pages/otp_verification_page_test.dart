@@ -20,6 +20,7 @@ import 'package:fix_up_moto/features/otp/presentation/bloc/otp_bloc.dart';
 import 'package:fix_up_moto/features/otp/presentation/bloc/otp_event.dart';
 import 'package:fix_up_moto/features/otp/presentation/bloc/otp_state.dart';
 import 'package:fix_up_moto/features/otp/presentation/pages/otp_verification_page.dart';
+import '../../../../support/haptic_recorder.dart';
 
 class MockOtpBloc extends MockBloc<OtpEvent, OtpState> implements OtpBloc {}
 
@@ -542,6 +543,21 @@ void main() {
 
       expect(h.results, [true]);
       expect(find.text('caller'), findsOneWidget);
+    });
+
+    testWidgets('gives a success tap on iOS when the right code was typed', (
+      tester,
+    ) async {
+      final haptics = HapticRecorder.start();
+
+      await onDevice(TargetPlatform.iOS, () async {
+        final h = await pumpOtp(tester);
+
+        await emit(tester, h, const OtpVerified());
+        await tester.pumpAndSettle();
+
+        expect(haptics.taps, [successTap]);
+      });
     });
 
     testWidgets('closes with nothing when the back arrow is used, which the '

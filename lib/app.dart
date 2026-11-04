@@ -5,6 +5,7 @@ import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/theme/preview_platform.dart';
 import 'package:fix_up_moto/core/theme/theme_cubit.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
@@ -63,8 +64,10 @@ class App extends StatelessWidget {
           title: AppConstants.appName,
 
           // Light and dark themes defined centrally in core/theme/
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
+          // Unchanged unless --dart-define=PREVIEW_PLATFORM=ios is given (and
+          // never in a release build): see applyPreviewPlatform.
+          theme: applyPreviewPlatform(AppTheme.light),
+          darkTheme: applyPreviewPlatform(AppTheme.dark),
 
           // Light only while AppConstants.themeSwitchEnabled is off: the saved
           // choice (and the phone's own dark setting) is ignored until the

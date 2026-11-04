@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/helpers/currency_formatter.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/helpers/text_formatter.dart';
@@ -103,7 +104,7 @@ class _InvoiceCardState extends State<InvoiceCard> {
                 icon: widget.downloading
                     ? const SizedBox.square(
                         dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: AppSpinner(strokeWidth: 2),
                       )
                     : const Icon(Icons.download_outlined, size: 18),
                 label: Text(

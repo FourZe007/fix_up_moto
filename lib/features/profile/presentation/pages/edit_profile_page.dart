@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
@@ -83,7 +84,7 @@ class EditProfilePage extends StatelessWidget {
           body: BlocBuilder<HomeBloc, HomeState>(
             builder: (context, state) => switch (state) {
               HomeInitial() ||
-              HomeLoading() => const Center(child: CircularProgressIndicator()),
+              HomeLoading() => const Center(child: AppSpinner()),
               HomeError(:final message) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -376,7 +377,7 @@ class _EditProfileFormState extends State<_EditProfileForm> {
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(
+                            child: AppSpinner(
                               strokeWidth: 2,
                               color: Colors.white,
                             ),

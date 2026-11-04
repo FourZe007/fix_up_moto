@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/helpers/phone_input_formatter.dart';
 import 'package:fix_up_moto/core/helpers/validators.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
@@ -242,7 +243,7 @@ class _LoginPageState extends State<LoginPage> {
                                     ? const SizedBox(
                                         height: 20,
                                         width: 20,
-                                        child: CircularProgressIndicator(
+                                        child: AppSpinner(
                                           strokeWidth: 2,
                                           color: Colors.white,
                                         ),

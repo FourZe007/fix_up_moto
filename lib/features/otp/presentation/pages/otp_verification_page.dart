@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:fix_up_moto/core/helpers/haptics.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
@@ -111,6 +113,7 @@ class _OtpBodyState extends State<_OtpBody> {
       },
       listener: (context, state) {
         if (state is OtpVerified) {
+          Haptics.success();
           context.pop(true);
           return;
         }
@@ -253,7 +256,7 @@ class _OtpBodyState extends State<_OtpBody> {
           const SizedBox(
             width: 14,
             height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: AppSpinner(strokeWidth: 2),
           ),
           const SizedBox(width: 8),
           Text('Mengirim kode…', style: quiet),

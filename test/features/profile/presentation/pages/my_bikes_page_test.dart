@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +19,7 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.dart';
+import '../../../../support/haptic_recorder.dart';
 
 class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
     implements BikesBloc {}
@@ -517,6 +519,42 @@ void main() {
       expect(refreshCubit.state.kind, DataKind.stats);
     });
 
+    testWidgets('a finished delete gives a success tap on iOS', (tester) async {
+      final haptics = HapticRecorder.start();
+
+      await onDevice(TargetPlatform.iOS, () async {
+        await pumpMyBikes(
+          tester,
+          states: states.stream,
+          refreshCubit: DataRefreshCubit(),
+        );
+
+        states.add(const BikesDeleted('Bike deleted successfully'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(haptics.taps, [successTap]);
+      });
+    });
+
+    testWidgets('a refused delete gives no tap', (tester) async {
+      final haptics = HapticRecorder.start();
+
+      await onDevice(TargetPlatform.iOS, () async {
+        await pumpMyBikes(
+          tester,
+          states: states.stream,
+          refreshCubit: DataRefreshCubit(),
+        );
+
+        states.add(const BikesError('Motor masih memiliki booking'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(haptics.taps, isEmpty);
+      });
+    });
+
     testWidgets('shows the reload as a spinner, then the list without the '
         'bike', (tester) async {
       await pumpMyBikes(
@@ -562,6 +600,144 @@ void main() {
       expect(find.text('YAMAHA R25'), findsOneWidget);
       expect(refreshCubit.state.kind, isNull);
       expect(find.text('Motor berhasil dihapus!'), findsNothing);
+    });
+  });
+
+  group('pull to refresh', () {
+    late StreamController<BikesState> states;
+
+    setUp(() => states = StreamController<BikesState>());
+    // Not awaited: most tests here never listen to it, and closing a
+    // controller nobody listened to only finishes once somebody does.
+    tearDown(() => unawaited(states.close()));
+
+    final spinner = find.byType(CircularProgressIndicator);
+
+    /// A whole pull that has finished and settled, for the tests where the
+    /// (mock) bloc answers at once.
+    Future<void> pullDown(WidgetTester tester, Finder from) async {
+      await tester.drag(from, const Offset(0, 300));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+    }
+
+    /// A pull left in flight: the indicator is spinning and the page is waiting
+    /// for the bloc's answer, so a test can push states while it waits.
+    Future<void> startPull(WidgetTester tester, Finder from) async {
+      await tester.drag(from, const Offset(0, 300));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    testWidgets('reloads the bikes', (tester) async {
+      final bloc = await pumpMyBikes(
+        tester,
+        state: const BikesLoaded([tFull, tBare]),
+      );
+
+      await pullDown(tester, find.text('YAMAHA R25'));
+
+      // Once on open, once for the pull.
+      verify(() => bloc.add(const BikesLoadRequested())).called(2);
+    });
+
+    testWidgets('works on a one-bike list too', (tester) async {
+      final bloc = await pumpMyBikes(tester);
+
+      await pullDown(tester, find.text('YAMAHA R25'));
+
+      verify(() => bloc.add(const BikesLoadRequested())).called(2);
+    });
+
+    testWidgets('works when there are no bikes', (tester) async {
+      final bloc = await pumpMyBikes(tester, state: const BikesLoaded([]));
+
+      await pullDown(tester, find.text('Belum ada motor'));
+
+      verify(() => bloc.add(const BikesLoadRequested())).called(2);
+    });
+
+    testWidgets('keeps the list on screen while it reloads, then swaps it', (
+      tester,
+    ) async {
+      await pumpMyBikes(tester, states: states.stream);
+
+      await startPull(tester, find.text('YAMAHA R25'));
+      states.add(const BikesLoading());
+      await tester.pump();
+      await tester.pump();
+
+      // Reloading: no full-page spinner replaces the list...
+      expect(find.text('YAMAHA R25'), findsOneWidget);
+      expect(spinner, findsNothing);
+
+      // ...until the answer arrives.
+      states.add(const BikesLoaded([tBare]));
+      await tester.pumpAndSettle();
+
+      expect(find.text('YAMAHA R25'), findsNothing);
+      expect(find.text('HONDA BEAT'), findsOneWidget);
+    });
+
+    testWidgets('a failed reload shows the error with a way to retry', (
+      tester,
+    ) async {
+      await pumpMyBikes(tester, states: states.stream);
+
+      await startPull(tester, find.text('YAMAHA R25'));
+      states
+        ..add(const BikesLoading())
+        ..add(const BikesError('Server down'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('YAMAHA R25'), findsNothing);
+      expect(find.text('Server down'), findsWidgets);
+      expect(find.widgetWithText(ElevatedButton, 'Coba lagi'), findsOneWidget);
+    });
+
+    testWidgets('shows the Material indicator under the pull on Android', (
+      tester,
+    ) async {
+      await pumpMyBikes(
+        tester,
+        states: states.stream,
+        theme: ThemeData(platform: TargetPlatform.android),
+      );
+
+      await startPull(tester, find.text('YAMAHA R25'));
+
+      expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    });
+
+    testWidgets('shows the iOS spinner under the pull on iOS', (tester) async {
+      await pumpMyBikes(
+        tester,
+        states: states.stream,
+        theme: ThemeData(platform: TargetPlatform.iOS),
+      );
+
+      await startPull(tester, find.text('YAMAHA R25'));
+
+      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
+    });
+
+    testWidgets('a reload that is not a pull still shows the spinner', (
+      tester,
+    ) async {
+      // After an add, an edit or a delete the page reloads the same way, and
+      // those keep showing the spinner: only a pull keeps the list up.
+      await pumpMyBikes(tester, states: states.stream);
+
+      states.add(const BikesLoading());
+      await tester.pump();
+      await tester.pump();
+
+      expect(spinner, findsOneWidget);
+      expect(find.text('YAMAHA R25'), findsNothing);
     });
   });
 

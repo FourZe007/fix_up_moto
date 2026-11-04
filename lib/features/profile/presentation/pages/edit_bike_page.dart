@@ -1,3 +1,4 @@
+import 'package:fix_up_moto/core/helpers/haptics.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
@@ -75,6 +76,7 @@ class _EditBikeView extends StatelessWidget {
             child: BlocConsumer<BikesBloc, BikesState>(
               listener: (context, state) {
                 if (state is BikesUpdated) {
+                  Haptics.success();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Motor berhasil diperbarui!')),
                   );

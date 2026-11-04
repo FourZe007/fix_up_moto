@@ -109,6 +109,7 @@ import 'package:fix_up_moto/features/otp/presentation/bloc/otp_bloc.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/network/dio_client.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
+import 'package:fix_up_moto/core/storage/local_data_reset.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:fix_up_moto/firebase_options.dart';
 
@@ -133,6 +134,16 @@ Future<void> initDependencies() async {
   } catch (_) {
     await const FlutterSecureStorage().deleteAll();
   }
+
+  // 2.0 starts empty: an update keeps whatever 1.0 saved on the phone, so the
+  // first launch of this generation clears it once (see LocalDataReset). It
+  // runs before anything below reads the session, the theme or the Welcome
+  // flag, and after the guard above, which only handles an unreadable keychain.
+  final prefs = await SharedPreferences.getInstance();
+  await LocalDataReset.runIfNeeded(
+    prefs: prefs,
+    secureStorage: const FlutterSecureStorage(),
+  );
 
   // ── External / Third-party ───────────────────────────────────────────────
 
@@ -161,9 +172,9 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => const FlutterSecureStorage());
   sl.registerLazySingleton(() => DioClient());
 
-  // Non-sensitive settings (theme choice). Awaited here so ThemeCubit can read
-  // its saved value synchronously in its constructor, before the first frame.
-  final prefs = await SharedPreferences.getInstance();
+  // Non-sensitive settings (theme choice). Fetched above, before the reset, so
+  // ThemeCubit can read its saved value synchronously in its constructor,
+  // before the first frame.
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
 
   // ── Core ─────────────────────────────────────────────────────────────────

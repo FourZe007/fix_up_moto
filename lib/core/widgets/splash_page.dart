@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 
 /// Shown while the app decides whether there is a cached session.
 ///
@@ -18,7 +19,7 @@ class SplashPage extends StatelessWidget {
         child: SizedBox(
           height: 32,
           width: 32,
-          child: CircularProgressIndicator(strokeWidth: 3),
+          child: AppSpinner(strokeWidth: 3),
         ),
       ),
     );

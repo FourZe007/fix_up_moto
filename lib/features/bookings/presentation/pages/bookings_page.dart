@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/widgets/adaptive_dialog.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/refresh/refresh_on.dart';
@@ -291,7 +293,7 @@ class _BookingsViewState extends State<_BookingsView>
                                 spacing: 20,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  CircularProgressIndicator(),
+                                  AppSpinner(),
                                   Text('Loading...'),
                                 ],
                               ),
@@ -304,7 +306,7 @@ class _BookingsViewState extends State<_BookingsView>
                                 spacing: 20,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  CircularProgressIndicator(),
+                                  AppSpinner(),
                                   Text('Loading...'),
                                 ],
                               ),
@@ -369,7 +371,7 @@ class _BookingsViewState extends State<_BookingsView>
       return const Center(child: Text('No bookings match your search'));
     }
 
-    return RefreshIndicator(
+    return RefreshIndicator.adaptive(
       onRefresh: () async => _loadBookings(),
       child: ListView.builder(
         itemCount: filtered.length,
@@ -481,19 +483,24 @@ class _BookingsViewState extends State<_BookingsView>
   }
 
   void _confirmCancel(BuildContext context, String bookingId) {
-    showDialog<void>(
+    showAdaptiveDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      // The dialog's own context for closing it, not the page's: the dialog
+      // lives on the root navigator, and the page's nearest navigator may be a
+      // tab's own, which popping would close the page under it instead.
+      builder: (dialogContext) => AdaptiveAlertDialog(
         title: const Text('Cancel Booking'),
         content: const Text('Are you sure you want to cancel this booking?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
+          AdaptiveDialogAction(
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('No'),
           ),
-          TextButton(
+          AdaptiveDialogAction(
+            // Red on iOS; an ordinary button on Android, as before.
+            isDestructive: true,
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               context.read<BookingsBloc>().add(
                 BookingCancelRequested(bookingId),
               );

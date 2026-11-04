@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/cupertino.dart' show CupertinoCheckbox;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:sliding_up_panel/sliding_up_panel.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/widgets/warm_section.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/notification/domain/entities/notification_entity.dart';
@@ -16,6 +18,7 @@ import 'package:fix_up_moto/features/notification/presentation/bloc/notification
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_event.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_state.dart';
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
+import '../../../../support/haptic_recorder.dart';
 
 class MockNotificationBloc
     extends MockBloc<NotificationEvent, NotificationState>
@@ -1145,6 +1148,65 @@ void main() {
       expect(find.text('Filter Notifikasi'), findsOneWidget);
     });
 
+    group('the two buttons at the bottom', () {
+      final reset = find.byKey(const Key('filter-reset'));
+      final applyButton = find.byKey(const Key('filter-apply'));
+
+      /// The painted surface of a button. `getSize` on the button itself would
+      /// include Material's invisible 48 px tap-target padding, which is the
+      /// same for both and so hides a difference in what is drawn.
+      Material surface(WidgetTester tester, Finder button) => tester.widget(
+        find.descendant(of: button, matching: find.byType(Material)).first,
+      );
+
+      Future<void> openUnderAppTheme(WidgetTester tester) async {
+        // The real app theme: it is what gives ElevatedButton its tall
+        // padding, so the plain test theme would hide the mismatch.
+        await pumpPage(tester, state: inbox, theme: AppTheme.light);
+        await openPanel(tester);
+      }
+
+      testWidgets('are drawn the same height', (tester) async {
+        await openUnderAppTheme(tester);
+
+        final resetBox = find
+            .descendant(of: reset, matching: find.byType(Material))
+            .first;
+        final applyBox = find
+            .descendant(of: applyButton, matching: find.byType(Material))
+            .first;
+        expect(
+          tester.getSize(resetBox).height,
+          tester.getSize(applyBox).height,
+        );
+        expect(
+          tester.getSize(resetBox).width,
+          closeTo(tester.getSize(applyBox).width, 0.01),
+        );
+      });
+
+      testWidgets('have the same corners', (tester) async {
+        await openUnderAppTheme(tester);
+
+        RoundedRectangleBorder shapeOf(Finder button) =>
+            surface(tester, button).shape! as RoundedRectangleBorder;
+        expect(shapeOf(reset).borderRadius, shapeOf(applyButton).borderRadius);
+      });
+
+      testWidgets('still differ in colour: Terapkan is filled, Atur Ulang is '
+          'outlined', (tester) async {
+        await openUnderAppTheme(tester);
+
+        expect(surface(tester, applyButton).color, AppColors.primary);
+        expect(surface(tester, reset).color, Colors.transparent);
+        expect(
+          (surface(tester, reset).shape! as RoundedRectangleBorder).side.width,
+          greaterThan(0),
+          reason: 'Atur Ulang keeps its outline',
+        );
+      });
+    });
+
     testWidgets('has two fields of two checkboxes each, in Indonesian', (
       tester,
     ) async {
@@ -1158,6 +1220,68 @@ void main() {
       expect(find.text('Sudah dibaca'), findsOneWidget);
       expect(find.text('Belum dibaca'), findsOneWidget);
       expect(find.byType(CheckboxListTile), findsNWidgets(4));
+    });
+
+    testWidgets('the boxes are ordinary Material checkboxes on Android', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        state: inbox,
+        theme: ThemeData(platform: TargetPlatform.android),
+      );
+      await openPanel(tester);
+
+      expect(find.byType(Checkbox), findsNWidgets(4));
+      expect(find.byType(CupertinoCheckbox), findsNothing);
+    });
+
+    testWidgets('the boxes are iOS checkboxes on iOS, in the brand colour, '
+        'and still tick', (tester) async {
+      await pumpPage(
+        tester,
+        state: inbox,
+        theme: ThemeData(platform: TargetPlatform.iOS),
+      );
+      await openPanel(tester);
+
+      // `Checkbox.adaptive` is still a Checkbox widget; on iOS it draws a
+      // CupertinoCheckbox, which is what the member sees.
+      expect(find.byType(CupertinoCheckbox), findsNWidgets(4));
+      final first = tester.widget<CupertinoCheckbox>(
+        find.descendant(
+          of: find.byKey(const Key('filter-sent-yes')),
+          matching: find.byType(CupertinoCheckbox),
+        ),
+      );
+      expect(first.activeColor, AppColors.primary);
+
+      expect(isTicked(tester, 'filter-sent-no'), isFalse);
+      await tick(tester, 'filter-sent-no');
+      expect(isTicked(tester, 'filter-sent-no'), isTrue);
+    });
+
+    testWidgets('ticking a box gives a light click on iOS', (tester) async {
+      final haptics = HapticRecorder.start();
+
+      await onDevice(TargetPlatform.iOS, () async {
+        await pumpPage(tester, state: inbox);
+        await openPanel(tester);
+
+        await tick(tester, 'filter-sent-no');
+
+        expect(haptics.taps, [selectionTap]);
+      });
+    });
+
+    testWidgets('ticking a box gives none on Android', (tester) async {
+      final haptics = HapticRecorder.start();
+      await pumpPage(tester, state: inbox);
+      await openPanel(tester);
+
+      await tick(tester, 'filter-sent-no');
+
+      expect(haptics.taps, isEmpty);
     });
 
     testWidgets('the boxes start as the defaults: sent only, read and unread', (

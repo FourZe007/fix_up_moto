@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/helpers/haptics.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
@@ -458,6 +460,8 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
             child: BlocListener<BookingsBloc, BookingsState>(
               listener: (context, state) {
                 if (state is BookingActionSuccess) {
+                  Haptics.success();
+
                   // Captured once, as an object — not re-derived from context
                   // inside the action below, since context.pop() right after
                   // this deactivates CreateBookingPage's own context. A
@@ -683,7 +687,7 @@ class _SummaryBar extends StatelessWidget {
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(
+                      child: AppSpinner(
                         strokeWidth: 2,
                         color: Colors.white,
                       ),
@@ -719,7 +723,7 @@ class _BikePickerSheet extends StatelessWidget {
               BikesUpdated() ||
               BikesDeleted() => const SizedBox(
                 height: 160,
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               ),
               BikesError(:final message) => SizedBox(
                 height: 160,

@@ -6,6 +6,7 @@ import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
+import '../../support/haptic_recorder.dart';
 
 /// A stand-in tab page that counts how many times it has been built, and
 /// remembers a tap count, so tests can tell "kept alive" from "rebuilt".
@@ -98,6 +99,28 @@ void main() {
     final builds = await pumpShell(tester);
 
     expect(builds, {'home': 1});
+  });
+
+  group('haptics', () {
+    testWidgets('switching tabs gives a light click on iOS', (tester) async {
+      final haptics = HapticRecorder.start();
+
+      await onDevice(TargetPlatform.iOS, () async {
+        await pumpShell(tester);
+        await openTab(tester, 'MyPoint');
+
+        expect(haptics.taps, [selectionTap]);
+      });
+    });
+
+    testWidgets('switching tabs gives none on Android', (tester) async {
+      final haptics = HapticRecorder.start();
+
+      await pumpShell(tester);
+      await openTab(tester, 'MyPoint');
+
+      expect(haptics.taps, isEmpty);
+    });
   });
 
   testWidgets('a tab you leave is not rebuilt when you come back', (

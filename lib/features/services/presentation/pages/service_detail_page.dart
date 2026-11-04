@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/currency_formatter.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
@@ -39,7 +40,7 @@ class _ServiceDetailView extends StatelessWidget {
           builder: (context, state) {
             return switch (state) {
               ServicesInitial() || ServicesLoading() => const Center(
-                child: CircularProgressIndicator(),
+                child: AppSpinner(),
               ),
               ServicesError(:final message) => Center(child: Text(message)),
               ServiceDetailLoaded(:final service) => ListView(

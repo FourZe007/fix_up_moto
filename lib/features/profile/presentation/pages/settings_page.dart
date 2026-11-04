@@ -60,7 +60,7 @@ class SettingsPage extends StatelessWidget {
               //         : (isDark ? ThemeMode.dark : ThemeMode.light),
               //   ),
               // ),
-              SwitchListTile(
+              SwitchListTile.adaptive(
                 title: const Text('Dark mode'),
                 value: isDark,
                 // Null disables the switch: the device decides while following it.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/services/share_service.dart';
 import 'package:fix_up_moto/features/feeds/domain/entities/feed_entity.dart';
@@ -148,7 +149,7 @@ class _ReelPlayerState extends State<ReelPlayer> {
               )
             else if (widget.post.isVideo)
               const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+                child: AppSpinner(color: Colors.white),
               ),
 
             // Play icon flash when paused by a tap

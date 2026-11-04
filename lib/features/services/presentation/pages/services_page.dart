@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
@@ -62,7 +63,7 @@ class ServicesHistoryView extends StatelessWidget {
             child: Column(
               spacing: 20,
               mainAxisSize: MainAxisSize.min,
-              children: [CircularProgressIndicator(), Text('Loading...')],
+              children: [AppSpinner(), Text('Loading...')],
             ),
           ),
           ServicesError(:final message) => Center(

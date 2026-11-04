@@ -1,4 +1,7 @@
+import 'package:fix_up_moto/core/helpers/haptics.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/theme/app_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -201,7 +204,7 @@ class _NotificationViewState extends State<_NotificationView> {
                         current is NotificationLoading),
                 builder: (context, state) => switch (state) {
                   NotificationInitial() || NotificationLoading() =>
-                    const Center(child: CircularProgressIndicator()),
+                    const Center(child: AppSpinner()),
                   NotificationError(:final message) => _ErrorView(
                     message: message,
                     // Under the current filter, not the defaults.
@@ -212,7 +215,7 @@ class _NotificationViewState extends State<_NotificationView> {
                     :final notifications,
                     :final markingRead,
                   ) =>
-                    RefreshIndicator(
+                    RefreshIndicator.adaptive(
                       onRefresh: () => _refresh(context),
                       child: notifications.isEmpty
                           ? const _EmptyInbox()
@@ -336,16 +339,43 @@ class _FilterPanel extends StatefulWidget {
 class _FilterPanelState extends State<_FilterPanel> {
   late NotificationFilter _draft = widget.initial;
 
+  /// Height, padding, corners and type shared by Atur Ulang and Terapkan, so
+  /// they read as a pair and only their colours tell them apart.
+  ///
+  /// One style object handed to both buttons, in one place, because the app
+  /// theme styles ElevatedButton (14 px of vertical padding, its own corners
+  /// and text) and leaves OutlinedButton on Material's defaults (no vertical
+  /// padding, a stadium shape). Setting only a `minimumSize` on each left the
+  /// filled button taller than the outlined one.
+  ///
+  /// It carries no colours: each button keeps its own (see the call sites).
+  static const _buttonGeometry = ButtonStyle(
+    minimumSize: WidgetStatePropertyAll(Size(0, 48)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(24)),
+      ),
+    ),
+    textStyle: WidgetStatePropertyAll(AppTextStyles.labelLarge),
+  );
+
   Widget _check({
     required String keyName,
     required String label,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return CheckboxListTile(
+    return CheckboxListTile.adaptive(
       key: Key(keyName),
       value: value,
-      onChanged: (checked) => onChanged(checked ?? false),
+      onChanged: (checked) {
+        // A light click on iPhone, nothing on Android.
+        Haptics.selection();
+        onChanged(checked ?? false);
+      },
       title: Text(label),
       // The box in front, like a form: the label reads after it.
       controlAffinity: ListTileControlAffinity.leading,
@@ -455,11 +485,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                       setState(() => _draft = NotificationFilter.defaults);
                       widget.onApply(NotificationFilter.defaults);
                     },
-                    // The app theme gives ElevatedButton a tall minimumSize and
-                    // OutlinedButton none: match the two, like the Bookings panel.
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 32),
-                    ),
+                    // Geometry from _buttonGeometry, colours from Material's
+                    // outlined defaults: the border and the primary-tinted label
+                    // are what set it apart from Terapkan.
+                    style: _buttonGeometry,
                     child: const Text('Atur Ulang'),
                   ),
                 ),
@@ -468,12 +497,9 @@ class _FilterPanelState extends State<_FilterPanel> {
                   child: ElevatedButton(
                     key: const Key('filter-apply'),
                     onPressed: () => widget.onApply(_draft),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, 32),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
+                    // Same geometry; the app theme's filled primary colours are
+                    // what set it apart from Atur Ulang.
+                    style: _buttonGeometry,
                     child: const Text('Terapkan'),
                   ),
                 ),
@@ -736,7 +762,7 @@ class _NotificationRow extends StatelessWidget {
                             key: Key('mark-read-progress'),
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: AppSpinner(strokeWidth: 2),
                           )
                         : const Icon(Icons.done_all, size: 16),
                     iconAlignment: IconAlignment.end,

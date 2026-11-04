@@ -43,4 +43,14 @@ class AppConstants {
   /// dark theme, ThemeCubit and Settings page are all still in the code —
   /// turn this on to bring the feature back.
   static const bool themeSwitchEnabled = false;
+
+  /// Which platform's look to preview, from `--dart-define=PREVIEW_PLATFORM=…`:
+  /// `ios` (or `android`) makes the platform-aware widgets (spinners, dialogs,
+  /// refresh, checkboxes) show that platform's version on any device, so the iOS
+  /// look can be checked on the Android emulator or on Windows. Empty (the
+  /// default) means the real platform. A debug/profile aid only: a release
+  /// build ignores it — see applyPreviewPlatform.
+  static const String previewPlatform = String.fromEnvironment(
+    'PREVIEW_PLATFORM',
+  );
 }

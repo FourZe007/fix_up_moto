@@ -1,3 +1,5 @@
+import 'package:fix_up_moto/core/helpers/haptics.dart';
+import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -152,6 +154,31 @@ class _MyBikesViewState extends State<_MyBikesView> {
     context.read<BikesBloc>().add(BikeDeleteRequested(line: bike.line));
   }
 
+  /// True while a pull-to-refresh is waiting for its answer. Only then does the
+  /// builder keep the list on screen through [BikesLoading]: the same reload
+  /// after an add, an edit or a delete still shows the spinner, so each of
+  /// those keeps telling the member that something is happening.
+  bool _refreshing = false;
+
+  /// Reloads the bikes and resolves once the answer is in, so the pull
+  /// indicator keeps spinning for exactly that long.
+  Future<void> _refresh() {
+    final bloc = context.read<BikesBloc>();
+    _refreshing = true;
+    bloc.add(const BikesLoadRequested());
+
+    return bloc.stream
+        .firstWhere(
+          (state) => state is BikesLoaded || state is BikesError,
+          // The page closed meanwhile: nothing left to wait for.
+          orElse: () => const BikesInitial(),
+        )
+        .then<void>((_) {})
+        .whenComplete(() {
+          _refreshing = false;
+        });
+  }
+
   @override
   void dispose() {
     _actionsOverlayEntry?.remove();
@@ -192,6 +219,12 @@ class _MyBikesViewState extends State<_MyBikesView> {
         body: SafeArea(
           top: false,
           child: BlocConsumer<BikesBloc, BikesState>(
+            // A pull keeps the list on screen under the refresh indicator
+            // instead of swapping it for a spinner; only the answer changes it.
+            buildWhen: (previous, current) =>
+                !(_refreshing &&
+                    previous is BikesLoaded &&
+                    current is BikesLoading),
             listener: (context, state) {
               if (state is BikesError) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -201,6 +234,7 @@ class _MyBikesViewState extends State<_MyBikesView> {
                   ),
                 );
               } else if (state is BikesDeleted) {
+                Haptics.success();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Motor berhasil dihapus!')),
                 );
@@ -215,15 +249,15 @@ class _MyBikesViewState extends State<_MyBikesView> {
             },
             builder: (context, state) {
               return switch (state) {
-                BikesInitial() || BikesLoading() => const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                BikesInitial() ||
+                BikesLoading() => const Center(child: AppSpinner()),
                 // Loading again after Add pops back in, or after a delete —
                 // same spinner, not a separate case, since a fresh list is
                 // already on the way. BikesUpdated is emitted only by Edit's
                 // own bloc, but this switch must still cover every state.
-                BikesAdded() || BikesUpdated() || BikesDeleted() =>
-                  const Center(child: CircularProgressIndicator()),
+                BikesAdded() ||
+                BikesUpdated() ||
+                BikesDeleted() => const Center(child: AppSpinner()),
                 BikesError(:final message) => Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -257,35 +291,55 @@ class _MyBikesViewState extends State<_MyBikesView> {
   }
 
   Widget _buildList(List<BikeEntity> bikes) {
-    if (bikes.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 12,
-            children: [
-              const Icon(
-                Icons.two_wheeler_outlined,
-                size: 48,
-                color: AppColors.primary,
+    return RefreshIndicator.adaptive(
+      onRefresh: _refresh,
+      child: bikes.isEmpty ? _buildEmpty() : _buildCards(bikes),
+    );
+  }
+
+  /// No bikes yet. Scrollable, so pulling down still reloads it.
+  Widget _buildEmpty() {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 12,
+                children: [
+                  const Icon(
+                    Icons.two_wheeler_outlined,
+                    size: 48,
+                    color: AppColors.primary,
+                  ),
+                  Text(
+                    'Belum ada motor',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => _openAddBike(context),
+                    child: const Text('Tambah Motor'),
+                  ),
+                ],
               ),
-              Text(
-                'Belum ada motor',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              ElevatedButton(
-                onPressed: () => _openAddBike(context),
-                child: const Text('Tambah Motor'),
-              ),
-            ],
+            ),
           ),
         ),
-      );
-    }
+      ],
+    );
+  }
+
+  Widget _buildCards(List<BikeEntity> bikes) {
     return ListView.builder(
+      // Pullable even when the cards do not fill the screen, which one or two
+      // bikes never do: a list that short does not overscroll on Android.
+      physics: const AlwaysScrollableScrollPhysics(),
       // Room at the foot for the FAB, so it never covers the last card's
       // more-actions button.
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
