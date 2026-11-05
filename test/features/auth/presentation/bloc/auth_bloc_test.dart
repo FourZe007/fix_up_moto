@@ -436,5 +436,45 @@ void main() {
       act: (bloc) => bloc.add(const AuthLogoutRequested()),
       expect: () => [isA<AuthLoading>(), isA<AuthError>()],
     );
+
+    // The hook is how the app tells the backend to stop pushing to this phone:
+    // that call is made under the member's id, so it must run before logout
+    // clears the session.
+    group('beforeLogout', () {
+      final order = <String>[];
+      setUp(order.clear);
+
+      AuthBloc buildWithHook(Future<void> Function() hook) {
+        when(() => mockLogout(any())).thenAnswer((_) async {
+          order.add('logout');
+          return const Right(null);
+        });
+        return AuthBloc(
+          loginUseCase: mockLogin,
+          registerUseCase: mockRegister,
+          logoutUseCase: mockLogout,
+          getCurrentUserUseCase: mockGetCurrentUser,
+          getGoogleIdentityUseCase: mockGetGoogleIdentity,
+          submitGoogleAccountUseCase: mockSubmitGoogleAccount,
+          beforeLogout: hook,
+        );
+      }
+
+      blocTest<AuthBloc, AuthState>(
+        'runs before the session is cleared',
+        build: () => buildWithHook(() async => order.add('hook')),
+        act: (bloc) => bloc.add(const AuthLogoutRequested()),
+        expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+        verify: (_) => expect(order, ['hook', 'logout']),
+      );
+
+      blocTest<AuthBloc, AuthState>(
+        'a hook that throws does not stop the logout',
+        build: () => buildWithHook(() async => throw StateError('server down')),
+        act: (bloc) => bloc.add(const AuthLogoutRequested()),
+        expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+        verify: (_) => expect(order, ['logout']),
+      );
+    });
   });
 }

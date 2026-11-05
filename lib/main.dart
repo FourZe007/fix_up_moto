@@ -1,6 +1,8 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'app.dart';
 import 'core/di/injection_container.dart';
+import 'core/push/push_background_handler.dart';
 
 /// Application entry point — intentionally kept minimal.
 ///
@@ -20,6 +22,11 @@ Future<void> main() async {
   // This must complete before runApp() so that sl<T>() calls inside
   // widget constructors always resolve to a registered instance.
   await initDependencies();
+
+  // Pushes that arrive while the app is in the background or closed. After
+  // initDependencies, which initialises Firebase; the handler itself is a
+  // top-level function because it runs in its own isolate.
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   // Start the widget tree. main() is done after this line —
   // all further logic is driven by the widget tree and GoRouter.

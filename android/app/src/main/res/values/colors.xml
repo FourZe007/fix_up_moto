@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FE0000</color>
+    <!-- Tint of the push notification's status-bar icon: AppColors.primary. -->
+    <color name="notification_accent">#E65100</color>
 </resources>

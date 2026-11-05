@@ -5,6 +5,7 @@
          successfully and then fails every request with a SocketException.
          Login cannot work in release without it. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="FixUp Moto"
@@ -42,6 +43,24 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Push notifications (Firebase Cloud Messaging). A push that arrives
+             while the app is closed or in the background is drawn by Android
+             itself, using these three defaults:
+               - the status-bar icon: it must be a white silhouette on
+                 transparent, so the full-colour launcher icon is not used (it
+                 would show as a flat white square);
+               - its tint, the brand orange (AppColors.primary);
+               - the channel, created in MainActivity. A push whose payload
+                 names a different android channel_id bypasses this one. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="fixup_moto_default" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/push/push_bootstrap.dart';
+import 'package:fix_up_moto/core/push/push_notification_service.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/theme/preview_platform.dart';
 import 'package:fix_up_moto/core/theme/theme_cubit.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:fix_up_moto/features/notification/presentation/push/inbox_monitor.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_event.dart';
 import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
@@ -77,6 +80,18 @@ class App extends StatelessWidget {
           // GoRouter instance declared in AppRouter handles all navigation,
           // including the auth redirect guard and tab structure.
           routerConfig: AppRouter.router,
+
+          // Push notifications: switches them on at sign-in and off at
+          // sign-out, shows a banner for a push that arrives while the app
+          // is open, and opens Kotak Masuk when one is tapped. Also keeps the
+          // member told about new inbox messages (points, booking confirmed).
+          // Below the AuthBloc provider above, and draws nothing of its own.
+          builder: (context, child) => PushBootstrap(
+            router: AppRouter.router,
+            service: sl<PushNotificationService>(),
+            inbox: sl<InboxMonitor>(),
+            child: child ?? const SizedBox.shrink(),
+          ),
 
           // Remove the debug banner in all builds — cleaner screenshots/demos.
           debugShowCheckedModeBanner: false,

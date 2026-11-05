@@ -36,6 +36,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final GetGoogleIdentityUseCase _getGoogleIdentityUseCase;
   final SubmitGoogleAccountUseCase _submitGoogleAccountUseCase;
 
+  /// Runs at the start of every logout, while the session still exists. The
+  /// app uses it to tell the backend to stop pushing to this phone, which needs
+  /// the member's id and so cannot wait until after the session is cleared.
+  /// It may not hold up or prevent logout: a failure is logged and ignored.
+  final Future<void> Function()? _beforeLogout;
+
   /// All use cases are injected by the DI container — [AuthBloc] never
   /// instantiates collaborators directly (Dependency Inversion Principle).
   AuthBloc({
@@ -45,8 +51,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required GetCurrentUserUseCase getCurrentUserUseCase,
     required GetGoogleIdentityUseCase getGoogleIdentityUseCase,
     required SubmitGoogleAccountUseCase submitGoogleAccountUseCase,
+    Future<void> Function()? beforeLogout,
   }) : _getGoogleIdentityUseCase = getGoogleIdentityUseCase,
        _submitGoogleAccountUseCase = submitGoogleAccountUseCase,
+       _beforeLogout = beforeLogout,
        _loginUseCase = loginUseCase,
        _registerUseCase = registerUseCase,
        _logoutUseCase = logoutUseCase,
@@ -294,6 +302,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     log('_onLogoutRequested: emitting AuthLoading', name: 'AuthBloc');
     emit(const AuthLoading());
+
+    // Before the session goes. Whatever happens here, signing out goes on.
+    try {
+      await _beforeLogout?.call();
+    } catch (e) {
+      log('_onLogoutRequested: beforeLogout failed — $e', name: 'AuthBloc');
+    }
 
     final result = await _logoutUseCase(const NoParams());
 

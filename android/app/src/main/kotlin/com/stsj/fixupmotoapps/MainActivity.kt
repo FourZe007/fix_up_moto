@@ -1,13 +1,42 @@
 package com.stsj.fixupmotoapps
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        createPushChannel()
+    }
+
+    /**
+     * The channel pushes arrive on (Android 8+). Without a high-importance one
+     * of its own, Firebase files them under a generic "Miscellaneous" channel
+     * that makes a sound but never pops up as a banner. The id must match
+     * `default_notification_channel_id` in AndroidManifest.xml. Creating a
+     * channel that already exists changes nothing, so running this on every
+     * start is safe; once created, the member controls it in system settings.
+     */
+    private fun createPushChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val channel = NotificationChannel(
+            PUSH_CHANNEL_ID,
+            "Notifikasi FixUp Moto",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Info booking, servis, dan promo dari FixUp Moto"
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -47,6 +76,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private companion object {
+        const val PUSH_CHANNEL_ID = "fixup_moto_default"
         const val RECEIPT_VIEWER_CHANNEL = "com.stsj.fixupmotoapps/receipt_viewer"
     }
 }

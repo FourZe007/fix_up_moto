@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -69,15 +72,12 @@ late NotificationCountCubit notificationCount;
 Future<Mocks> pumpProfile(
   WidgetTester tester, {
   HomeState homeState = const HomeLoaded(tStats),
+  Stream<HomeState> states = const Stream<HomeState>.empty(),
   ThemeData? theme,
   UserEntity user = tUser,
 }) async {
   final homeBloc = MockHomeBloc();
-  whenListen(
-    homeBloc,
-    const Stream<HomeState>.empty(),
-    initialState: homeState,
-  );
+  whenListen(homeBloc, states, initialState: homeState);
   sl.registerFactory<HomeBloc>(() => homeBloc);
 
   final authBloc = MockAuthBloc();
@@ -765,6 +765,143 @@ void main() {
       await tester.pump();
 
       verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
+    });
+  });
+
+  group('pull to refresh', () {
+    late StreamController<HomeState> states;
+
+    setUp(() => states = StreamController<HomeState>());
+    // Not awaited: most tests here never listen to it, and closing a
+    // controller nobody listened to only finishes once somebody does.
+    tearDown(() => unawaited(states.close()));
+
+    final spinner = find.byType(CircularProgressIndicator);
+
+    /// A pull left in flight: the indicator is spinning and the page is
+    /// waiting for the bloc's answer, so a test can push states while it waits.
+    Future<void> startPull(WidgetTester tester) async {
+      await tester.drag(find.text('Stats Member'), const Offset(0, 300));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    testWidgets('reloads the stats', (tester) async {
+      final mocks = await pumpProfile(tester);
+
+      await startPull(tester);
+      await tester.pumpAndSettle();
+
+      // Once on open, once for the pull.
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
+    });
+
+    testWidgets('keeps the page on screen while it reloads, then swaps it', (
+      tester,
+    ) async {
+      await pumpProfile(tester, states: states.stream);
+
+      await startPull(tester);
+      states.add(const HomeLoading());
+      await tester.pump();
+      await tester.pump();
+
+      // Reloading: no full-page spinner replaces the page...
+      expect(find.text('Stats Member'), findsOneWidget);
+      expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+
+      // ...until the answer arrives.
+      states.add(
+        const HomeLoaded(
+          DashboardStatsEntity(
+            status: 'AKTIF',
+            memberId: 'M-001',
+            memberName: 'Renamed Member',
+            emailAddress: 'stats@example.com',
+            phoneNo: '87700001111',
+            active: true,
+            qty: 4,
+            point: 80,
+            detail: [],
+            detail2: [],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Stats Member'), findsNothing);
+      expect(find.text('Renamed Member'), findsOneWidget);
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
+    });
+
+    testWidgets('keeps spinning until the answer arrives', (tester) async {
+      await pumpProfile(tester, states: states.stream);
+
+      await startPull(tester);
+      states.add(const HomeLoading());
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('a failed reload shows the error with a Retry', (tester) async {
+      await pumpProfile(tester, states: states.stream);
+
+      await startPull(tester);
+      states
+        ..add(const HomeLoading())
+        ..add(const HomeError('Server down'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Stats Member'), findsNothing);
+      expect(find.text('Server down'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    testWidgets('a reload from an error still shows the spinner', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        homeState: const HomeError('Server down'),
+        states: states.stream,
+      );
+
+      states.add(const HomeLoading());
+      await tester.pump();
+      await tester.pump();
+
+      expect(spinner, findsOneWidget);
+      expect(find.text('Server down'), findsNothing);
+    });
+
+    testWidgets('shows the Material indicator under the pull on Android', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        states: states.stream,
+        theme: ThemeData(platform: TargetPlatform.android),
+      );
+
+      await startPull(tester);
+
+      expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    });
+
+    testWidgets('shows the iOS spinner under the pull on iOS', (tester) async {
+      await pumpProfile(
+        tester,
+        states: states.stream,
+        theme: ThemeData(platform: TargetPlatform.iOS),
+      );
+
+      await startPull(tester);
+
+      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
     });
   });
 

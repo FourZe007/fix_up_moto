@@ -101,4 +101,64 @@ class NotificationRepositoryImpl implements NotificationRepository {
       }
     });
   }
+
+  @override
+  Future<Either<Failure, void>> registerDeviceToken({
+    required String token,
+    required String deviceName,
+  }) => _forSignedInMember(
+    (memberId) => remoteDataSource.registerDeviceToken(
+      memberId: memberId,
+      token: token,
+      deviceName: deviceName,
+    ),
+  );
+
+  @override
+  Future<Either<Failure, void>> unregisterDeviceToken({
+    required String token,
+    required String deviceName,
+  }) => _forSignedInMember(
+    (memberId) => remoteDataSource.unregisterDeviceToken(
+      memberId: memberId,
+      token: token,
+      deviceName: deviceName,
+    ),
+  );
+
+  /// Runs [call] with the signed-in member's id, turning every way it can go
+  /// wrong into a [Failure]: offline, no cached session, or the backend's
+  /// refusal.
+  Future<Either<Failure, void>> _forSignedInMember(
+    Future<void> Function(String memberId) call,
+  ) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure('No internet connection'));
+    }
+
+    final currentUserResult = await authRepository.getCurrentUser();
+
+    return currentUserResult.fold((failure) async => Left(failure), (
+      user,
+    ) async {
+      if (user == null) {
+        return const Left(AuthFailure('No signed-in member found'));
+      }
+
+      try {
+        await call(user.id);
+        return const Right(null);
+      } on UnauthorizedException {
+        return const Left(
+          AuthFailure('Session expired. Please sign in again.'),
+        );
+      } on ForbiddenException catch (e) {
+        return Left(PermissionFailure(e.message));
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message, statusCode: e.statusCode));
+      }
+    });
+  }
 }

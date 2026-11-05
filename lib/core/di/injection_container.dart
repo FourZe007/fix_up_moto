@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -68,6 +70,17 @@ import 'package:fix_up_moto/features/notification/domain/usecases/get_notificati
 import 'package:fix_up_moto/features/notification/domain/usecases/mark_notification_read_usecase.dart';
 import 'package:fix_up_moto/features/notification/presentation/bloc/notification_bloc.dart';
 import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
+import 'package:fix_up_moto/core/push/device_name_source.dart';
+import 'package:fix_up_moto/core/push/push_messaging_client.dart';
+import 'package:fix_up_moto/features/notification/domain/usecases/register_device_token_usecase.dart';
+import 'package:fix_up_moto/features/notification/domain/usecases/unregister_device_token_usecase.dart';
+import 'package:fix_up_moto/features/notification/presentation/push/remote_push_token_registrar.dart';
+import 'package:fix_up_moto/core/push/local_notifier.dart';
+import 'package:fix_up_moto/core/push/push_notification_service.dart';
+import 'package:fix_up_moto/core/push/push_token_registrar.dart';
+import 'package:fix_up_moto/features/notification/presentation/push/inbox_background.dart';
+import 'package:fix_up_moto/features/notification/presentation/push/inbox_monitor.dart';
+import 'package:fix_up_moto/features/notification/presentation/push/inbox_watcher.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/bikes_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/datasources/profile_remote_data_source.dart';
 import 'package:fix_up_moto/features/profile/data/repositories/bikes_repository_impl.dart';
@@ -230,6 +243,9 @@ Future<void> initDependencies() async {
       getCurrentUserUseCase: sl(),
       getGoogleIdentityUseCase: sl(),
       submitGoogleAccountUseCase: sl(),
+      // Before the session is cleared, ask the backend to stop pushing to this
+      // phone. Resolved when logout runs, not when AuthBloc is built.
+      beforeLogout: () => sl<PushNotificationService>().unregister(),
     ),
   );
 
@@ -436,7 +452,66 @@ Future<void> initDependencies() async {
     () => MarkNotificationReadUseCase(sl<NotificationRepository>()),
   );
   sl.registerFactory(
-    () => NotificationBloc(getNotifications: sl(), markNotificationRead: sl()),
+    () => NotificationBloc(
+      getNotifications: sl(),
+      markNotificationRead: sl(),
+      // Reading a message lowers the bell's badge, so look at the inbox again.
+      onMarkedRead: () => unawaited(sl<InboxMonitor>().refresh()),
+    ),
+  );
+  sl.registerLazySingleton(
+    () => RegisterDeviceTokenUseCase(sl<NotificationRepository>()),
+  );
+  sl.registerLazySingleton(
+    () => UnregisterDeviceTokenUseCase(sl<NotificationRepository>()),
+  );
+
+  // ── Push notifications ────────────────────────────────────────────────────
+  // The Firebase client is the only thing that touches the plugin. The
+  // registrar files the phone's token under the signed-in member at the
+  // backend (the FBTOKEN record of Modify, as 1.0 did).
+  sl.registerLazySingleton<PushMessagingClient>(
+    () => FirebasePushMessagingClient(),
+  );
+  sl.registerLazySingleton<DeviceNameSource>(() => PlatformDeviceNameSource());
+  sl.registerLazySingleton<PushTokenRegistrar>(
+    () => RemotePushTokenRegistrar(
+      register: sl<RegisterDeviceTokenUseCase>(),
+      unregister: sl<UnregisterDeviceTokenUseCase>(),
+      deviceName: sl<DeviceNameSource>(),
+    ),
+  );
+  sl.registerLazySingleton(
+    () => PushNotificationService(
+      client: sl<PushMessagingClient>(),
+      registrar: sl<PushTokenRegistrar>(),
+      prefs: sl<SharedPreferences>(),
+    ),
+  );
+
+  // ── Inbox alerts ──────────────────────────────────────────────────────────
+  // Tells the member about what the *server* puts in their inbox (points
+  // credited, a booking confirmed) without the server pushing anything: the app
+  // asks for the inbox — while open every couple of minutes, and on Android
+  // also while closed every ~15 — and announces what is new. Feeds the bell's
+  // badge, which had no source until now.
+  sl.registerLazySingleton<LocalNotifier>(() => FlutterLocalNotifier());
+  sl.registerLazySingleton<InboxBackgroundScheduler>(
+    () => WorkmanagerInboxScheduler(),
+  );
+  sl.registerLazySingleton(
+    () => InboxWatcher(
+      getNotifications: sl<GetNotificationsUseCase>(),
+      prefs: sl<SharedPreferences>(),
+    ),
+  );
+  sl.registerLazySingleton(
+    () => InboxMonitor(
+      watcher: sl<InboxWatcher>(),
+      scheduler: sl<InboxBackgroundScheduler>(),
+      notifier: sl<LocalNotifier>(),
+      onUnread: sl<NotificationCountCubit>().set,
+    ),
   );
 
   // ── Invoices Feature ──────────────────────────────────────────────────────

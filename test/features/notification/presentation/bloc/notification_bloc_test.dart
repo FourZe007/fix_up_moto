@@ -47,24 +47,19 @@ void main() {
     getNotifications = MockGetNotificationsUseCase();
     markRead = MockMarkNotificationReadUseCase();
     registerFallbackValue(const GetNotificationsParams());
-    registerFallbackValue(
-      const MarkNotificationReadParams(notificationId: ''),
-    );
+    registerFallbackValue(const MarkNotificationReadParams(notificationId: ''));
   });
 
   test('starts out with nothing requested', () {
-    expect(
-      buildBloc().state,
-      const NotificationInitial(),
-    );
+    expect(buildBloc().state, const NotificationInitial());
   });
 
   blocTest<NotificationBloc, NotificationState>(
     'emits Loading then Loaded with the inbox on success',
     build: () {
-      when(() => getNotifications(any())).thenAnswer(
-        (_) async => Right(tNotifications),
-      );
+      when(
+        () => getNotifications(any()),
+      ).thenAnswer((_) async => Right(tNotifications));
       return buildBloc();
     },
     act: (bloc) => bloc.add(const NotificationsRequested()),
@@ -77,9 +72,9 @@ void main() {
   blocTest<NotificationBloc, NotificationState>(
     'an empty inbox is Loaded with an empty list, not an error',
     build: () {
-      when(() => getNotifications(any())).thenAnswer(
-        (_) async => const Right(<NotificationEntity>[]),
-      );
+      when(
+        () => getNotifications(any()),
+      ).thenAnswer((_) async => const Right(<NotificationEntity>[]));
       return buildBloc();
     },
     act: (bloc) => bloc.add(const NotificationsRequested()),
@@ -107,9 +102,9 @@ void main() {
   blocTest<NotificationBloc, NotificationState>(
     'asks for the whole sent inbox by default (IsSent "1", IsRead "")',
     build: () {
-      when(() => getNotifications(any())).thenAnswer(
-        (_) async => const Right(<NotificationEntity>[]),
-      );
+      when(
+        () => getNotifications(any()),
+      ).thenAnswer((_) async => const Right(<NotificationEntity>[]));
       return buildBloc();
     },
     act: (bloc) => bloc.add(const NotificationsRequested()),
@@ -123,9 +118,9 @@ void main() {
   blocTest<NotificationBloc, NotificationState>(
     'passes the filters it is given on to the use case',
     build: () {
-      when(() => getNotifications(any())).thenAnswer(
-        (_) async => const Right(<NotificationEntity>[]),
-      );
+      when(
+        () => getNotifications(any()),
+      ).thenAnswer((_) async => const Right(<NotificationEntity>[]));
       return buildBloc();
     },
     act: (bloc) =>
@@ -140,9 +135,9 @@ void main() {
   blocTest<NotificationBloc, NotificationState>(
     'a second request (Retry / pull-to-refresh) loads again',
     build: () {
-      when(() => getNotifications(any())).thenAnswer(
-        (_) async => Right(tNotifications),
-      );
+      when(
+        () => getNotifications(any()),
+      ).thenAnswer((_) async => Right(tNotifications));
       return buildBloc();
     },
     act: (bloc) async {
@@ -200,7 +195,8 @@ void main() {
       ],
       verify: (_) {
         verify(
-          () => markRead(const MarkNotificationReadParams(notificationId: 'N1')),
+          () =>
+              markRead(const MarkNotificationReadParams(notificationId: 'N1')),
         ).called(1);
         // No reload: the inbox is not asked for again.
         verifyNever(() => getNotifications(any()));
@@ -268,7 +264,9 @@ void main() {
         await Future<void>.delayed(Duration.zero);
         bloc.add(const NotificationMarkReadRequested('N1'));
       },
-      expect: () => [NotificationLoaded(inbox, markingRead: const {'N1'})],
+      expect: () => [
+        NotificationLoaded(inbox, markingRead: const {'N1'}),
+      ],
       verify: (_) => verify(() => markRead(any())).called(1),
     );
 
@@ -308,9 +306,12 @@ void main() {
       'an answer that arrives during a reload is left to the reload',
       build: () {
         final markAnswer = Completer<Either<Failure, void>>();
-        final reloadAnswer = Completer<Either<Failure, List<NotificationEntity>>>();
+        final reloadAnswer =
+            Completer<Either<Failure, List<NotificationEntity>>>();
         givenAnswer('N1', markAnswer.future);
-        when(() => getNotifications(any())).thenAnswer((_) => reloadAnswer.future);
+        when(
+          () => getNotifications(any()),
+        ).thenAnswer((_) => reloadAnswer.future);
         Future<void>.delayed(const Duration(milliseconds: 10), () {
           markAnswer.complete(ok);
           Future<void>.delayed(
@@ -333,6 +334,48 @@ void main() {
         NotificationLoaded([first.asRead(), second]),
       ],
     );
+
+    test(
+      'tells whoever counts unread messages once the server accepted',
+      () async {
+        givenAnswer('N1', Future.value(ok));
+        var told = 0;
+        final bloc = NotificationBloc(
+          getNotifications: getNotifications,
+          markNotificationRead: markRead,
+          onMarkedRead: () => told++,
+        )..emit(NotificationLoaded(inbox));
+        addTearDown(bloc.close);
+
+        bloc.add(const NotificationMarkReadRequested('N1'));
+        await bloc.stream.firstWhere(
+          (s) => s == NotificationLoaded([first.asRead(), second]),
+        );
+
+        expect(told, 1);
+      },
+    );
+
+    test('does not tell them when the server refused', () async {
+      givenAnswer(
+        'N1',
+        Future.value(const Left(ServerFailure('Gagal', statusCode: 200))),
+      );
+      var told = 0;
+      final bloc = NotificationBloc(
+        getNotifications: getNotifications,
+        markNotificationRead: markRead,
+        onMarkedRead: () => told++,
+      )..emit(NotificationLoaded(inbox));
+      addTearDown(bloc.close);
+
+      bloc.add(const NotificationMarkReadRequested('N1'));
+      await bloc.stream.firstWhere(
+        (s) => s is NotificationLoaded && s.markReadError != null,
+      );
+
+      expect(told, 0);
+    });
 
     test('a message that is already read stays the very same object', () {
       final read = message('N3', isRead: true);

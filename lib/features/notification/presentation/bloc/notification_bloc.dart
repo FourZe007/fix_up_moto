@@ -13,11 +13,17 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
   final GetNotificationsUseCase _getNotifications;
   final MarkNotificationReadUseCase _markNotificationRead;
 
+  /// Called after the server accepted a "mark as read", so whatever counts the
+  /// unread messages elsewhere (the bell's badge) can look again.
+  final void Function()? _onMarkedRead;
+
   NotificationBloc({
     required GetNotificationsUseCase getNotifications,
     required MarkNotificationReadUseCase markNotificationRead,
+    void Function()? onMarkedRead,
   }) : _getNotifications = getNotifications,
        _markNotificationRead = markNotificationRead,
+       _onMarkedRead = onMarkedRead,
        super(const NotificationInitial()) {
     on<NotificationsRequested>(_onRequested);
     on<NotificationMarkReadRequested>(_onMarkReadRequested);
@@ -84,11 +90,15 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         // The same inbox without the error, so the next refusal is a change.
         emit(NotificationLoaded(now.notifications, markingRead: stillMarking));
       },
-      (_) => emit(
-        NotificationLoaded([
-          for (final n in now.notifications) n.id == event.id ? n.asRead() : n,
-        ], markingRead: stillMarking),
-      ),
+      (_) {
+        emit(
+          NotificationLoaded([
+            for (final n in now.notifications)
+              n.id == event.id ? n.asRead() : n,
+          ], markingRead: stillMarking),
+        );
+        _onMarkedRead?.call();
+      },
     );
   }
 }
