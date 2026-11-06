@@ -59,5 +59,18 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>GIDClientID</key>
+	<string>82449133536-e99c631bjk77g3lptj8p4e2c7548p9nf.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+	<dict>
+		<key>CFBundleTypeRole</key><string>Editor</string>
+		<key>CFBundleURLSchemes</key>
+		<array><string>PASTE REVERSED_CLIENT_ID</string></array>
+	</dict>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 </dict>
 </plist>
