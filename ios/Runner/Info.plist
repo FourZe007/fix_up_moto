@@ -60,13 +60,13 @@
 		<string>remote-notification</string>
 	</array>
 	<key>GIDClientID</key>
-	<string>82449133536-e99c631bjk77g3lptj8p4e2c7548p9nf.apps.googleusercontent.com</string>
+	<string>672586320808-0nplr8b4sotqapknbeccvv0m0f9k9sl3.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 	<dict>
 		<key>CFBundleTypeRole</key><string>Editor</string>
 		<key>CFBundleURLSchemes</key>
-		<array><string>PASTE REVERSED_CLIENT_ID</string></array>
+		<array><string>com.googleusercontent.apps.672586320808-0nplr8b4sotqapknbeccvv0m0f9k9sl3</string></array>
 	</dict>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
