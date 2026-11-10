@@ -22,13 +22,57 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.672586320808-0nplr8b4sotqapknbeccvv0m0f9k9sl3</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>672586320808-0nplr8b4sotqapknbeccvv0m0f9k9sl3.apps.googleusercontent.com</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>FixUp Moto needs access to your photo library to attach a photo of your bike.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -47,30 +91,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- Makes the app's Documents folder show in the Files app, where downloaded
-	     receipts (Riwayat Invoice > Unduh Struk) are saved: iOS has no shared
-	     Downloads folder. -->
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-	<!-- Lets a push notification wake the app in the background (FCM). -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-	<key>GIDClientID</key>
-	<string>672586320808-0nplr8b4sotqapknbeccvv0m0f9k9sl3.apps.googleusercontent.com</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-	<dict>
-		<key>CFBundleTypeRole</key><string>Editor</string>
-		<key>CFBundleURLSchemes</key>
-		<array><string>com.googleusercontent.apps.672586320808-0nplr8b4sotqapknbeccvv0m0f9k9sl3</string></array>
-	</dict>
-	</array>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-
 </dict>
 </plist>
