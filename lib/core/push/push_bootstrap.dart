@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -115,6 +116,7 @@ class _PushBootstrapState extends State<PushBootstrap>
   }
 
   void _syncWithAuth(AuthState state) {
+    if (kDebugMode) debugPrint('[PUSH] auth state: ${state.runtimeType}');
     if (state is AuthAuthenticated) {
       _openPendingTap();
       unawaited(widget.service.enable(askMember: _askMember));
@@ -136,7 +138,12 @@ class _PushBootstrapState extends State<PushBootstrap>
   /// be shown only once on iPhone, so the member should know why first.
   Future<bool?> _askMember() async {
     final context = _navigatorContext;
-    if (context == null) return null;
+    if (context == null) {
+      if (kDebugMode) {
+        debugPrint('[PUSH] explainer skipped: the screen is not ready for it');
+      }
+      return null;
+    }
 
     final answer = await showAdaptiveDialog<bool>(
       context: context,

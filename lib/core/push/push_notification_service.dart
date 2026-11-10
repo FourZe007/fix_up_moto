@@ -130,6 +130,9 @@ class PushNotificationService {
   /// phone does not already allow notifications and it has not been asked before.
   Future<bool> enable({required Future<bool?> Function() askMember}) {
     if (_enabled) return Future.value(true);
+    if (_enabling != null) {
+      _trace('enable: an earlier attempt is still running, joining it');
+    }
     return _enabling ??= _enable(
       askMember,
     ).whenComplete(() => _enabling = null);
@@ -140,31 +143,51 @@ class PushNotificationService {
     bool stale() => session != _session;
 
     try {
+      _trace('enable: reading the notification permission');
       var granted = await _client.permission() == PushPermission.granted;
-      if (stale()) return false;
+      if (stale()) {
+        _trace('enable: stopped, the session ended');
+        return false;
+      }
 
       final asked = _prefs.get(askedKey) == true;
+      _trace('enable: allowed by the phone=$granted, explainer answered=$asked');
       if (!granted && !asked) {
         final answer = await askMember();
+        _trace('enable: explainer answer=$answer (null = could not be shown)');
         if (stale() || answer == null) return false;
 
         await _prefs.setBool(askedKey, true);
         if (answer) {
           granted = await _client.requestPermission() == PushPermission.granted;
+          _trace('enable: system dialog answered, allowed=$granted');
           if (stale()) return false;
         }
       }
-      if (!granted) return false;
+      if (!granted) {
+        _trace('enable: stopped, notifications are not allowed');
+        return false;
+      }
 
       _enabled = true;
       _tokenSub = _client.onTokenRefresh.listen(_register);
       final token = await _client.getToken();
+      _trace('enable: getToken returned ${token == null ? 'null' : 'a token'}');
       if (token != null && !stale()) await _register(token);
       return true;
     } catch (e) {
       log('enable failed: $e', name: 'PushNotificationService');
+      _trace('enable: FAILED with $e');
       return false;
     }
+  }
+
+  /// A breadcrumb on the debug console, `[PUSH] …`. Push on an iPhone can stop in
+  /// silence at several points (no sign-in seen, permission already answered, the
+  /// screen not ready for the explainer); this shows which one. Nothing in a
+  /// release build.
+  static void _trace(String message) {
+    if (kDebugMode) debugPrint('[PUSH] $message');
   }
 
   /// Joins [broadcastTopic]. Not awaited by [_register]: offline, the real call
@@ -185,6 +208,7 @@ class PushNotificationService {
   Future<void> _register(String token) async {
     // Debug only: a token is an address anyone could push to.
     if (kDebugMode) log('FCM token: $token', name: 'PushNotificationService');
+    _trace('FCM token: $token');
     unawaited(_joinBroadcastTopic());
     // Remembered before the call, not after: even if the backend did not
     // answer, it may have the token, and sign-out should still ask it to forget.
