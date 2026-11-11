@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/helpers/haptics.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/widgets/app_tab_bar.dart';
 
 /// Persistent bottom navigation bar shell shared by the five main tabs.
 ///
@@ -24,36 +25,20 @@ class MainShell extends StatelessWidget {
 
   const MainShell({super.key, required this.navigationShell});
 
-  /// The bar's own theme with only the selected tab restyled: no highlight
-  /// pill behind it, and its filled icon and its label in the brand colour.
+  /// The colour the page of [tab] paints at its bottom edge, for the iOS bar to
+  /// float on (see [AppTabBar.backdropColor]); null for a page on the plain
+  /// theme background, which is already what shows behind the bar.
   ///
-  /// The unselected state returns `null` for both the icon and the label,
-  /// which [NavigationBar] reads as "use your default" — so idle tabs look
-  /// exactly as they always did. The label's base style comes from the active
-  /// theme's `labelMedium` (what the bar itself uses), not from
-  /// `AppTextStyles.labelMedium`, whose letter spacing and line height differ
-  /// and would nudge the text each time a tab was selected.
-  ///
-  /// [AppColors.primary] in light and dark mode alike, as the app's
-  /// `bottomNavigationBarTheme` does: the bar is light grey in both.
-  static NavigationBarThemeData _barTheme(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.labelMedium;
-
-    return NavigationBarTheme.of(context).copyWith(
-      // Material 3's tonal pill behind the selected icon — the red circle.
-      indicatorColor: Colors.transparent,
-      iconTheme: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected)
-            ? const IconThemeData(color: AppColors.primary)
-            : null,
-      ),
-      labelTextStyle: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected)
-            ? labelStyle?.copyWith(color: AppColors.primary)
-            : null,
-      ),
-    );
-  }
+  /// **These repeat the pages' own backgrounds** (each is noted beside the
+  /// page's colour): recolour a page and its line here has to change too.
+  /// Home and Profile are on the theme background (Profile's warm wash only
+  /// fades in from the top). Feeds is null too, for another reason: its video
+  /// runs under the pill (see [build]), so a painted strip would cover it.
+  static Color? backdropOf(BuildContext context, int tab) => switch (tab) {
+    MainTabs.membership => AppColors.primary,
+    MainTabs.bookings => Colors.white,
+    _ => null,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -72,48 +57,27 @@ class MainShell extends StatelessWidget {
         navigationShell.goBranch(MainTabs.home);
       },
       child: Scaffold(
+        // On the iOS pill, the Feed's video runs to the bottom edge, behind
+        // it, like a full-screen reel. The Feed then gets the bar's height as
+        // bottom padding, so its caption and buttons stay just above the pill
+        // where they were. Every other tab, and Android's bar, end where the
+        // bar begins.
+        extendBody: AppTabBar.isFloating(context) && current == MainTabs.feeds,
         // the active tab's page, rendered above the nav bar
         body: navigationShell,
-        bottomNavigationBar: NavigationBarTheme(
-          data: _barTheme(context),
-          child: NavigationBar(
-            selectedIndex: current,
-            // Tapping the tab you are already on goes back to its first page
-            // (e.g. out of a service's detail); tapping another switches to
-            // it, keeping whatever it was showing.
-            onDestinationSelected: (index) {
-              // A light click on iPhone, nothing on Android.
-              Haptics.selection();
-              navigationShell.goBranch(index, initialLocation: index == current);
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Beranda',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.play_circle_outline),
-                selectedIcon: Icon(Icons.play_circle),
-                label: 'Feed',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.credit_card_rounded),
-                selectedIcon: Icon(Icons.credit_card_rounded),
-                label: 'MyPoint',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.calendar_month_outlined),
-                selectedIcon: Icon(Icons.calendar_month),
-                label: 'Booking',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Saya',
-              ),
-            ],
-          ),
+        // Android's Material bar or iOS's Cupertino bar; the choice is made
+        // inside AppTabBar, so a tap does the same thing on both.
+        bottomNavigationBar: AppTabBar(
+          selectedIndex: current,
+          backdropColor: backdropOf(context, current),
+          // Tapping the tab you are already on goes back to its first page
+          // (e.g. out of a service's detail); tapping another switches to
+          // it, keeping whatever it was showing.
+          onSelected: (index) {
+            // A light click on iPhone, nothing on Android.
+            Haptics.selection();
+            navigationShell.goBranch(index, initialLocation: index == current);
+          },
         ),
       ),
     );

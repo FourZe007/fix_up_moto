@@ -67,8 +67,8 @@ late DataRefreshCubit refreshCubit;
 /// The unread count the Kotak Masuk row reads; fresh (0) per test.
 late NotificationCountCubit notificationCount;
 
-/// The page builds its own HomeBloc through GetIt, so each test registers a
-/// mock one in the state it wants to see.
+/// The page reads the app-wide HomeBloc from the tree (it never builds its own),
+/// so each test provides a mock one in the state it wants to see.
 Future<Mocks> pumpProfile(
   WidgetTester tester, {
   HomeState homeState = const HomeLoaded(tStats),
@@ -78,7 +78,6 @@ Future<Mocks> pumpProfile(
 }) async {
   final homeBloc = MockHomeBloc();
   whenListen(homeBloc, states, initialState: homeState);
-  sl.registerFactory<HomeBloc>(() => homeBloc);
 
   final authBloc = MockAuthBloc();
   whenListen(
@@ -98,7 +97,10 @@ Future<Mocks> pumpProfile(
             value: notificationCount,
             child: BlocProvider<AuthBloc>.value(
               value: authBloc,
-              child: const ProfilePage(),
+              child: BlocProvider<HomeBloc>.value(
+                value: homeBloc,
+                child: const ProfilePage(),
+              ),
             ),
           ),
         ),
@@ -160,6 +162,8 @@ List<MethodCall> mockLauncher({required bool opens, bool throws = false}) {
 }
 
 void main() {
+  // For `any()` on a HomeEvent (the verifyNever checks).
+  setUpAll(() => registerFallbackValue(const HomeStatsRequested()));
   setUp(() {
     refreshCubit = DataRefreshCubit();
     notificationCount = NotificationCountCubit();
@@ -715,10 +719,14 @@ void main() {
       expect(find.text('-'), findsNothing);
     });
 
-    testWidgets('asks for the stats when the page opens', (tester) async {
+    testWidgets('does not ask for the stats when the page opens', (
+      tester,
+    ) async {
+      // The app-wide HomeBloc is loaded once at sign-in (StatsBootstrap); a page
+      // only reads it.
       final mocks = await pumpProfile(tester);
 
-      verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
+      verifyNever(() => mocks.home.add(any()));
     });
 
     testWidgets('shows a spinner while loading, not the member', (
@@ -740,13 +748,13 @@ void main() {
 
       await tester.tap(find.text('Retry'));
 
-      // Once on open, once for the retry.
-      verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
+      // Only the retry: opening the page asked for nothing.
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
     });
   });
 
-  group('reloads when the stats go out of date elsewhere', () {
-    testWidgets('invalidate(stats) sends HomeStatsRequested again', (
+  group('when the stats go out of date elsewhere', () {
+    testWidgets('does not reload them itself — StatsBootstrap does, once', (
       tester,
     ) async {
       final mocks = await pumpProfile(tester);
@@ -754,17 +762,7 @@ void main() {
       refreshCubit.invalidate(DataKind.stats);
       await tester.pump();
 
-      // Once when the page opened, once for the signal.
-      verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
-    });
-
-    testWidgets('invalidate(bookings) is none of its business', (tester) async {
-      final mocks = await pumpProfile(tester);
-
-      refreshCubit.invalidate(DataKind.bookings);
-      await tester.pump();
-
-      verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
+      verifyNever(() => mocks.home.add(any()));
     });
   });
 
@@ -792,8 +790,8 @@ void main() {
       await startPull(tester);
       await tester.pumpAndSettle();
 
-      // Once on open, once for the pull.
-      verify(() => mocks.home.add(const HomeStatsRequested())).called(2);
+      // Just the pull: opening the page asked for nothing.
+      verify(() => mocks.home.add(const HomeStatsRequested())).called(1);
     });
 
     testWidgets('keeps the page on screen while it reloads, then swaps it', (
@@ -802,7 +800,9 @@ void main() {
       await pumpProfile(tester, states: states.stream);
 
       await startPull(tester);
-      states.add(const HomeLoading());
+      // HomeBloc reloads stats that are already showing as "refreshing", not as
+      // HomeLoading, so nothing is swapped for a spinner.
+      states.add(const HomeLoaded(tStats, refreshing: true));
       await tester.pump();
       await tester.pump();
 
@@ -838,19 +838,39 @@ void main() {
       await pumpProfile(tester, states: states.stream);
 
       await startPull(tester);
-      states.add(const HomeLoading());
+      states.add(const HomeLoaded(tStats, refreshing: true));
       await tester.pump(const Duration(seconds: 2));
 
       expect(find.byType(RefreshProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('a failed reload shows the error with a Retry', (tester) async {
+    testWidgets('a reload that brings the same stats still ends the pull', (
+      tester,
+    ) async {
       await pumpProfile(tester, states: states.stream);
 
       await startPull(tester);
       states
-        ..add(const HomeLoading())
-        ..add(const HomeError('Server down'));
+        ..add(const HomeLoaded(tStats, refreshing: true))
+        // Same stats again — also what HomeBloc emits when a reload fails and
+        // the old stats are kept.
+        ..add(const HomeLoaded(tStats));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Stats Member'), findsOneWidget);
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
+    });
+
+    testWidgets('a failed first load shows the error with a Retry', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        homeState: const HomeLoading(),
+        states: states.stream,
+      );
+
+      states.add(const HomeError('Server down'));
       await tester.pump();
       await tester.pump();
 

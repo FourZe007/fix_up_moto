@@ -5,10 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
-import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/external_link.dart';
-import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
-import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/copyable_member_id.dart';
@@ -31,9 +28,11 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart'
 ///
 /// The member's details come from the dashboard stats record ([HomeBloc]) —
 /// the same `BrowseTrans` record Home and Membership read, which carries the
-/// real phone number — not from the cached login record, which has none.
-/// [AuthBloc] is only used here to sign out. `ProfileBloc` stays registered in
-/// the DI container for when the `BrowseMember` endpoint is confirmed.
+/// real phone number — not from the cached login record, which has none. That
+/// bloc is app-wide: this page reads it and never fetches it on mount.
+/// [AuthBloc] is only used here to sign out. `ProfileBloc` (whose
+/// `ProfileLoadRequested` would ask for this very same record) is not used to
+/// load it: a second source could disagree with the first after an edit.
 class ProfilePage extends StatelessWidget {
   /// Whether the Settings button is shown. Hidden for now along with the
   /// theme switch it leads to (see [AppConstants.themeSwitchEnabled]); the
@@ -53,20 +52,9 @@ class ProfilePage extends StatelessWidget {
     // the project
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
-    return BlocProvider(
-      // Page-scoped factory, fetched on mount — same as MembershipPage.
-      create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
-      // This tab stays alive while hidden, so it reloads when something that
-      // changes the stats happens elsewhere (e.g. a bike is added).
-      child: RefreshOn(
-        kind: DataKind.stats,
-        onRefresh: (context) =>
-            context.read<HomeBloc>().add(const HomeStatsRequested()),
-        // Hosts the confirmation panels (sign out, delete profile): they slide
-        // up in the root Overlay, above this Scaffold and the bottom bar.
-        child: ConfirmPanelScope(child: _scaffold(context, onSurface)),
-      ),
-    );
+    // Hosts the confirmation panels (sign out, delete profile): they slide up in
+    // the root Overlay, above this Scaffold and the bottom bar.
+    return ConfirmPanelScope(child: _scaffold(context, onSurface));
   }
 
   Widget _scaffold(BuildContext context, Color onSurface) {
@@ -100,14 +88,12 @@ class ProfilePage extends StatelessWidget {
           //   ),
           // ],
         ),
+        // A reload of stats already on screen (a pull, or a signal from
+        // elsewhere) keeps them up instead of swapping the page for a spinner:
+        // HomeBloc emits HomeLoaded(refreshing: true) for it, so nothing
+        // unmounts mid-pull. Only the first load and a Retry after an error
+        // show the spinner.
         body: BlocBuilder<HomeBloc, HomeState>(
-          // A reload of stats already on screen (a pull, or a signal from
-          // elsewhere) keeps them up instead of swapping the page for a
-          // spinner: the swap would unmount the RefreshIndicator mid-pull. Only
-          // the answer changes the page. The first load and a Retry after an
-          // error still show the spinner.
-          buildWhen: (previous, current) =>
-              !(previous is HomeLoaded && current is HomeLoading),
           builder: (context, state) => switch (state) {
             HomeInitial() || HomeLoading() => const Center(child: AppSpinner()),
             HomeError(:final message) => Center(
@@ -170,7 +156,10 @@ class _ProfileBody extends StatelessWidget {
 
     return bloc.stream
         .firstWhere(
-          (state) => state is HomeLoaded || state is HomeError,
+          // A HomeLoaded still marked refreshing is the reload under way, not
+          // its answer.
+          (state) =>
+              (state is HomeLoaded && !state.refreshing) || state is HomeError,
           // The page closed meanwhile: nothing left to wait for.
           orElse: () => const HomeInitial(),
         )

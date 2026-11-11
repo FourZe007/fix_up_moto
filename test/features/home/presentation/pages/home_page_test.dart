@@ -42,21 +42,28 @@ late DataRefreshCubit refreshCubit;
 /// The unread count the bell reads; fresh (0) per test, so a test sets it.
 late NotificationCountCubit notificationCount;
 
-/// Pumped in the loading state, which is just a spinner: the reload wiring
-/// doesn't depend on what the loaded page contains, and the loaded page pulls
-/// in the promo carousel and workshop picker.
-Future<MockHomeBloc> pumpHome(WidgetTester tester) async {
+/// Pumped in the loading state by default, which is just a spinner: the reload
+/// wiring doesn't depend on what the loaded page contains, and the loaded page
+/// pulls in the promo carousel and workshop picker.
+///
+/// The page reads the app-wide HomeBloc from the tree (it never builds its
+/// own), so the mock is provided there.
+Future<MockHomeBloc> pumpHome(
+  WidgetTester tester, {
+  HomeState state = const HomeLoading(),
+}) async {
   final home = MockHomeBloc();
-  whenListen(
-    home,
-    const Stream<HomeState>.empty(),
-    initialState: const HomeLoading(),
-  );
-  sl.registerFactory<HomeBloc>(() => home);
+  whenListen(home, const Stream<HomeState>.empty(), initialState: state);
 
   await tester.pumpWidget(
     MaterialApp(
-      home: BlocProvider.value(value: refreshCubit, child: const HomePage()),
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: refreshCubit),
+          BlocProvider<HomeBloc>.value(value: home),
+        ],
+        child: const HomePage(),
+      ),
     ),
   );
   return home;
@@ -74,7 +81,6 @@ Future<void> pumpLoadedHome(WidgetTester tester) async {
     const Stream<HomeState>.empty(),
     initialState: const HomeLoaded(tStats),
   );
-  sl.registerFactory<HomeBloc>(() => home);
 
   final promos = MockPromosBloc();
   whenListen(
@@ -103,6 +109,7 @@ Future<void> pumpLoadedHome(WidgetTester tester) async {
     MultiBlocProvider(
       providers: [
         BlocProvider.value(value: refreshCubit),
+        BlocProvider<HomeBloc>.value(value: home),
         BlocProvider.value(value: notificationCount),
         BlocProvider(create: (_) => SelectedWorkshopCubit()),
       ],
@@ -113,35 +120,40 @@ Future<void> pumpLoadedHome(WidgetTester tester) async {
 }
 
 void main() {
+  // For `any()` on a HomeEvent (the verifyNever checks).
+  setUpAll(() => registerFallbackValue(const HomeStatsRequested()));
   setUp(() {
     refreshCubit = DataRefreshCubit();
     notificationCount = NotificationCountCubit();
   });
   tearDown(() => sl.reset());
 
-  testWidgets('asks for the stats when the page opens', (tester) async {
+  testWidgets('does not ask for the stats when the page opens', (tester) async {
+    // The app-wide HomeBloc is loaded once at sign-in (StatsBootstrap); the
+    // page only reads it.
     final home = await pumpHome(tester);
 
-    verify(() => home.add(const HomeStatsRequested())).called(1);
+    verifyNever(() => home.add(any()));
   });
 
-  testWidgets('reloads when the stats go out of date elsewhere', (
+  testWidgets('does not reload the stats itself when they go out of date', (
     tester,
   ) async {
+    // StatsBootstrap holds the one listener, so one change is one request.
     final home = await pumpHome(tester);
 
     refreshCubit.invalidate(DataKind.stats);
     await tester.pump();
 
-    // Once on open, once for the signal.
-    verify(() => home.add(const HomeStatsRequested())).called(2);
+    verifyNever(() => home.add(any()));
   });
 
-  testWidgets('ignores bookings going out of date', (tester) async {
-    final home = await pumpHome(tester);
+  testWidgets('shows the error with a Retry that asks again', (tester) async {
+    final home = await pumpHome(tester, state: const HomeError('Server down'));
 
-    refreshCubit.invalidate(DataKind.bookings);
-    await tester.pump();
+    expect(find.text('Server down'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
 
     verify(() => home.add(const HomeStatsRequested())).called(1);
   });

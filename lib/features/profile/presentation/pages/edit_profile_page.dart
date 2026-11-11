@@ -27,9 +27,10 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/profile_state.dar
 /// Edits the signed-in member's name, phone number and email.
 ///
 /// Reached via `context.push(RouteNames.editProfile)` — a top-level route, so
-/// it provides its own blocs rather than assuming an ancestor does: a
-/// [HomeBloc] to read the member's current details (the same dashboard stats
-/// record the Profile page shows) and a [ProfileBloc] to save them.
+/// it provides its own [ProfileBloc] to save the member's changes rather than
+/// assuming an ancestor does. The member's current details are read from the
+/// app-wide [HomeBloc] (the same dashboard stats record the Profile page
+/// shows), which this page does not fetch again.
 ///
 /// The login ID is tied to the member's ID, so it is shown but locked. A
 /// phone-registered account signs in with its phone: name and email are
@@ -52,14 +53,10 @@ class EditProfilePage extends StatelessWidget {
     final isGoogle =
         authState is AuthAuthenticated && authState.user.isGoogle == '1';
 
-    return MultiBlocProvider(
-      providers: [
-        // Page-scoped factories, like every other page's blocs.
-        BlocProvider(
-          create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
-        ),
-        BlocProvider(create: (_) => sl<ProfileBloc>()),
-      ],
+    return BlocProvider(
+      // Page-scoped factory, like every other page's blocs. The member's current
+      // details are not fetched here: they come from the app-wide HomeBloc.
+      create: (_) => sl<ProfileBloc>(),
       // The same warm wash as the Profile page. It is a fixed backdrop *around*
       // the Scaffold, whose own background and AppBar are transparent: it shows
       // behind the bar, and the form scrolls below the bar rather than under
@@ -176,6 +173,10 @@ class _EditProfileForm extends StatefulWidget {
 
 class _EditProfileFormState extends State<_EditProfileForm> {
   final _formKey = GlobalKey<FormState>();
+
+  // Filled once, from the stats the form first opens with — deliberately not
+  // refreshed when HomeBloc reloads them in the background, so a reload can
+  // never overwrite what the member is typing.
   late final _nameController = TextEditingController(
     text: widget.stats.memberName,
   );
@@ -289,8 +290,9 @@ class _EditProfileFormState extends State<_EditProfileForm> {
             context,
           ).showSnackBar(SnackBar(content: Text(state.message)));
 
-          // The member's details just changed, and Home, Membership and
-          // Profile are alive in the tab stack — tell them to reload. Read
+          // The member's details just changed (the server's answer carries no
+          // member record, so they must be read again): tell the app-wide stats
+          // to reload, once, for Home, Membership and Profile alike. Read
           // before the pop, while this context is active.
           context.read<DataRefreshCubit>().invalidate(DataKind.stats);
           context.pop();

@@ -90,9 +90,14 @@ late DataRefreshCubit refreshCubit;
 
 /// Opens the page on top of a stand-in Profile page, the way the app does, so
 /// popping can be checked by where it lands.
+///
+/// The member's details come from the app-wide HomeBloc, which the page reads
+/// from the tree and never builds or fetches itself; [homeStates] lets a test
+/// push states into it while the page is open, as a background reload would.
 Future<Harness> pumpEditProfile(
   WidgetTester tester, {
   HomeState homeState = const HomeLoaded(tStats),
+  Stream<HomeState> homeStates = const Stream<HomeState>.empty(),
   UserEntity user = tManual,
   ThemeData? theme,
 }) async {
@@ -103,12 +108,7 @@ Future<Harness> pumpEditProfile(
   addTearDown(tester.view.reset);
 
   final homeBloc = MockHomeBloc();
-  whenListen(
-    homeBloc,
-    const Stream<HomeState>.empty(),
-    initialState: homeState,
-  );
-  sl.registerFactory<HomeBloc>(() => homeBloc);
+  whenListen(homeBloc, homeStates, initialState: homeState);
 
   final profileBloc = MockProfileBloc();
   final profileStates = StreamController<ProfileState>.broadcast();
@@ -146,6 +146,7 @@ Future<Harness> pumpEditProfile(
       providers: [
         BlocProvider<AuthBloc>.value(value: authBloc),
         BlocProvider<DataRefreshCubit>.value(value: refreshCubit),
+        BlocProvider<HomeBloc>.value(value: homeBloc),
       ],
       child: MaterialApp.router(theme: theme, routerConfig: router),
     ),
@@ -222,10 +223,49 @@ void main() {
       expect(textOf(tester, emailField), isEmpty);
     });
 
-    testWidgets('asks for the stats when it opens', (tester) async {
+    testWidgets('does not ask for the stats when it opens', (tester) async {
+      // Every push used to fetch them again; now it shows what the app-wide
+      // HomeBloc already holds (kept current by the invalidate after each save).
       final harness = await pumpEditProfile(tester);
 
-      verify(() => harness.home.add(const HomeStatsRequested())).called(1);
+      verifyNever(() => harness.home.add(const HomeStatsRequested()));
+    });
+
+    testWidgets('keeps what the member typed when the stats reload', (
+      tester,
+    ) async {
+      final homeStates = StreamController<HomeState>.broadcast();
+      addTearDown(homeStates.close);
+      await pumpEditProfile(tester, homeStates: homeStates.stream);
+
+      await tester.enterText(nameField, 'Typed Name');
+      await tester.pump();
+
+      // A reload while the form is open: first "refreshing" (the same stats stay
+      // on screen), then the answer, which carries a different name.
+      homeStates.add(const HomeLoaded(tStats, refreshing: true));
+      await tester.pump();
+      homeStates.add(
+        const HomeLoaded(
+          DashboardStatsEntity(
+            status: 'AKTIF',
+            memberId: 'M-001',
+            memberName: 'Renamed On Server',
+            emailAddress: 'stats@example.com',
+            phoneNo: '87700001111',
+            active: true,
+            qty: 4,
+            point: 80,
+            detail: [],
+            detail2: [],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(nameField, findsOneWidget);
+      expect(textOf(tester, nameField), 'Typed Name');
     });
 
     testWidgets('shows a spinner, not the form, while the stats load', (
@@ -246,8 +286,8 @@ void main() {
       expect(find.text('Server down'), findsOneWidget);
       await tester.tap(find.text('Coba lagi'));
 
-      // Once on open, once for the retry.
-      verify(() => harness.home.add(const HomeStatsRequested())).called(2);
+      // Only the retry: opening the page asked for nothing.
+      verify(() => harness.home.add(const HomeStatsRequested())).called(1);
     });
 
     testWidgets('the back arrow returns to the previous page', (tester) async {

@@ -10,7 +10,6 @@ import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
-import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/services/screen_brightness_booster.dart';
 import 'package:fix_up_moto/core/widgets/copyable_member_id.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -30,18 +29,18 @@ import 'package:fix_up_moto/features/membership/presentation/bloc/rewards_state.
 /// be exchanged for.
 ///
 /// The balance and point history need no data layer of their own:
-/// [DashboardStatsEntity] — already fetched by [HomeBloc] for Home's greeting
-/// header — carries `point` and `detail` (point history). This page gets its
-/// own [HomeBloc] instance and fires its own fetch on mount, the same
-/// page-scoped-factory pattern every tab uses, rather than sharing Home's
-/// instance — the two tabs' data lifecycles are independent even though the
-/// shape is identical.
+/// [DashboardStatsEntity] — the member's stats record, which Home's greeting
+/// header and the Profile page read too — carries `point` and `detail` (point
+/// history). This page reads the app-wide [HomeBloc] that holds it and never
+/// fetches it on mount: `StatsBootstrap` loads it at sign-in and reloads it
+/// when something that changes the stats happens elsewhere (a bike is added, a
+/// voucher is claimed), even while this tab is hidden.
 ///
 /// The Voucher tab is the exception: its list is a separate API call
 /// ([RewardsBloc]), fetched the first time that tab is shown, and its Klaim
 /// buttons spend points through [RedeemBloc]. Both blocs are provided here,
-/// above the stats `BlocBuilder`, because [HomeBloc] emits a loading state on
-/// every refresh and that unmounts everything below it — a claim that finishes
+/// above the stats `BlocBuilder`, because the first load of the stats emits a
+/// loading state that unmounts everything below it — a claim that finishes
 /// meanwhile must still be reported and still reload the balance.
 class MembershipPage extends StatelessWidget {
   const MembershipPage({super.key});
@@ -50,9 +49,6 @@ class MembershipPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
-        ),
         // No initial event: the Voucher tab asks for its list when it first
         // appears (see _HistoryVouchersBoxState).
         BlocProvider(create: (_) => sl<RewardsBloc>()),
@@ -95,16 +91,9 @@ class _MembershipView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // This tab stays alive while hidden, so it reloads when something that
-    // changes the stats happens elsewhere (e.g. a bike is added).
     return BlocListener<RedeemBloc, RedeemState>(
       listener: _onRedeemResult,
-      child: RefreshOn(
-        kind: DataKind.stats,
-        onRefresh: (context) =>
-            context.read<HomeBloc>().add(const HomeStatsRequested()),
-        child: _scaffold(),
-      ),
+      child: _scaffold(),
     );
   }
 
@@ -116,6 +105,7 @@ class _MembershipView extends StatelessWidget {
         title: const Text('MyPoint'),
         titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       ),
+      // MainShell.backdropOf repeats this colour for the iOS tab bar's strip.
       body: DecoratedBox(
         decoration: BoxDecoration(color: AppColors.primary),
         child: BlocBuilder<HomeBloc, HomeState>(
@@ -363,8 +353,9 @@ enum _MembershipTab { history, vouchers }
 /// tabs never move.
 ///
 /// Which tab is open is plain UI state, so it lives here rather than in a BLoC.
-/// It does not survive a stats reload: [HomeBloc]'s loading state unmounts this
-/// box, so the tab falls back to the one it opens on (Voucher).
+/// It survives a stats reload (the old stats stay on screen while [HomeBloc]
+/// refreshes them); it falls back to the one it opens on (Voucher) only when
+/// the box is rebuilt from scratch, e.g. after sign-out and back in.
 class _HistoryVouchersBox extends StatefulWidget {
   final DashboardStatsEntity stats;
 
@@ -445,7 +436,7 @@ class _HistoryVouchersBoxState extends State<_HistoryVouchersBox> {
                 _MembershipTab.vouchers => _VoucherList(
                   key: const ValueKey(_MembershipTab.vouchers),
                   balance: widget.stats.point,
-                  owned: _ownedVouchers(),
+                  owned: _ownedVouchers(widget.stats),
                 ),
                 _MembershipTab.history => _PointHistoryList(
                   key: const ValueKey(_MembershipTab.history),
@@ -594,9 +585,76 @@ class _PointHistoryList extends StatelessWidget {
   }
 }
 
+/// How many cards each section shows before "Lihat semua": a few, so both
+/// sections stay in view on a phone instead of one pushing the other away.
+const int _ownedPreviewCount = 2;
+const int _exchangePreviewCount = 3;
+
+/// The first [previewCount] of [children] as a vertical list, and — only when
+/// there are more — a "Lihat semua (n)" link that shows the rest in place (and
+/// "Tampilkan lebih sedikit" to fold it back).
+///
+/// Opened or folded is kept here, not in a BLoC, and survives a stats reload and
+/// the Voucher tab's own rebuilds as long as the list keeps its key.
+class _PreviewList extends StatefulWidget {
+  final List<Widget> children;
+  final int previewCount;
+
+  /// Key of the link, so a test (or a screen reader label) can find it.
+  final Key seeAllKey;
+
+  const _PreviewList({
+    super.key,
+    required this.children,
+    required this.previewCount,
+    required this.seeAllKey,
+  });
+
+  @override
+  State<_PreviewList> createState() => _PreviewListState();
+}
+
+class _PreviewListState extends State<_PreviewList> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.children.length;
+    final hasMore = total > widget.previewCount;
+    final visible = _showAll || !hasMore
+        ? widget.children
+        : widget.children.take(widget.previewCount).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ...visible,
+        if (hasMore)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: widget.seeAllKey,
+              onPressed: () => setState(() => _showAll = !_showAll),
+              style: TextButton.styleFrom(
+                // The grey box is light in dark mode too, so the colour is
+                // fixed rather than the theme's.
+                foregroundColor: AppColors.primaryDark,
+                minimumSize: const Size(0, 40),
+              ),
+              child: Text(
+                _showAll ? 'Tampilkan lebih sedikit' : 'Lihat semua ($total)',
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// The Voucher tab: what the member already holds ("Voucher Saya"), then the
 /// vouchers points can be exchanged for, loaded by [RewardsBloc], in one
-/// scrolling list.
+/// scrolling list. Each section shows its first few cards, with "Lihat semua"
+/// for the rest (see [_PreviewList]).
 ///
 /// The exchangeable vouchers are a single section. A voucher is *available*
 /// when the member's [balance] covers its point cost and *unavailable* when it
@@ -613,38 +671,71 @@ class _VoucherList extends StatelessWidget {
 
   const _VoucherList({super.key, required this.balance, this.owned = const []});
 
+  /// "Voucher Saya" and its cards, ready to sit at the top of the list.
+  List<Widget> _ownedSection() => [
+    _SectionHeader(
+      key: const Key('vouchers-owned-header'),
+      // The member's own vouchers only: the made-up one (while the prototype is
+      // on) is a stand-in for the design, not something they hold.
+      'Voucher Saya (${owned.where((voucher) => !_isDummy(voucher)).length})',
+    ),
+    _PreviewList(
+      key: const Key('vouchers-owned-list'),
+      seeAllKey: const Key('vouchers-owned-see-all'),
+      previewCount: _ownedPreviewCount,
+      children: [
+        for (final voucher in owned) _OwnedVoucherCard(voucher: voucher),
+      ],
+    ),
+  ];
+
+  /// [below] on its own, or — when the member holds vouchers — under their
+  /// section, so a rewards request that is still loading, has failed or came
+  /// back empty never hides vouchers that are already in memory.
+  Widget _withOwned(Widget below) {
+    if (owned.isEmpty) return below;
+    return _TabList(children: [..._ownedSection(), below]);
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<RewardsBloc, RewardsState>(
       builder: (context, state) => switch (state) {
-        RewardsInitial() || RewardsLoading() => Column(
-          spacing: 20,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [AppSpinner(), Text('Loading...')],
+        RewardsInitial() || RewardsLoading() => _withOwned(
+          Column(
+            spacing: 20,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [AppSpinner(), Text('Loading...')],
+          ),
         ),
-        RewardsError(:final message) => LightSurfaceScope(
-          child: Container(
-            alignment: Alignment.topCenter,
-            margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(message, textAlign: TextAlign.center),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  key: const Key('vouchers-retry'),
-                  onPressed: () =>
-                      context.read<RewardsBloc>().add(const RewardsRequested()),
-                  child: const Text('Retry'),
-                ),
-              ],
+        RewardsError(:final message) => _withOwned(
+          LightSurfaceScope(
+            child: Container(
+              alignment: Alignment.topCenter,
+              margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(message, textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    key: const Key('vouchers-retry'),
+                    onPressed: () => context.read<RewardsBloc>().add(
+                      const RewardsRequested(),
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        RewardsLoaded(:final rewards) when rewards.isEmpty => Container(
-          alignment: Alignment.topCenter,
-          margin: const EdgeInsets.symmetric(vertical: 20),
-          child: const Text('Tidak ada voucher tersedia'),
+        RewardsLoaded(:final rewards) when rewards.isEmpty => _withOwned(
+          Container(
+            alignment: Alignment.topCenter,
+            margin: const EdgeInsets.symmetric(vertical: 20),
+            child: const Text('Tidak ada voucher tersedia'),
+          ),
         ),
         RewardsLoaded(:final rewards) => _sections(
           context,
@@ -669,25 +760,26 @@ class _VoucherList extends StatelessWidget {
   }) {
     return _TabList(
       children: [
-        if (owned.isNotEmpty) ...[
-          _SectionHeader(
-            key: const Key('vouchers-owned-header'),
-            'Voucher Saya (${owned.length})',
-          ),
-          _OwnedVoucherCarousel(vouchers: owned),
-        ],
+        if (owned.isNotEmpty) ..._ownedSection(),
         _ExchangeHeader(
           key: const Key('vouchers-exchange-header'),
           balance: balance,
           claimable: available.length,
           locked: unavailable.length,
         ),
-        for (final reward in [...available, ..._nearestFirst(unavailable)])
-          _VoucherCard(
-            reward: reward,
-            balance: balance,
-            onClaim: () => _confirmClaim(context, reward),
-          ),
+        _PreviewList(
+          key: const Key('vouchers-exchange-list'),
+          seeAllKey: const Key('vouchers-exchange-see-all'),
+          previewCount: _exchangePreviewCount,
+          children: [
+            for (final reward in [...available, ..._nearestFirst(unavailable)])
+              _VoucherCard(
+                reward: reward,
+                balance: balance,
+                onClaim: () => _confirmClaim(context, reward),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -1086,16 +1178,21 @@ class _DashedLinePainter extends CustomPainter {
   bool shouldRepaint(_DashedLinePainter oldDelegate) => false;
 }
 
-// ── Voucher Saya (prototype) ─────────────────────────────────────────────────
-// The vouchers the member already holds, shown above the claimable ones. This is
-// a DESIGN PROTOTYPE: the section is fed by one made-up voucher, not by
-// `stats.detail2`. Wiring it to the real list (and deleting the dummy) comes
-// after the design is accepted.
+// ── Voucher Saya ─────────────────────────────────────────────────────────────
+// The vouchers the member already holds, shown above the claimable ones. They are
+// the member's real vouchers, read from `stats.detail2` — the record Home and
+// Profile already share through HomeBloc, so this section makes no request of
+// its own (the same way Riwayat reads `stats.detail`).
+//
+// The made-up voucher from the design prototype is still kept, after the real
+// ones and tagged CONTOH, so the real cards can be checked against it. Deleting
+// it (see `showDummyVoucher`) comes once the real cards are confirmed to look
+// right.
 
-/// Shows the made-up voucher. On in debug and profile builds so the design can
-/// be judged by simply running the app, and never on in a release build. Set it
-/// to `false` to hide the section. The page's tests turn it off so they see the
-/// page as it really is.
+/// Shows the made-up voucher after the member's real ones. On in debug and
+/// profile builds so the real cards can be compared with the design by simply
+/// running the app, and never on in a release build. Set it to `false` to hide
+/// it. The page's tests turn it off so they see the page as it really is.
 @visibleForTesting
 bool showDummyVoucher = !kReleaseMode;
 
@@ -1112,26 +1209,55 @@ const int _dummyDaysLeft = 30;
 /// A voucher is flagged as running out when this many days or fewer are left.
 const int _expiringSoonDays = 7;
 
-/// What "Voucher Saya" lists: nothing yet but the made-up voucher.
-List<VoucherDetailEntity> _ownedVouchers() {
-  if (!showDummyVoucher) return const [];
-
+/// What "Voucher Saya" lists: the member's vouchers from `stats.detail2` that
+/// are not clearly expired (see [VoucherDetailEntity.isExpiredOn]), the ones
+/// running out soonest first, then — while [showDummyVoucher] is on — the
+/// made-up voucher.
+List<VoucherDetailEntity> _ownedVouchers(DashboardStatsEntity stats) {
   final now = DateTime.now();
+
+  // Soonest expiry first. A date that cannot be read goes last, and equal dates
+  // keep the server's order (List.sort alone does not promise that), so the
+  // cards never swap places between two rebuilds.
+  DateTime? expiryOf(VoucherDetailEntity voucher) =>
+      DateTime.tryParse(voucher.expirationDate);
+  final real = [
+    for (final voucher in stats.detail2)
+      if (!voucher.isExpiredOn(now)) voucher,
+  ].indexed.toList()
+    ..sort((a, b) {
+      final first = expiryOf(a.$2);
+      final second = expiryOf(b.$2);
+      if (first != null && second != null) {
+        final byExpiry = first.compareTo(second);
+        if (byExpiry != 0) return byExpiry;
+      } else if (first != null) {
+        return -1;
+      } else if (second != null) {
+        return 1;
+      }
+      return a.$1.compareTo(b.$1);
+    });
+
   return [
-    VoucherDetailEntity(
-      redeemDate: DateTimeFormatter.fromUtcToDate(now),
-      expirationDate: DateTimeFormatter.fromUtcToDate(
-        now.add(const Duration(days: _dummyDaysLeft)),
-      ),
-      voucherNo: _dummyVoucherNo,
-      statusVoucher: 1,
-      voucherId: _dummyVoucherId,
-      voucherName: 'CONTOH DISKON JASA SERVICE Rp. 20.000,00',
-      statusVoucherMemo: 'AKTIF',
-      voucherAmount: 20000,
-    ),
+    for (final (_, voucher) in real) voucher,
+    if (showDummyVoucher) _dummyVoucher(now),
   ];
 }
+
+/// The made-up voucher of the design prototype.
+VoucherDetailEntity _dummyVoucher(DateTime now) => VoucherDetailEntity(
+  redeemDate: DateTimeFormatter.fromUtcToDate(now),
+  expirationDate: DateTimeFormatter.fromUtcToDate(
+    now.add(const Duration(days: _dummyDaysLeft)),
+  ),
+  voucherNo: _dummyVoucherNo,
+  statusVoucher: 1,
+  voucherId: _dummyVoucherId,
+  voucherName: 'CONTOH DISKON JASA SERVICE Rp. 20.000,00',
+  statusVoucherMemo: 'AKTIF',
+  voucherAmount: 20000,
+);
 
 bool _isDummy(VoucherDetailEntity voucher) =>
     voucher.voucherId == _dummyVoucherId;
@@ -1166,47 +1292,6 @@ int _daysUntil(DateTime expiry) {
   // "s/d" and never between the day and the year.
   final date = DateTimeFormatter.toShortDate(expiry).replaceAll(' ', ' ');
   return (label: 'Berlaku s/d $date', urgent: false);
-}
-
-/// The member's vouchers as a row of cards that swipes sideways, so any number
-/// of them take the height of one card and the sections below stay in reach.
-/// A single voucher takes the full width instead of looking lost in a carousel.
-class _OwnedVoucherCarousel extends StatelessWidget {
-  final List<VoucherDetailEntity> vouchers;
-
-  const _OwnedVoucherCarousel({required this.vouchers});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // More than one: leave a slice of the next card showing, which is what
-        // tells the member the row swipes.
-        final cardWidth = vouchers.length == 1
-            ? constraints.maxWidth
-            : constraints.maxWidth * 0.82;
-
-        return SingleChildScrollView(
-          key: const Key('vouchers-owned-carousel'),
-          scrollDirection: Axis.horizontal,
-          // Every card as tall as the tallest, whatever its name's length.
-          child: IntrinsicHeight(
-            child: Row(
-              spacing: 10,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final voucher in vouchers)
-                  SizedBox(
-                    width: cardWidth,
-                    child: _OwnedVoucherCard(voucher: voucher),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
 /// One voucher the member holds, in the same two parts as [_VoucherCard] so the

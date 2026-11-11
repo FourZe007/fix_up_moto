@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/widgets/ios_floating_tab_bar.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
 import '../../support/haptic_recorder.dart';
 
@@ -30,13 +31,20 @@ class _CountingPageState extends State<CountingPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: TextButton(
-      onPressed: () => setState(() => taps++),
-      child: Text('${widget.name} taps: $taps'),
-    ),
-  );
+  Widget build(BuildContext context) {
+    bottomPadding[widget.name] = MediaQuery.paddingOf(context).bottom;
+    return Center(
+      child: TextButton(
+        onPressed: () => setState(() => taps++),
+        child: Text('${widget.name} taps: $taps'),
+      ),
+    );
+  }
 }
+
+/// The bottom padding each stand-in page was last built with: what the shell
+/// tells a page about the bar below it.
+final Map<String, double> bottomPadding = {};
 
 /// The same shell the app uses: five branches in MainTabs order, with Feeds the
 /// one tab that is dropped while hidden.
@@ -45,6 +53,7 @@ Future<Map<String, int>> pumpShell(
   ThemeData? theme,
 }) async {
   final builds = <String, int>{};
+  bottomPadding.clear();
 
   StatefulShellBranch branch(String name) => StatefulShellBranch(
     routes: [
@@ -85,10 +94,14 @@ Future<Map<String, int>> pumpShell(
   return builds;
 }
 
+/// The bar, whichever style the platform gives it: Material's on Android,
+/// the floating pill on iOS (see AppTabBar).
+final Finder tabBar = find.byWidgetPredicate(
+  (widget) => widget is NavigationBar || widget is IosFloatingTabBar,
+);
+
 Future<void> openTab(WidgetTester tester, String label) async {
-  await tester.tap(
-    find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
-  );
+  await tester.tap(find.descendant(of: tabBar, matching: find.text(label)));
   await tester.pumpAndSettle();
 }
 
@@ -120,6 +133,171 @@ void main() {
       await openTab(tester, 'MyPoint');
 
       expect(haptics.taps, isEmpty);
+    });
+  });
+
+  group('the iOS bar (PREVIEW_PLATFORM=ios on an Android phone)', () {
+    final iosTheme = ThemeData(platform: TargetPlatform.iOS);
+
+    testWidgets('switches tabs and keeps them alive, like the Android bar', (
+      tester,
+    ) async {
+      final haptics = HapticRecorder.start();
+      final builds = await pumpShell(tester, theme: iosTheme);
+      expect(find.byType(IosFloatingTabBar), findsOneWidget);
+
+      await openTab(tester, 'MyPoint');
+      expect(find.text('membership taps: 0'), findsOneWidget);
+      await openTab(tester, 'Booking');
+      await openTab(tester, 'MyPoint');
+
+      expect(builds['membership'], 1);
+      // The phone itself is Android, so there is no click.
+      expect(haptics.taps, isEmpty);
+    });
+
+    testWidgets('back from another tab returns to Home', (tester) async {
+      await pumpShell(tester, theme: iosTheme);
+
+      await openTab(tester, 'Booking');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('home taps: 0'), findsOneWidget);
+    });
+  });
+
+  group('the strip behind the iOS pill matches the showing page', () {
+    final strip = find.descendant(
+      of: find.byType(IosFloatingTabBar),
+      matching: find.byType(ColoredBox),
+    );
+
+    // Booking's strip is white in both modes (the colour its list sits on at
+    // the bottom of the page), whatever the Scaffold behind it is painted.
+    for (final (name, theme, bookingsColor) in [
+      (
+        'light',
+        AppTheme.light.copyWith(platform: TargetPlatform.iOS),
+        Colors.white,
+      ),
+      (
+        'dark',
+        AppTheme.dark.copyWith(platform: TargetPlatform.iOS),
+        Colors.white,
+      ),
+    ]) {
+      testWidgets('$name: every tab gets the colour its page paints', (
+        tester,
+      ) async {
+        await pumpShell(tester, theme: theme);
+
+        // Home and Profile are on the plain theme background, so the strip is
+        // left to show it.
+        expect(strip, findsNothing);
+
+        // Feed's video runs under the pill, so no strip may cover it.
+        await openTab(tester, 'Feed');
+        expect(strip, findsNothing);
+
+        await openTab(tester, 'MyPoint');
+        expect(tester.widget<ColoredBox>(strip).color, AppColors.primary);
+
+        await openTab(tester, 'Booking');
+        expect(tester.widget<ColoredBox>(strip).color, bookingsColor);
+
+        await openTab(tester, 'Saya');
+        expect(strip, findsNothing);
+
+        await openTab(tester, 'Beranda');
+        expect(strip, findsNothing);
+      });
+    }
+  });
+
+  group('the Feed tab and the bottom bar', () {
+    final screenHeight = 600.0; // flutter_test's default 800 x 600 surface
+
+    Rect page(WidgetTester tester, String name) => tester.getRect(
+      find.byWidgetPredicate(
+        (w) => w is CountingPage && w.name == name,
+        skipOffstage: false,
+      ),
+    );
+
+    group('on the iOS pill', () {
+      final iosTheme = ThemeData(platform: TargetPlatform.iOS);
+
+      testWidgets('the Feed runs to the bottom edge, behind the pill', (
+        tester,
+      ) async {
+        await pumpShell(tester, theme: iosTheme);
+        await openTab(tester, 'Feed');
+
+        expect(page(tester, 'feeds').bottom, screenHeight);
+        // ...and the pill is on top of it, not pushed out.
+        expect(
+          tester.getRect(find.byType(IosFloatingTabBar)).bottom,
+          screenHeight,
+        );
+      });
+
+      testWidgets('the Feed is told the bar\'s height as bottom padding', (
+        tester,
+      ) async {
+        await pumpShell(tester, theme: iosTheme);
+        await openTab(tester, 'Feed');
+
+        // That padding is what keeps its caption and buttons above the pill.
+        expect(
+          bottomPadding['feeds'],
+          tester.getRect(find.byType(IosFloatingTabBar)).height,
+        );
+        expect(bottomPadding['feeds'], greaterThan(0));
+      });
+
+      for (final (label, name) in [
+        ('Beranda', 'home'),
+        ('MyPoint', 'membership'),
+        ('Booking', 'bookings'),
+        ('Saya', 'profile'),
+      ]) {
+        testWidgets('$label still ends where the pill begins', (tester) async {
+          await pumpShell(tester, theme: iosTheme);
+          await openTab(tester, label);
+
+          expect(
+            page(tester, name).bottom,
+            tester.getRect(find.byType(IosFloatingTabBar)).top,
+          );
+          expect(bottomPadding[name], 0);
+        });
+      }
+
+      testWidgets('leaving the Feed gives the page room back', (tester) async {
+        await pumpShell(tester, theme: iosTheme);
+        await openTab(tester, 'Feed');
+        await openTab(tester, 'Beranda');
+
+        expect(
+          page(tester, 'home').bottom,
+          tester.getRect(find.byType(IosFloatingTabBar)).top,
+        );
+      });
+    });
+
+    group('on Android', () {
+      testWidgets('the Feed still ends where the bar begins', (tester) async {
+        await pumpShell(tester);
+        await openTab(tester, 'Feed');
+
+        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(
+          page(tester, 'feeds').bottom,
+          tester.getRect(find.byType(NavigationBar)).top,
+        );
+        expect(bottomPadding['feeds'], 0);
+      });
     });
   });
 

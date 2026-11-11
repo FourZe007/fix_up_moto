@@ -264,7 +264,12 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(
     () => GetDashboardStatsUseCase(sl<HomeRepository>()),
   );
-  sl.registerFactory(() => HomeBloc(getDashboardStats: sl()));
+  // App-scoped, like AuthBloc, and for the same pairing: provided once at the
+  // root in app.dart with `BlocProvider.value`. Home, Profile, MyPoint and Edit
+  // Profile all read this one stats record instead of each fetching their own;
+  // StatsBootstrap loads it at sign-in and clears it at sign-out, so one
+  // member's data cannot show for the next.
+  sl.registerLazySingleton(() => HomeBloc(getDashboardStats: sl()));
 
   // ── Services Feature ──────────────────────────────────────────────────────
 

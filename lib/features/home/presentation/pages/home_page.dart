@@ -6,8 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
-import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
-import 'package:fix_up_moto/core/refresh/refresh_on.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -32,49 +30,31 @@ import 'package:fix_up_moto/features/workshops/presentation/widgets/workshop_pic
 /// point history and vouchers live on the Membership tab instead — Home is
 /// meant to be an action-oriented landing page, not a data dump.
 ///
-/// Provides [HomeBloc] locally (not globally) since stats are only needed here.
-/// Fires [HomeStatsRequested] immediately on mount to load data.
+/// Reads the app-wide [HomeBloc] (the member's stats record, shared with
+/// Profile, MyPoint and Edit Profile) rather than fetching its own: `StatsBootstrap`
+/// loads it at sign-in and reloads it when something that changes the stats
+/// happens elsewhere (e.g. a bike is added), even while this tab is hidden.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      // registerFactory ensures a fresh bloc each time the page is created
-      create: (_) => sl<HomeBloc>()..add(const HomeStatsRequested()),
-      child: const _HomeView(),
-    );
-  }
-}
-
-class _HomeView extends StatelessWidget {
-  const _HomeView();
-
-  @override
-  Widget build(BuildContext context) {
-    // This tab stays alive while hidden, so it reloads when something that
-    // changes the stats happens elsewhere (e.g. a bike is added).
-    return RefreshOn(
-      kind: DataKind.stats,
-      onRefresh: (context) =>
-          context.read<HomeBloc>().add(const HomeStatsRequested()),
-      child: Scaffold(
-        body: SafeArea(
-          child: BlocBuilder<HomeBloc, HomeState>(
-            builder: (context, state) {
-              return switch (state) {
-                HomeInitial() || HomeLoading() => const Center(
-                  child: AppSpinner(),
-                ),
-                HomeError(:final message) => _ErrorView(
-                  message: message,
-                  onRetry: () =>
-                      context.read<HomeBloc>().add(const HomeStatsRequested()),
-                ),
-                HomeLoaded(:final stats) => _HomeBody(stats: stats),
-              };
-            },
-          ),
+    return Scaffold(
+      body: SafeArea(
+        child: BlocBuilder<HomeBloc, HomeState>(
+          builder: (context, state) {
+            return switch (state) {
+              HomeInitial() || HomeLoading() => const Center(
+                child: AppSpinner(),
+              ),
+              HomeError(:final message) => _ErrorView(
+                message: message,
+                onRetry: () =>
+                    context.read<HomeBloc>().add(const HomeStatsRequested()),
+              ),
+              HomeLoaded(:final stats) => _HomeBody(stats: stats),
+            };
+          },
         ),
       ),
     );

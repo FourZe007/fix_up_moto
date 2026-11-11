@@ -58,12 +58,23 @@ All registrations live in `lib/core/di/injection_container.dart` → `initDepend
 
 **Critical rule:** the split is *page-scoped vs app-scoped*, not *BLoC vs everything else*.
 
-- **Page-scoped BLoCs** (`HomeBloc`, `ServicesBloc`, `BookingsBloc`, `ProfileBloc`) are
+- **Page-scoped BLoCs** (`ServicesBloc`, `BookingsBloc`, `ProfileBloc`) are
   **`registerFactory`** — a new instance per `BlocProvider`, so state cannot bleed between
   screen navigations.
 - **`AuthBloc` is `registerLazySingleton`.** It is created once at the root in `App.build` and
   lives for the whole run, so the bleeding hazard cannot arise — and `AppRouter` must observe
   that exact instance through `refreshListenable`.
+- **`HomeBloc` is `registerLazySingleton` too.** It holds the member's stats record (name, phone,
+  email, points, point history), which Home, Profile, MyPoint and Edit Profile all read, so it is
+  loaded once instead of once per page. Pages **read** it and never dispatch `HomeStatsRequested`
+  on mount; only `StatsBootstrap` (`lib/features/home/presentation/widgets/stats_bootstrap.dart`)
+  loads it at sign-in, reloads it on `DataRefreshCubit.invalidate(DataKind.stats)`, and sends
+  `HomeResetRequested` at sign-out so one member's data never shows for the next. A reload while
+  stats are on screen emits `HomeLoaded(refreshing: true)` rather than `HomeLoading`, so nothing
+  unmounts (an open Edit Profile form keeps its text). Like `AuthBloc`, provide it with
+  `BlocProvider.value`, never `create:`. A page that only needs *some* of this data still reads the
+  same bloc: do not add a second loader for the same record (`ProfileLoadRequested` is unused for
+  that reason).
 - Data sources, repositories, and use cases are `registerLazySingleton`.
 
 `AuthBloc` must be provided with **`BlocProvider.value`**, never `create:`. `create:` transfers

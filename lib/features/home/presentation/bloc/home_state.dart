@@ -20,10 +20,19 @@ final class HomeLoading extends HomeState {
 /// Stats loaded successfully — render the dashboard cards.
 final class HomeLoaded extends HomeState {
   final DashboardStatsEntity stats;
-  const HomeLoaded(this.stats);
+
+  /// True while a reload of these same [stats] is in flight. The old stats stay
+  /// on screen meanwhile (nothing unmounts, so a form being typed into keeps
+  /// its text); when the answer arrives a state with this false follows.
+  ///
+  /// Part of the equality on purpose: a reload that returns identical stats
+  /// must still emit, or anything waiting for the reload to end would hang.
+  final bool refreshing;
+
+  const HomeLoaded(this.stats, {this.refreshing = false});
 
   @override
-  List<Object> get props => [stats];
+  List<Object> get props => [stats, refreshing];
 }
 
 /// API call failed — show an error banner with a retry button.

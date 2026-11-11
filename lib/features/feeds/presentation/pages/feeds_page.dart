@@ -16,6 +16,13 @@ import 'package:fix_up_moto/features/feeds/presentation/widgets/reel_player.dart
 /// edge, the same way TikTok/Reels/Shorts do. [AnnotatedRegion] still keeps
 /// the OS status bar visible (never hidden/immersive) and forces its icons to
 /// white so they read against a dark video background.
+///
+/// On iOS, `MainShell` also lets this page run down behind the floating tab
+/// bar, and reports the bar's height as the page's bottom padding. The reel's
+/// own caption and buttons already respect that padding (they sit in a
+/// `SafeArea`); the centred messages here use [_AboveTabBar] to do the same, so
+/// they stay centred in the space above the bar. Where the page ends above the
+/// bar (Android, or any time the bottom padding is 0) that padding is nothing.
 class FeedsPage extends StatelessWidget {
   const FeedsPage({super.key});
 
@@ -45,8 +52,8 @@ class _FeedsView extends StatelessWidget {
         body: BlocBuilder<FeedsBloc, FeedsState>(
           builder: (context, state) {
             return switch (state) {
-              FeedsInitial() || FeedsLoading() => const Center(
-                child: AppSpinner(color: Colors.white),
+              FeedsInitial() || FeedsLoading() => const _AboveTabBar(
+                child: Center(child: AppSpinner(color: Colors.white)),
               ),
               FeedsError(:final message) => _ErrorView(
                 message: message,
@@ -55,10 +62,12 @@ class _FeedsView extends StatelessWidget {
               ),
               FeedsLoaded(:final posts) =>
                 posts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No posts yet',
-                          style: TextStyle(color: Colors.white70),
+                    ? const _AboveTabBar(
+                        child: Center(
+                          child: Text(
+                            'No posts yet',
+                            style: TextStyle(color: Colors.white70),
+                          ),
                         ),
                       )
                     : _ReelsFeed(posts: posts),
@@ -130,43 +139,45 @@ class _EndOfFeedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.black,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                size: 56,
-                color: Colors.white70,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                "You're all caught up",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+      child: _AboveTabBar(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_circle_outline,
+                  size: 56,
+                  color: Colors.white70,
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "You've seen all the latest posts",
-                style: TextStyle(color: Colors.white70),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: onRefresh,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white54),
+                const SizedBox(height: 16),
+                const Text(
+                  "You're all caught up",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh'),
-              ),
-            ],
+                const SizedBox(height: 8),
+                const Text(
+                  "You've seen all the latest posts",
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: onRefresh,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white54),
+                  ),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -181,24 +192,46 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.white54),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: const TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-          ],
+    return _AboveTabBar(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.white54),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Keeps [child] centred in the space above the tab bar.
+///
+/// When `MainShell` lets this page run under the iOS tab bar, the page is as
+/// tall as the screen and reports the bar's height as its bottom padding.
+/// Without this, a centred message would sit lower than it did when the page
+/// ended above the bar. Where the page does end above the bar the padding is 0
+/// and this changes nothing.
+class _AboveTabBar extends StatelessWidget {
+  final Widget child;
+  const _AboveTabBar({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      child: child,
     );
   }
 }

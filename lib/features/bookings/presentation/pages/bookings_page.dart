@@ -179,6 +179,7 @@ class _BookingsViewState extends State<_BookingsView>
 
   Widget _scaffold(BuildContext context, Color searchColor) {
     return Scaffold(
+      // MainShell.backdropOf repeats this colour for the iOS tab bar's strip.
       backgroundColor: AppTheme.brandBackdrop(context),
       appBar: AppBar(
         title: TextField(

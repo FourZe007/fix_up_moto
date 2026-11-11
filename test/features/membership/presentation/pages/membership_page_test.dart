@@ -75,18 +75,10 @@ const tStats = DashboardStatsEntity(
       pointQty: 10,
     ),
   ],
-  detail2: [
-    VoucherDetailEntity(
-      redeemDate: '2026-01-03',
-      expirationDate: '2026-12-31',
-      voucherNo: 'V-1',
-      statusVoucher: 1,
-      voucherId: 'B01',
-      voucherName: 'Free oil change',
-      statusVoucherMemo: 'AKTIF',
-      voucherAmount: 50000,
-    ),
-  ],
+  // No vouchers held: Voucher Saya reads this list, so the member's own
+  // vouchers are given per test (see [ownedVoucher]) instead of leaking into
+  // every page test.
+  detail2: [],
 );
 
 /// Nothing in either section — far less than fills the screen.
@@ -103,7 +95,8 @@ const tEmptyStats = DashboardStatsEntity(
   detail2: [],
 );
 
-/// Many entries in both sections — far more than fit on screen.
+/// Many point-history entries — far more than fit on screen. (No vouchers held,
+/// like [tStats].)
 final tLongStats = DashboardStatsEntity(
   status: 'AKTIF',
   memberId: 'M-001',
@@ -122,20 +115,64 @@ final tLongStats = DashboardStatsEntity(
         pointQty: 10,
       ),
   ],
-  detail2: [
-    for (var i = 0; i < 30; i++)
-      VoucherDetailEntity(
-        redeemDate: '2026-01-03',
-        expirationDate: '2026-12-31',
-        voucherNo: 'V-$i',
-        statusVoucher: 1,
-        voucherId: 'B$i',
-        voucherName: 'Voucher $i',
-        statusVoucherMemo: 'AKTIF',
-        voucherAmount: 50000,
-      ),
-  ],
+  detail2: [],
 );
+
+/// A date [days] from today, as the server writes it (`yyyy-MM-dd`). Relative to
+/// the clock so a test never rots when the calendar passes a fixed date.
+String dayFromNow(int days) {
+  final date = DateTime.now().add(Duration(days: days));
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${date.year}-${two(date.month)}-${two(date.day)}';
+}
+
+/// One voucher the member holds (`Detail2`), good for [daysLeft] more days.
+VoucherDetailEntity ownedVoucher(
+  String no, {
+  String name = 'FREE OIL CHANGE',
+  int daysLeft = 30,
+  String? expiry,
+  String memo = 'AKTIF',
+}) => VoucherDetailEntity(
+  redeemDate: dayFromNow(-5),
+  expirationDate: expiry ?? dayFromNow(daysLeft),
+  voucherNo: no,
+  statusVoucher: 1,
+  voucherId: 'B01',
+  voucherName: name,
+  statusVoucherMemo: memo,
+  voucherAmount: 50000,
+);
+
+/// [tStats] holding [vouchers] in `Detail2`.
+DashboardStatsEntity statsHolding(List<VoucherDetailEntity> vouchers) =>
+    DashboardStatsEntity(
+      status: tStats.status,
+      memberId: tStats.memberId,
+      memberName: tStats.memberName,
+      emailAddress: tStats.emailAddress,
+      phoneNo: tStats.phoneNo,
+      active: tStats.active,
+      qty: tStats.qty,
+      point: tStats.point,
+      detail: tStats.detail,
+      detail2: vouchers,
+    );
+
+/// The "Lihat semua" links of the two sections of the Voucher tab.
+const ownedSeeAll = Key('vouchers-owned-see-all');
+const exchangeSeeAll = Key('vouchers-exchange-see-all');
+
+/// Opens the section behind the link [seeAll] (or folds it back): scrolls the
+/// link into view first, since on the test's small screen it can sit below the
+/// fold.
+Future<void> openAll(WidgetTester tester, Key seeAll) async {
+  final link = find.byKey(seeAll);
+  await tester.ensureVisible(link);
+  await tester.pumpAndSettle();
+  await tester.tap(link);
+  await tester.pumpAndSettle();
+}
 
 /// Counts brightness calls instead of touching the real screen.
 class _FakeBrightness implements ScreenBrightnessBooster {
@@ -189,7 +226,6 @@ Future<MockHomeBloc> pumpMembership(
     const Stream<HomeState>.empty(),
     initialState: HomeLoaded(stats),
   );
-  sl.registerFactory<HomeBloc>(() => bloc);
   sl.registerFactory<RewardsBloc>(() => rewardsBloc);
   sl.registerFactory<RedeemBloc>(() => redeemBloc);
 
@@ -201,8 +237,13 @@ Future<MockHomeBloc> pumpMembership(
       // around `home` would never reach it.
       builder: (context, child) =>
           DefaultAssetBundle(bundle: bundle ?? rootBundle, child: child!),
-      home: BlocProvider.value(
-        value: refreshCubit,
+      // The page reads the app-wide HomeBloc from the tree (it never builds its
+      // own), and tells the rest of the app through the refresh cubit.
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: refreshCubit),
+          BlocProvider<HomeBloc>.value(value: bloc),
+        ],
         child: const MembershipPage(),
       ),
     ),
@@ -210,7 +251,7 @@ Future<MockHomeBloc> pumpMembership(
   return bloc;
 }
 
-/// The app-wide "reload this" signal the page listens to; fresh per test.
+/// The app-wide "this data changed" signal the page raises; fresh per test.
 late DataRefreshCubit refreshCubit;
 
 /// The rewards bloc the page gets from `sl`; fresh per test, already loaded with
@@ -438,6 +479,8 @@ void main() {
     ) async {
       givenRewards(RewardsLoaded(tLongRewards));
       await pumpMembership(tester);
+      // Opened, so the list is long enough to scroll.
+      await openAll(tester, exchangeSeeAll);
       final before = tester.getTopLeft(vouchersTab);
 
       await tester.drag(find.byType(ListView), const Offset(0, -400));
@@ -674,7 +717,9 @@ void main() {
     });
   });
 
-  group('Voucher Saya (design prototype with a made-up voucher)', () {
+  // The made-up voucher of the design prototype, kept next to the real ones so
+  // they can be compared. The member here holds no real vouchers.
+  group('Voucher Saya: the made-up prototype voucher', () {
     final ownedHeader = find.byKey(const Key('vouchers-owned-header'));
     final exchangeHeader = find.byKey(const Key('vouchers-exchange-header'));
     final qrButton = find.byKey(const Key('owned-voucher-qr-DUMMY-DEMO-0001'));
@@ -723,12 +768,12 @@ void main() {
       expect(exchangeHeader, findsOneWidget);
     });
 
-    testWidgets('sits above the vouchers to claim, with its count', (
-      tester,
-    ) async {
+    testWidgets('sits above the vouchers to claim, and is not counted as one '
+        'the member holds', (tester) async {
       await pumpTall(tester);
 
-      expect(find.text('Voucher Saya (1)'), findsOneWidget);
+      // The member holds none; the made-up one only stands in for the design.
+      expect(find.text('Voucher Saya (0)'), findsOneWidget);
       expect(
         tester.getTopLeft(ownedHeader).dy,
         lessThan(tester.getTopLeft(exchangeHeader).dy),
@@ -799,6 +844,426 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Klaim voucher?'), findsOneWidget);
+    });
+  });
+
+  group('Voucher Saya: the member\'s real vouchers (stats.detail2)', () {
+    final ownedHeader = find.byKey(const Key('vouchers-owned-header'));
+    final exchangeHeader = find.byKey(const Key('vouchers-exchange-header'));
+    Finder card(String no) => find.byKey(Key('owned-voucher-$no'));
+    late _FakeBrightness brightness;
+
+    setUp(() {
+      // The outer setUp has already switched the made-up voucher off.
+      brightness = _FakeBrightness();
+      sl.registerSingleton<ScreenBrightnessBooster>(brightness);
+    });
+
+    /// Pumps the page for a member holding [vouchers].
+    Future<void> pumpHolding(
+      WidgetTester tester,
+      List<VoucherDetailEntity> vouchers,
+    ) async {
+      useTallScreen(tester);
+      await pumpMembership(tester, stats: statsHolding(vouchers));
+    }
+
+    /// The pixels drawn for [painter]: QrImageView does not expose the data it
+    /// was given, so the popup's QR is compared by what it draws.
+    Future<List<int>> pixelsOf(WidgetTester tester, QrPainter painter) async {
+      final bytes = await tester.runAsync(() => painter.toImageData(200));
+      return bytes!.buffer.asUint8List();
+    }
+
+    QrPainter painterFor(String data) => QrPainter(
+      data: data,
+      version: QrVersions.auto,
+      errorCorrectionLevel: QrErrorCorrectLevel.M,
+      gapless: true,
+      eyeStyle: const QrEyeStyle(
+        eyeShape: QrEyeShape.square,
+        color: Colors.black,
+      ),
+      dataModuleStyle: const QrDataModuleStyle(
+        dataModuleShape: QrDataModuleShape.square,
+        color: Colors.black,
+      ),
+    );
+
+    group('what it shows', () {
+      testWidgets('a voucher the member holds: name, expiry and a QR button, '
+          'with no example tag', (tester) async {
+        await pumpHolding(tester, [ownedVoucher('V-1')]);
+
+        expect(find.text('Voucher Saya (1)'), findsOneWidget);
+        // The backend sends names in capitals; the card shows them tidied.
+        expect(find.text('Free Oil Change'), findsOneWidget);
+        expect(find.textContaining('Berlaku s/d'), findsOneWidget);
+        expect(
+          find.byKey(const Key('owned-voucher-qr-V-1')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('dummy-voucher-chip')), findsNothing);
+      });
+
+      testWidgets('sits above the vouchers to claim', (tester) async {
+        await pumpHolding(tester, [ownedVoucher('V-1')]);
+
+        expect(
+          tester.getTopLeft(ownedHeader).dy,
+          lessThan(tester.getTopLeft(exchangeHeader).dy),
+        );
+      });
+
+      testWidgets('Tampilkan QR opens a bright popup holding the real voucher '
+          'number', (tester) async {
+        await pumpHolding(tester, [ownedVoucher('V-7')]);
+
+        await tester.tap(find.byKey(const Key('owned-voucher-qr-V-7')));
+        await tester.pumpAndSettle();
+
+        final shown = tester
+            .widgetList<CustomPaint>(
+              find.descendant(
+                of: find.byType(QrImageView),
+                matching: find.byType(CustomPaint),
+              ),
+            )
+            .map((paint) => paint.painter)
+            .whereType<QrPainter>()
+            .single;
+        expect(
+          await pixelsOf(tester, shown),
+          await pixelsOf(tester, painterFor('V-7')),
+        );
+        expect(find.text('V-7'), findsOneWidget);
+        expect(brightness.boosts, 1);
+
+        // And it is not marked as an example.
+        expect(
+          find.text('Voucher contoh untuk melihat tampilan, bukan voucher asli'),
+          findsNothing,
+        );
+      });
+
+      testWidgets('is absent when the member holds nothing usable', (
+        tester,
+      ) async {
+        await pumpHolding(tester, const []);
+
+        expect(ownedHeader, findsNothing);
+        expect(exchangeHeader, findsOneWidget);
+      });
+    });
+
+    group('which vouchers are shown', () {
+      testWidgets('one past its expiry date is hidden', (tester) async {
+        await pumpHolding(tester, [
+          ownedVoucher('GOOD'),
+          ownedVoucher('OLD', daysLeft: -1),
+        ]);
+
+        expect(card('GOOD'), findsOneWidget);
+        expect(card('OLD'), findsNothing);
+        expect(find.text('Voucher Saya (1)'), findsOneWidget);
+      });
+
+      testWidgets('one the server marks KADALUARSA is hidden, even with a '
+          'future date', (tester) async {
+        await pumpHolding(tester, [
+          ownedVoucher('GOOD'),
+          ownedVoucher('MARKED', memo: 'KADALUARSA'),
+        ]);
+
+        expect(card('GOOD'), findsOneWidget);
+        expect(card('MARKED'), findsNothing);
+      });
+
+      testWidgets('one that expires today is still shown, saying so', (
+        tester,
+      ) async {
+        await pumpHolding(tester, [ownedVoucher('TODAY', daysLeft: 0)]);
+
+        expect(card('TODAY'), findsOneWidget);
+        expect(find.text('Berakhir hari ini'), findsOneWidget);
+      });
+
+      testWidgets('one in its final week warns with the days left', (
+        tester,
+      ) async {
+        await pumpHolding(tester, [ownedVoucher('SOON', daysLeft: 3)]);
+
+        expect(find.text('Sisa 3 hari'), findsOneWidget);
+      });
+
+      testWidgets('a date that cannot be read is shown with the server\'s '
+          'text, not hidden', (tester) async {
+        await pumpHolding(tester, [ownedVoucher('ODD', expiry: 'next week')]);
+
+        expect(card('ODD'), findsOneWidget);
+        expect(find.text('Berlaku s/d next week'), findsOneWidget);
+      });
+    });
+
+    group('their order', () {
+      // Only the first two cards show until "Lihat semua" is opened.
+      testWidgets('soonest expiry first, an unreadable date last', (
+        tester,
+      ) async {
+        await pumpHolding(tester, [
+          ownedVoucher('LATER', daysLeft: 60),
+          ownedVoucher('ODD', expiry: 'next week'),
+          ownedVoucher('SOONER', daysLeft: 10),
+        ]);
+        await openAll(tester, ownedSeeAll);
+
+        double top(String no) => tester.getTopLeft(card(no)).dy;
+        expect(top('SOONER'), lessThan(top('LATER')));
+        expect(top('LATER'), lessThan(top('ODD')));
+      });
+
+      testWidgets('the same expiry keeps the server\'s order', (tester) async {
+        await pumpHolding(tester, [
+          ownedVoucher('FIRST', daysLeft: 20),
+          ownedVoucher('SECOND', daysLeft: 20),
+          ownedVoucher('THIRD', daysLeft: 20),
+        ]);
+        await openAll(tester, ownedSeeAll);
+
+        double top(String no) => tester.getTopLeft(card(no)).dy;
+        expect(top('FIRST'), lessThan(top('SECOND')));
+        expect(top('SECOND'), lessThan(top('THIRD')));
+      });
+    });
+
+    group('next to the made-up prototype voucher', () {
+      setUp(() => showDummyVoucher = true);
+
+      testWidgets('the real ones come first and the made-up one is last, '
+          'below them', (tester) async {
+        await pumpHolding(tester, [
+          ownedVoucher('V-1', daysLeft: 20),
+          ownedVoucher('V-2', daysLeft: 40),
+        ]);
+        // Two real cards fill the preview, so the made-up third is behind the
+        // link.
+        expect(card('DUMMY-DEMO-0001'), findsNothing);
+        await openAll(tester, ownedSeeAll);
+
+        double top(String no) => tester.getTopLeft(card(no)).dy;
+        expect(top('V-1'), lessThan(top('V-2')));
+        expect(top('V-2'), lessThan(top('DUMMY-DEMO-0001')));
+        // Only the real cards carry no example tag; the made-up one does.
+        expect(find.byKey(const Key('dummy-voucher-chip')), findsOneWidget);
+      });
+
+      testWidgets('the header counts only the real ones', (tester) async {
+        await pumpHolding(tester, [ownedVoucher('V-1'), ownedVoucher('V-2')]);
+
+        expect(find.text('Voucher Saya (2)'), findsOneWidget);
+      });
+    });
+
+    group('"Lihat semua": the first few cards, the rest on request', () {
+      final ownedLink = find.byKey(ownedSeeAll);
+      final exchangeLink = find.byKey(exchangeSeeAll);
+
+      List<VoucherDetailEntity> held(int count) => [
+        for (var i = 1; i <= count; i++) ownedVoucher('V-$i', daysLeft: 10 + i),
+      ];
+
+      testWidgets('Voucher Saya: no link at or under two vouchers', (
+        tester,
+      ) async {
+        await pumpHolding(tester, held(2));
+
+        expect(card('V-1'), findsOneWidget);
+        expect(card('V-2'), findsOneWidget);
+        expect(ownedLink, findsNothing);
+      });
+
+      testWidgets('Voucher Saya: past two, shows two and a link with the '
+          'total', (tester) async {
+        await pumpHolding(tester, held(5));
+
+        expect(card('V-1'), findsOneWidget);
+        expect(card('V-2'), findsOneWidget);
+        expect(card('V-3'), findsNothing);
+        expect(find.text('Lihat semua (5)'), findsOneWidget);
+        // The header still counts every voucher, not just the ones showing.
+        expect(find.text('Voucher Saya (5)'), findsOneWidget);
+      });
+
+      testWidgets('Voucher Saya: the link opens the rest, and folds it back', (
+        tester,
+      ) async {
+        await pumpHolding(tester, held(5));
+
+        await openAll(tester, ownedSeeAll);
+        for (var i = 1; i <= 5; i++) {
+          expect(card('V-$i'), findsOneWidget);
+        }
+        expect(find.text('Tampilkan lebih sedikit'), findsOneWidget);
+
+        await openAll(tester, ownedSeeAll);
+        expect(card('V-3'), findsNothing);
+        expect(find.text('Lihat semua (5)'), findsOneWidget);
+      });
+
+      testWidgets('Voucher Saya: the cards are listed top to bottom, not '
+          'side by side', (tester) async {
+        await pumpHolding(tester, held(2));
+
+        final first = tester.getTopLeft(card('V-1'));
+        final second = tester.getTopLeft(card('V-2'));
+        expect(second.dy, greaterThan(first.dy));
+        expect(second.dx, first.dx);
+      });
+
+      testWidgets('Tukar dengan Point: no link at or under three vouchers', (
+        tester,
+      ) async {
+        await pumpHolding(tester, const []);
+
+        // tRewards has three.
+        expect(exchangeLink, findsNothing);
+      });
+
+      testWidgets('Tukar dengan Point: past three, shows three and a link '
+          'with the total', (tester) async {
+        givenRewards(RewardsLoaded(tLongRewards));
+        await pumpHolding(tester, const []);
+
+        for (var i = 0; i < 3; i++) {
+          expect(find.text('Reward $i'), findsOneWidget);
+        }
+        expect(find.text('Reward 3'), findsNothing);
+        expect(find.text('Lihat semua (30)'), findsOneWidget);
+      });
+
+      testWidgets('Tukar dengan Point: the link opens the rest, and folds it '
+          'back', (tester) async {
+        givenRewards(RewardsLoaded(tLongRewards));
+        await pumpHolding(tester, const []);
+
+        await openAll(tester, exchangeSeeAll);
+        expect(find.text('Reward 3'), findsOneWidget);
+        expect(find.text('Tampilkan lebih sedikit'), findsOneWidget);
+
+        await openAll(tester, exchangeSeeAll);
+        expect(find.text('Reward 3'), findsNothing);
+      });
+
+      testWidgets('Tukar dengan Point: a voucher from the opened part can be '
+          'claimed', (tester) async {
+        givenRewards(RewardsLoaded(tLongRewards));
+        await pumpHolding(tester, const []);
+        await openAll(tester, exchangeSeeAll);
+
+        // R3 is the fourth card: behind the link until it was opened.
+        final klaim = find.byKey(const Key('klaim-R3'));
+        await tester.ensureVisible(klaim);
+        await tester.pumpAndSettle();
+        await tester.tap(klaim);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Klaim voucher?'), findsOneWidget);
+      });
+
+      testWidgets('the two sections open independently', (tester) async {
+        givenRewards(RewardsLoaded(tLongRewards));
+        await pumpHolding(tester, held(5));
+
+        await openAll(tester, ownedSeeAll);
+
+        expect(card('V-5'), findsOneWidget);
+        expect(find.text('Reward 3'), findsNothing); // still folded
+      });
+
+      testWidgets('stays open when the stats reload in the background', (
+        tester,
+      ) async {
+        final states = StreamController<HomeState>();
+        addTearDown(states.close);
+        final stats = statsHolding(held(5));
+        final bloc = MockHomeBloc();
+        whenListen(bloc, states.stream, initialState: HomeLoaded(stats));
+        sl.registerFactory<RewardsBloc>(() => rewardsBloc);
+        sl.registerFactory<RedeemBloc>(() => redeemBloc);
+        useTallScreen(tester);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: refreshCubit),
+                BlocProvider<HomeBloc>.value(value: bloc),
+              ],
+              child: const MembershipPage(),
+            ),
+          ),
+        );
+        await openAll(tester, ownedSeeAll);
+        expect(card('V-5'), findsOneWidget);
+
+        // HomeBloc reloads stats already on screen as "refreshing", then
+        // answers with the same stats.
+        states.add(HomeLoaded(stats, refreshing: true));
+        await tester.pump();
+        states.add(HomeLoaded(stats));
+        await tester.pumpAndSettle();
+
+        expect(card('V-5'), findsOneWidget);
+        expect(find.text('Tampilkan lebih sedikit'), findsOneWidget);
+      });
+    });
+
+    group('while the vouchers to claim are not available', () {
+      // The member's own vouchers are already in memory, so none of these may
+      // hide them.
+      testWidgets('still loading', (tester) async {
+        givenRewards(const RewardsLoading());
+        useTallScreen(tester);
+        await pumpMembership(
+          tester,
+          stats: statsHolding([ownedVoucher('V-1')]),
+        );
+        // The spinner never settles, so pump once rather than pumpAndSettle.
+        await tester.pump();
+
+        expect(ownedHeader, findsOneWidget);
+        expect(card('V-1'), findsOneWidget);
+        expect(exchangeHeader, findsNothing);
+      });
+
+      testWidgets('failed, with its Retry still there', (tester) async {
+        givenRewards(const RewardsError('Server down'));
+        await pumpHolding(tester, [ownedVoucher('V-1')]);
+
+        expect(ownedHeader, findsOneWidget);
+        expect(card('V-1'), findsOneWidget);
+        expect(find.text('Server down'), findsOneWidget);
+        expect(find.byKey(const Key('vouchers-retry')), findsOneWidget);
+      });
+
+      testWidgets('empty', (tester) async {
+        givenRewards(const RewardsLoaded([]));
+        await pumpHolding(tester, [ownedVoucher('V-1')]);
+
+        expect(ownedHeader, findsOneWidget);
+        expect(card('V-1'), findsOneWidget);
+        expect(find.text('Tidak ada voucher tersedia'), findsOneWidget);
+        expect(exchangeHeader, findsNothing);
+      });
+
+      testWidgets('with nothing held, each is exactly as before', (
+        tester,
+      ) async {
+        givenRewards(const RewardsLoaded([]));
+        await pumpHolding(tester, const []);
+
+        expect(ownedHeader, findsNothing);
+        expect(find.text('Tidak ada voucher tersedia'), findsOneWidget);
+      });
     });
   });
 
@@ -1404,6 +1869,8 @@ void main() {
           ]),
         );
         await pumpMembership(tester);
+        // Only the first three show until "Lihat semua" is opened.
+        await openAll(tester, exchangeSeeAll);
 
         final top = tester.getTopLeft;
         final order = ['Low B', 'Low A', 'High Y', 'High Z'];
@@ -1520,12 +1987,23 @@ void main() {
         expect(exchangeHeader, findsNothing);
       });
 
-      testWidgets('the member\'s own Detail2 vouchers are not listed here', (
-        tester,
-      ) async {
-        await pumpMembership(tester);
+      testWidgets('the member\'s own Detail2 vouchers are in Voucher Saya, not '
+          'among the cards to claim', (tester) async {
+        useTallScreen(tester);
+        sl.registerSingleton<ScreenBrightnessBooster>(_FakeBrightness());
+        await pumpMembership(
+          tester,
+          stats: statsHolding([ownedVoucher('V-1')]),
+        );
 
-        expect(find.text('Free oil change'), findsNothing);
+        expect(find.byKey(const Key('owned-voucher-V-1')), findsOneWidget);
+        // Only the API's vouchers are cards to claim (keyed by their rule id).
+        final claimCards = find.byWidgetPredicate((widget) {
+          final key = widget.key;
+          return key is ValueKey<String> &&
+              key.value.startsWith('voucher-card-');
+        });
+        expect(claimCards, findsNWidgets(tRewards.length));
       });
     });
 
@@ -1769,36 +2247,50 @@ void main() {
         givenRewards(RewardsLoaded(tLongRewards));
         await pumpMembership(tester);
         final box = roundedBoxAround(vouchersTab);
+        // Only the first few show; "Lihat semua" opens the rest into the same
+        // list.
+        await openAll(tester, exchangeSeeAll);
+        await tester.drag(find.byType(ListView), const Offset(0, 5000));
+        await tester.pumpAndSettle();
 
-        // One list holds the header and the first cards, and the last card is
+        // One list holds the header and the cards, and the last card is
         // reachable by scrolling that same list.
         expect(
           find.descendant(of: box, matching: find.byType(ListView)),
           findsOneWidget,
         );
         expect(exchangeHeader, findsOneWidget);
-        expect(find.text('Reward 29'), findsNothing); // below the fold
+        // Below the fold: built, but not on screen.
+        expect(find.text('Reward 29').hitTestable(), findsNothing);
 
         await tester.dragUntilVisible(
           find.text('Reward 29'),
           find.byType(ListView),
           const Offset(0, -300),
         );
-        expect(find.text('Reward 29'), findsOneWidget);
-        expect(exchangeHeader, findsNothing); // scrolled away
+        // The drag ends in a fling that is still running: let it land.
+        await tester.pumpAndSettle();
+        expect(find.text('Reward 29').hitTestable(), findsOneWidget);
+        expect(exchangeHeader.hitTestable(), findsNothing); // scrolled away
       });
 
-      testWidgets('the very last voucher is reachable', (tester) async {
+      testWidgets('the very last voucher is reachable once opened', (
+        tester,
+      ) async {
         givenRewards(RewardsLoaded(tLongRewards));
         await pumpMembership(tester);
 
+        // Behind "Lihat semua" until it is opened.
         expect(find.text('Reward 29'), findsNothing);
+        await openAll(tester, exchangeSeeAll);
         await tester.dragUntilVisible(
           find.text('Reward 29'),
           find.byType(ListView),
           const Offset(0, -300),
         );
-        expect(find.text('Reward 29'), findsOneWidget);
+        // The drag ends in a fling that is still running: let it land.
+        await tester.pumpAndSettle();
+        expect(find.text('Reward 29').hitTestable(), findsOneWidget);
       });
 
       testWidgets(
@@ -2048,8 +2540,11 @@ void main() {
             find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
             findsOneWidget,
           );
-          // Once when the page opened, once because the points changed.
-          verify(() => home.add(const HomeStatsRequested())).called(2);
+          // The points changed, so the page says the stats are out of date —
+          // once, to the whole app. (StatsBootstrap turns that into the one
+          // reload; the page does not reload its own copy.)
+          expect(refreshCubit.state, const DataRefresh(DataKind.stats, 1));
+          verifyNever(() => home.add(const HomeStatsRequested()));
         },
       );
 
@@ -2063,8 +2558,9 @@ void main() {
         await tester.pump();
 
         expect(find.text('Point tidak cukup'), findsOneWidget);
-        // Nothing was spent, so no reload beyond the one on open.
-        verify(() => home.add(const HomeStatsRequested())).called(1);
+        // Nothing was spent, so nothing is out of date.
+        expect(refreshCubit.state.kind, isNull);
+        verifyNever(() => home.add(const HomeStatsRequested()));
       });
 
       testWidgets(
@@ -2088,7 +2584,8 @@ void main() {
             find.text('Voucher "Gratis Cuci Motor" berhasil diklaim'),
             findsOneWidget,
           );
-          verify(() => home.add(const HomeStatsRequested())).called(2);
+          expect(refreshCubit.state, const DataRefresh(DataKind.stats, 1));
+          verifyNever(() => home.add(const HomeStatsRequested()));
         },
       );
 
@@ -2104,26 +2601,57 @@ void main() {
     });
   });
 
-  group('reloads when the stats go out of date elsewhere', () {
-    testWidgets('invalidate(stats) sends HomeStatsRequested again', (
+  group('the stats it shows', () {
+    testWidgets('are not requested when the page opens', (tester) async {
+      // The app-wide HomeBloc is loaded once at sign-in (StatsBootstrap); the
+      // page only reads it.
+      final bloc = await pumpMembership(tester);
+
+      verifyNever(() => bloc.add(const HomeStatsRequested()));
+    });
+
+    testWidgets('are not reloaded by the page when they go out of date', (
       tester,
     ) async {
+      // StatsBootstrap holds the one listener, so one change is one request.
       final bloc = await pumpMembership(tester);
 
       refreshCubit.invalidate(DataKind.stats);
       await tester.pump();
 
-      // Once when the page opened, once for the signal.
-      verify(() => bloc.add(const HomeStatsRequested())).called(2);
+      verifyNever(() => bloc.add(const HomeStatsRequested()));
     });
 
-    testWidgets('invalidate(bookings) is none of its business', (tester) async {
-      final bloc = await pumpMembership(tester);
+    testWidgets('stay on screen, and the tab stays put, while they reload', (
+      tester,
+    ) async {
+      final states = StreamController<HomeState>();
+      addTearDown(states.close);
+      final bloc = MockHomeBloc();
+      whenListen(bloc, states.stream, initialState: HomeLoaded(tStats));
+      sl.registerFactory<RewardsBloc>(() => rewardsBloc);
+      sl.registerFactory<RedeemBloc>(() => redeemBloc);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: refreshCubit),
+              BlocProvider<HomeBloc>.value(value: bloc),
+            ],
+            child: const MembershipPage(),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('tab-history')));
+      await tester.pumpAndSettle();
+      expect(find.text('Service points'), findsOneWidget); // on Riwayat
 
-      refreshCubit.invalidate(DataKind.bookings);
+      // HomeBloc reloads stats that are already showing as "refreshing".
+      states.add(HomeLoaded(tStats, refreshing: true));
+      await tester.pump();
       await tester.pump();
 
-      verify(() => bloc.add(const HomeStatsRequested())).called(1);
+      expect(find.text('Service points'), findsOneWidget); // still on Riwayat
     });
   });
 
@@ -2159,8 +2687,8 @@ void main() {
 
       await pullDown(tester, find.text('Point Saya'));
 
-      // Once when the page opened, once for the pull.
-      verify(() => bloc.add(const HomeStatsRequested())).called(2);
+      // Just the pull: opening the page asked for nothing.
+      verify(() => bloc.add(const HomeStatsRequested())).called(1);
     });
 
     testWidgets('pulling inside the box refreshes when it has few entries', (
@@ -2170,7 +2698,7 @@ void main() {
 
       await pullDown(tester, find.text('Riwayat'));
 
-      verify(() => bloc.add(const HomeStatsRequested())).called(2);
+      verify(() => bloc.add(const HomeStatsRequested())).called(1);
     });
 
     testWidgets('pulling inside the box refreshes when it has many entries', (
@@ -2180,7 +2708,7 @@ void main() {
 
       await pullDown(tester, find.text('Riwayat'));
 
-      verify(() => bloc.add(const HomeStatsRequested())).called(2);
+      verify(() => bloc.add(const HomeStatsRequested())).called(1);
     });
 
     testWidgets('pulling down mid-list scrolls back up instead of refreshing', (
@@ -2197,7 +2725,7 @@ void main() {
       await tester.drag(find.byType(ListView), const Offset(0, 100));
       await tester.pumpAndSettle();
 
-      verify(() => bloc.add(const HomeStatsRequested())).called(1);
+      verifyNever(() => bloc.add(const HomeStatsRequested()));
     });
 
     /// Like [pullDown], but never waits for the screen to settle: with the
@@ -2292,16 +2820,20 @@ void main() {
         findsOneWidget,
       );
 
-      // The last voucher (the box opens on Voucher) is reachable by scrolling
-      // it. The box's list is the page's only ListView (the page itself is a
-      // CustomScrollView), so it is found directly.
+      // The last voucher (the box opens on Voucher) is behind "Lihat semua";
+      // once opened it is reachable by scrolling the list. The box's list is the
+      // page's only ListView (the page itself is a CustomScrollView), so it is
+      // found directly.
       expect(find.text('Reward 29'), findsNothing);
+      await openAll(tester, exchangeSeeAll);
       await tester.dragUntilVisible(
         find.text('Reward 29'),
         find.byType(ListView),
         const Offset(0, -300),
       );
-      expect(find.text('Reward 29'), findsOneWidget);
+      // The drag ends in a fling that is still running: let it land.
+      await tester.pumpAndSettle();
+      expect(find.text('Reward 29').hitTestable(), findsOneWidget);
 
       // The same goes for the history on the other tab.
       await tester.tap(find.byKey(const Key('tab-history')));

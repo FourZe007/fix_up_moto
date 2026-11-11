@@ -123,6 +123,28 @@ class VoucherDetailEntity extends Equatable {
     required this.voucherAmount,
   });
 
+  /// Whether this voucher is *clearly* expired as of [today]: the server says so
+  /// (`KADALUARSA`), or its expiry date is before [today]'s date.
+  ///
+  /// Deliberately narrow. The server's other status codes are not confirmed
+  /// yet, so this does not guess which of them mean "used" or "unusable": an
+  /// entry it cannot rule out stays visible. A voucher that expires *today* is
+  /// still good today, and a date that cannot be read cannot be ruled out. This
+  /// is the one place to tighten once the real codes are known.
+  bool isExpiredOn(DateTime today) {
+    if (statusVoucherMemo.trim().toUpperCase() == 'KADALUARSA') return true;
+
+    final expiry = DateTime.tryParse(expirationDate);
+    if (expiry == null) return false;
+
+    // Date parts only, so the time of day never decides it.
+    return DateTime.utc(
+      expiry.year,
+      expiry.month,
+      expiry.day,
+    ).isBefore(DateTime.utc(today.year, today.month, today.day));
+  }
+
   @override
   List<Object> get props => [
     redeemDate,

@@ -151,7 +151,9 @@ class PushNotificationService {
       }
 
       final asked = _prefs.get(askedKey) == true;
-      _trace('enable: allowed by the phone=$granted, explainer answered=$asked');
+      _trace(
+        'enable: allowed by the phone=$granted, explainer answered=$asked',
+      );
       if (!granted && !asked) {
         final answer = await askMember();
         _trace('enable: explainer answer=$answer (null = could not be shown)');
