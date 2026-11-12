@@ -34,6 +34,10 @@ void main() {
         OtpMessage.emailSubject(OtpPurpose.editProfile),
         '[FixUp Moto] Kode Verifikasi Ubah Profil',
       );
+      expect(
+        OtpMessage.emailSubject(OtpPurpose.resetPassword),
+        '[FixUp Moto] Kode Verifikasi Reset Password',
+      );
     });
 
     test('each have their own email heading, in the same shape', () {
@@ -45,6 +49,18 @@ void main() {
         OtpMessage.emailBody(OtpPurpose.editProfile, code),
         '<p>OTP UBAH PROFIL APPLIKASI FIXUP MOTO</p>482915',
       );
+      expect(
+        OtpMessage.emailBody(OtpPurpose.resetPassword, code),
+        '<p>OTP RESET PASSWORD APPLIKASI FIXUP MOTO</p>482915',
+      );
+    });
+
+    test('the WhatsApp text for a forgotten password says it is for a reset, '
+        'not a change', () {
+      final text = OtpMessage.whatsApp(OtpPurpose.resetPassword, code);
+
+      expect(text, contains('reset password'));
+      expect(text, contains(code));
     });
   });
 

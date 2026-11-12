@@ -8,6 +8,7 @@ import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/otp/domain/entities/otp_channel.dart';
 import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
 import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
+import 'package:fix_up_moto/features/password_reset/domain/entities/password_reset_member.dart';
 
 void main() {
   const user = UserEntity(
@@ -252,6 +253,98 @@ void main() {
         guard(const AuthAuthenticated(user), RouteNames.otp),
         RouteNames.home,
       );
+    });
+  });
+
+  group('the forgotten-password pages', () {
+    const member = PasswordResetMember(
+      memberId: '0101202400000014',
+      phone: '81234567890',
+    );
+
+    group('the phone page (/forgot-password)', () {
+      test('is open to a logged-out member, whether or not they have seen '
+          'Welcome', () {
+        for (final state in loggedOutStates.values) {
+          expect(guard(state, RouteNames.forgotPassword), isNull);
+          expect(
+            guard(state, RouteNames.forgotPassword, welcomeSeen: true),
+            isNull,
+          );
+        }
+      });
+
+      test('bounces a logged-in member home, like any auth route', () {
+        expect(
+          guard(const AuthAuthenticated(user), RouteNames.forgotPassword),
+          RouteNames.home,
+        );
+      });
+
+      test('is held back on the splash during a cold start, and left alone '
+          'while an operation is in flight', () {
+        expect(
+          guard(const AuthInitial(), RouteNames.forgotPassword),
+          RouteNames.splash,
+        );
+        expect(guard(const AuthLoading(), RouteNames.forgotPassword), isNull);
+      });
+    });
+
+    group('the new-password page (/reset-password)', () {
+      test('is open to a logged-out member who has the member to reset', () {
+        for (final state in loggedOutStates.values) {
+          expect(guard(state, RouteNames.resetPassword, extra: member), isNull);
+          expect(
+            guard(
+              state,
+              RouteNames.resetPassword,
+              extra: member,
+              welcomeSeen: true,
+            ),
+            isNull,
+          );
+        }
+      });
+
+      test('sends a logged-out member to login when it has lost its member, '
+          'instead of crashing on the missing extra', () {
+        for (final state in loggedOutStates.values) {
+          expect(guard(state, RouteNames.resetPassword), RouteNames.login);
+        }
+        // A member of some other type is as good as none.
+        expect(
+          guard(
+            const AuthUnauthenticated(),
+            RouteNames.resetPassword,
+            extra: 'nope',
+          ),
+          RouteNames.login,
+        );
+      });
+
+      test('bounces a logged-in member home, like any auth route', () {
+        expect(
+          guard(
+            const AuthAuthenticated(user),
+            RouteNames.resetPassword,
+            extra: member,
+          ),
+          RouteNames.home,
+        );
+      });
+
+      test('is left alone while an operation is in flight', () {
+        expect(
+          guard(const AuthLoading(), RouteNames.resetPassword, extra: member),
+          isNull,
+        );
+      });
+    });
+
+    test('the routes are /forgot-password and /reset-password', () {
+      expect(RouteNames.forgotPassword, '/forgot-password');
+      expect(RouteNames.resetPassword, '/reset-password');
     });
   });
 

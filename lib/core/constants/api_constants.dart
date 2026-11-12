@@ -121,6 +121,24 @@ class ApiConstants {
   /// did not (a wrong `OldPass`, say). See
   /// `ProfileRemoteDataSourceImpl.changePassword`.
   ///
+  /// Setting a new password for a member who forgot the old one is `Mode: "5"`
+  /// with the same `TransID: "REGISTRATION"` and a `Data` of:
+  /// ```json
+  /// { "MemberID": "...", "MemberPass": "<new>", "IsGoogle": "0" }
+  /// ```
+  /// (no `PhoneNo`, no `OldPass` — the owner's own request.) A logged-out member
+  /// has no `MemberID`, so the app first gets it from [login] with a throwaway
+  /// password: that is refused (`Flag: 0`, `Memo: "PASSWORD SALAH"`) but still
+  /// answers with the id; a number no member has answers `Flag: 2`, `Memo: "NO
+  /// TELEPON/EMAIL TIDAK TERDAFTAR"` and blank `MemberID`/`MemberName`/
+  /// `EmailAddress`/`IsGoogle` (both from the owner's own captures). The owner
+  /// confirmed that Mode 5 answers a success with the member's id in
+  /// `Data[0].ResultMessage`, as Mode 3 does, and a refusal has the same shape
+  /// with an error sentence there instead. The
+  /// 6-digit code that gates it is made and checked in the app, so the server
+  /// never sees it and cannot tell a reset made through the OTP page from one
+  /// sent by hand. See `PasswordResetRemoteDataSourceImpl`.
+  ///
   /// The same call also carries other writes, picked by `TransID` (always
   /// `Mode: "1"`, answered with `{ResultMessage}`): `"REGISTERMOTOR"` adds a
   /// bike, `"RSV"` creates a booking, and `"REDEEMPOINT"` spends a member's

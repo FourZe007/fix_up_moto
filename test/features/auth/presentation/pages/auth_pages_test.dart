@@ -80,6 +80,11 @@ Future<GoRouter> pumpRouter(
         path: RouteNames.register,
         builder: (_, _) => const RegisterPage(),
       ),
+      // A stand-in for the first screen of the forgotten-password reset.
+      GoRoute(
+        path: RouteNames.forgotPassword,
+        builder: (_, _) => const Scaffold(body: Text('forgot-password-page')),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -920,6 +925,99 @@ void main() {
       await tapText(tester, 'Finish setting up');
 
       expect(otp.opened, isEmpty);
+    });
+  });
+
+  group("Login's 'Lupa password?' link", () {
+    final link = find.byKey(const Key('login-forgot-password'));
+
+    testWidgets('sits right under the password field and above Sign In', (
+      tester,
+    ) async {
+      await pumpPage(tester, const LoginPage());
+
+      final passwordBottom = tester
+          .getBottomLeft(find.widgetWithText(TextFormField, 'Password'))
+          .dy;
+      final signInTop = tester
+          .getTopLeft(find.widgetWithText(ElevatedButton, 'Sign In'))
+          .dy;
+
+      expect(link, findsOneWidget);
+      expect(find.text('Lupa password?'), findsOneWidget);
+      expect(tester.getTopLeft(link).dy, greaterThanOrEqualTo(passwordBottom));
+      expect(tester.getBottomLeft(link).dy, lessThanOrEqualTo(signInTop));
+    });
+
+    testWidgets('is right-aligned, under the end of the password field', (
+      tester,
+    ) async {
+      await pumpPage(tester, const LoginPage());
+
+      final field = find.widgetWithText(TextFormField, 'Password');
+      expect(
+        tester.getTopRight(link).dx,
+        lessThanOrEqualTo(tester.getTopRight(field).dx),
+      );
+      // Nearer the field's right edge than its left.
+      expect(
+        tester.getTopRight(field).dx - tester.getTopRight(link).dx,
+        lessThan(tester.getTopLeft(link).dx - tester.getTopLeft(field).dx),
+      );
+    });
+
+    testWidgets('is at least 44 high, so it is easy to tap', (tester) async {
+      await pumpPage(tester, const LoginPage());
+
+      expect(tester.getSize(link).height, greaterThanOrEqualTo(44));
+    });
+
+    testWidgets('is the darker brand orange in light mode, which passes the '
+        'contrast small text needs', (tester) async {
+      await pumpPage(tester, const LoginPage(), theme: AppTheme.light);
+
+      final color = tester
+          .widget<TextButton>(link)
+          .style
+          ?.foregroundColor
+          ?.resolve({});
+
+      expect(color, AppColors.primaryDark);
+    });
+
+    testWidgets('keeps the theme colour in dark mode, where the darker orange '
+        'would vanish on black', (tester) async {
+      await pumpPage(tester, const LoginPage(), theme: AppTheme.dark);
+
+      expect(tester.widget<TextButton>(link).style?.foregroundColor, isNull);
+    });
+
+    testWidgets('opens the reset page on top of Login, so back returns to '
+        'Login', (tester) async {
+      final router = await pumpRouter(
+        tester,
+        at: RouteNames.welcome,
+        then: [RouteNames.login],
+      );
+
+      await tapText(tester, 'Lupa password?');
+      expect(find.text('forgot-password-page'), findsOneWidget);
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginPage), findsOneWidget);
+    });
+
+    testWidgets('is disabled while a sign-in is running, like the Register '
+        'link', (tester) async {
+      await pumpPage(
+        tester,
+        const LoginPage(),
+        state: const AuthLoading(),
+        settle: false,
+      );
+
+      expect(tester.widget<TextButton>(link).onPressed, isNull);
     });
   });
 

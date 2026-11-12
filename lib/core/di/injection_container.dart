@@ -119,6 +119,12 @@ import 'package:fix_up_moto/features/otp/domain/otp_code_generator.dart';
 import 'package:fix_up_moto/features/otp/domain/repositories/otp_repository.dart';
 import 'package:fix_up_moto/features/otp/domain/usecases/send_otp_usecase.dart';
 import 'package:fix_up_moto/features/otp/presentation/bloc/otp_bloc.dart';
+import 'package:fix_up_moto/features/password_reset/data/datasources/password_reset_remote_data_source.dart';
+import 'package:fix_up_moto/features/password_reset/data/repositories/password_reset_repository_impl.dart';
+import 'package:fix_up_moto/features/password_reset/domain/repositories/password_reset_repository.dart';
+import 'package:fix_up_moto/features/password_reset/domain/usecases/find_member_for_reset_usecase.dart';
+import 'package:fix_up_moto/features/password_reset/domain/usecases/reset_password_usecase.dart';
+import 'package:fix_up_moto/features/password_reset/presentation/bloc/password_reset_bloc.dart';
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/network/dio_client.dart';
 import 'package:fix_up_moto/core/network/network_info.dart';
@@ -364,6 +370,28 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => SendOtpUseCase(sl<OtpRepository>()));
   sl.registerLazySingleton(() => OtpCodeGenerator());
   sl.registerFactory(() => OtpBloc(sendOtp: sl(), generator: sl()));
+
+  // ── Password Reset Feature ────────────────────────────────────────────────
+  // "Lupa password?" for a logged-out, phone-registered member: find them by
+  // phone, then set the new password once the OTP page has passed. Its bloc is
+  // a factory like every page-scoped one: each of the two pages gets its own.
+
+  sl.registerLazySingleton<PasswordResetRemoteDataSource>(
+    () => PasswordResetRemoteDataSourceImpl(sl<DioClient>().dio),
+  );
+  sl.registerLazySingleton<PasswordResetRepository>(
+    () =>
+        PasswordResetRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
+  );
+  sl.registerLazySingleton(
+    () => FindMemberForResetUseCase(sl<PasswordResetRepository>()),
+  );
+  sl.registerLazySingleton(
+    () => ResetPasswordUseCase(sl<PasswordResetRepository>()),
+  );
+  sl.registerFactory(
+    () => PasswordResetBloc(findMember: sl(), resetPassword: sl()),
+  );
 
   // ── Bikes Feature ─────────────────────────────────────────────────────────
   // Split out from Profile's — see BikesRepository's own file and BikesBloc's

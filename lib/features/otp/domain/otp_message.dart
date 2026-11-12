@@ -25,17 +25,20 @@ abstract final class OtpMessage {
     OtpPurpose.register => 'pendaftaran akun',
     OtpPurpose.changePassword => 'ganti password',
     OtpPurpose.editProfile => 'ubah profil',
+    OtpPurpose.resetPassword => 'reset password',
   };
 
   static String _subjectFor(OtpPurpose purpose) => switch (purpose) {
     OtpPurpose.register => 'Registrasi Akun',
     OtpPurpose.changePassword => 'Ganti Password',
     OtpPurpose.editProfile => 'Ubah Profil',
+    OtpPurpose.resetPassword => 'Reset Password',
   };
 
   static String _headingFor(OtpPurpose purpose) => switch (purpose) {
     OtpPurpose.register => 'PENDAFTARAN',
     OtpPurpose.changePassword => 'GANTI PASSWORD',
     OtpPurpose.editProfile => 'UBAH PROFIL',
+    OtpPurpose.resetPassword => 'RESET PASSWORD',
   };
 }

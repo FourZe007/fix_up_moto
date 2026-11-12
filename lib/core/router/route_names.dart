@@ -26,6 +26,18 @@ class RouteNames {
   /// Registration screen — reachable from [welcome] and from the login page.
   static const String register = '/register';
 
+  /// "Lupa password?" — a logged-out, phone-registered member types their
+  /// number to get a code and reset the password they forgot. Opened from
+  /// Login's link, an auth route like [login] and [register].
+  static const String forgotPassword = '/forgot-password';
+
+  /// The second step of a forgotten-password reset: choose the new password,
+  /// after the right code was typed. Opened by [forgotPassword] with a
+  /// `PasswordResetMember` as `extra`, and an auth route for the same reason.
+  /// Without that member there is nothing to reset, so the guard sends the
+  /// member back to [login].
+  static const String resetPassword = '/reset-password';
+
   /// The one-time-code check that stands in front of registering, changing a
   /// password and editing a contact. Pushed with an `OtpRequest` as `extra` and
   /// awaited as a `bool`: `true` only when the right code was typed. Reachable

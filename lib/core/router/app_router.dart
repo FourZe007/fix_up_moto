@@ -22,6 +22,9 @@ import 'package:fix_up_moto/features/invoices/presentation/pages/invoices_page.d
 import 'package:fix_up_moto/features/notification/presentation/pages/notification_page.dart';
 import 'package:fix_up_moto/features/otp/domain/entities/otp_request.dart';
 import 'package:fix_up_moto/features/otp/presentation/pages/otp_verification_page.dart';
+import 'package:fix_up_moto/features/password_reset/domain/entities/password_reset_member.dart';
+import 'package:fix_up_moto/features/password_reset/presentation/pages/forgot_password_page.dart';
+import 'package:fix_up_moto/features/password_reset/presentation/pages/reset_password_page.dart';
 import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/change_password_page.dart';
@@ -80,10 +83,15 @@ class AppRouter {
     final onOtp = location == RouteNames.otp;
     final onCompleteGoogleProfile =
         location == RouteNames.completeGoogleProfile;
+    final onResetPassword = location == RouteNames.resetPassword;
     final onAuthRoute =
         location == RouteNames.welcome ||
         location == RouteNames.login ||
         location == RouteNames.register ||
+        // Both steps of a forgotten-password reset: the member is logged out
+        // for all of it, and a logged-in one has no business here.
+        location == RouteNames.forgotPassword ||
+        onResetPassword ||
         // No backend session exists while this page is on screen — it must
         // be reachable while unauthenticated, same as login/register, or
         // the guard would bounce the user straight back to the welcome screen
@@ -100,6 +108,13 @@ class AppRouter {
     // TypeError. Catch it here instead and send the user back to sign in
     // again rather than crash.
     if (onCompleteGoogleProfile && extra is! GoogleAccountIdentity) {
+      return RouteNames.login;
+    }
+
+    // The new-password page needs the member the reset is for, passed through
+    // `extra` for the same reason, and with the same consequence when it is
+    // missing: a restored route has no member to reset, so start over at login.
+    if (onResetPassword && extra is! PasswordResetMember) {
       return RouteNames.login;
     }
 
@@ -195,6 +210,19 @@ class AppRouter {
       GoRoute(
         path: RouteNames.register,
         builder: (_, _) => const RegisterPage(),
+      ),
+      // Login's "Lupa password?" link. Two steps, with the OTP page in between:
+      // type the phone number, then (after the right code) choose the password.
+      GoRoute(
+        path: RouteNames.forgotPassword,
+        builder: (_, _) => const ForgotPasswordPage(),
+      ),
+      GoRoute(
+        path: RouteNames.resetPassword,
+        // The member arrives via `extra`; the guard has already sent a restored
+        // route without one back to login, so the cast is safe here.
+        builder: (_, state) =>
+            ResetPasswordPage(member: state.extra as PasswordResetMember),
       ),
       // The one-time-code check. Pushed from Register, the Google profile form,
       // Ganti Password and Edit Profile with an OtpRequest as `extra`; the

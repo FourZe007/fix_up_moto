@@ -226,7 +226,55 @@ class _LoginPageState extends State<LoginPage> {
                                     ? 'Password is required'
                                     : null,
                               ),
-                              const SizedBox(height: 24),
+
+                              // ── Lupa password ─────────────────────────────
+                              // Right-aligned under the field it is about,
+                              // where the eye goes after a failed Sign In. It
+                              // is for phone accounts only: a Google account
+                              // has no password to forget, and the page it
+                              // opens says so. Disabled mid-login, like the
+                              // Register link, so nobody navigates away from a
+                              // request that is still running.
+                              //
+                              // primaryDark in light mode, not the theme's
+                              // primary: this is small text on the page's
+                              // lower, plain background, where primary is about
+                              // 3.5:1 and primaryDark about 6:1. On the dark
+                              // theme's black the theme's own colour stays.
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  key: const Key('login-forgot-password'),
+                                  onPressed: isLoading
+                                      ? null
+                                      : () => context.push(
+                                          RouteNames.forgotPassword,
+                                        ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor:
+                                        theme.brightness == Brightness.light
+                                        ? AppColors.primaryDark
+                                        : null,
+                                    // 44 high, as tall as the design's link
+                                    // row, without the extra padding a default
+                                    // button's tap target adds around it.
+                                    minimumSize: const Size(0, 44),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Lupa password?',
+                                    style: TextStyle(
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
 
                               // ── Login button ──────────────────────────────
                               ElevatedButton(
