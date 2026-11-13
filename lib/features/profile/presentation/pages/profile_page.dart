@@ -457,7 +457,7 @@ class _ProfileBody extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          Center(child: Text('Versi Aplikasi 2.0.0')),
+          Center(child: Text('Versi Aplikasi 2.1.0')),
 
           // const Divider(),
 
