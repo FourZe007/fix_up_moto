@@ -34,6 +34,7 @@ import 'package:fix_up_moto/features/profile/presentation/pages/my_bikes_page.da
 import 'package:fix_up_moto/features/profile/presentation/pages/privacy_policy_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/profile_page.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/settings_page.dart';
+import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
 import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_page.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
@@ -389,11 +390,20 @@ class AppRouter {
                   // (not under a standalone /services) so it sits above
                   // Bookings in the back stack and stays inside the shell
                   // scaffold.
+                  //
+                  // The record arrives as `extra` from the Riwayat list: it
+                  // already carries its details, and there is no endpoint to
+                  // look one up by number. Without one — a deep link, a
+                  // restored session — there is nothing to show, so the member
+                  // is sent back to Bookings instead of hitting a bad cast.
                   GoRoute(
                     path:
-                        'services/detail/:id', // full path: /bookings/services/detail/:id
+                        'services/detail', // full path: /bookings/services/detail
+                    redirect: (_, state) => state.extra is ServiceEntity
+                        ? null
+                        : RouteNames.bookings,
                     builder: (_, state) => ServiceDetailPage(
-                      serviceId: state.pathParameters['id']!,
+                      service: state.extra as ServiceEntity,
                     ),
                   ),
                 ],

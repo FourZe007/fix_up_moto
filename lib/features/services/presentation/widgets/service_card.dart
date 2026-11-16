@@ -1,16 +1,22 @@
+import 'package:fix_up_moto/core/helpers/text_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:fix_up_moto/core/helpers/currency_formatter.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
+import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
 /// Displays a single service transaction/history record in the list.
 ///
-/// Mirrors the "My Bookings" card design exactly (see
-/// `_buildBookingsList` in `bookings_page.dart`) — flat black-bordered
-/// `Card`, branch location as the smaller title with the brand prefix
-/// stripped, date under the title, a right-aligned badge centred against
-/// that title+date column, a divider, then the remaining details — so both
-/// segments of the Bookings tab read as one consistent design.
+/// Laid out like the "My Bookings" card next to it — branch location as the
+/// smaller title with the brand prefix stripped, date under the title, the
+/// amount on the right centred against that title+date column, a divider, then
+/// the transaction number and mechanic — but coloured like the invoice card
+/// (`InvoiceCard`), in as few colours as it takes:
+///
+/// - a white surface with a warm hairline border, not a black outline;
+/// - the amount as plain brand-red text, not a tinted, outlined badge;
+/// - everything that is only supporting detail (date, number, mechanic) in one
+///   soft grey, so the title and the amount are the two things that stand out.
 class ServiceCard extends StatelessWidget {
   final ServiceEntity service;
   final VoidCallback? onTap;
@@ -38,13 +44,17 @@ class ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final total = service.amountService + service.amountPart;
 
     return Card(
       elevation: 0,
+      color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Colors.black),
+        // A warm hairline rather than black or grey, like the Profile cards
+        // and the invoices.
+        side: const BorderSide(color: AppColors.peachHairline),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -63,59 +73,42 @@ class ServiceCard extends StatelessWidget {
                       children: [
                         Text(
                           _branchLocationName(service.bsName),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           _displayDate(service.transDate),
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.grey700,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _AmountBadge(amount: total),
+                  Text(
+                    CurrencyFormatter.rupiah(total),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
                 ],
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Divider(height: 1),
+                child: Divider(height: 1, color: AppColors.peachHairline),
               ),
-              Text('${service.transNo} · ${service.eName}'),
+              Text(
+                '${service.transNo} · ${TextFormatter.fromUppercase(service.eName)}',
+                style: const TextStyle(color: AppColors.grey700),
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Total-amount badge — the History equivalent of the My Bookings card's
-/// [_StatusBadge], same shape/padding, styled as a positive/confirmed value
-/// since a completed transaction always has one.
-class _AmountBadge extends StatelessWidget {
-  final double amount;
-  const _AmountBadge({required this.amount});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(
-        CurrencyFormatter.rupiah(amount),
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );

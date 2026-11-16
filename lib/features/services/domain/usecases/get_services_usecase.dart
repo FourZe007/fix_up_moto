@@ -12,16 +12,24 @@ class GetServicesUseCase
 
   @override
   Future<Either<Failure, List<ServiceEntity>>> call(GetServicesParams params) {
-    return repository.getServices(serviceType: params.serviceType);
+    return repository.getServices(
+      serviceType: params.serviceType,
+      plateNo: params.plateNo,
+    );
   }
 }
 
 class GetServicesParams extends Equatable {
-  /// When null, all services are returned regardless of category.
   final String serviceType;
-  final String? plateNo;
 
-  const GetServicesParams({this.serviceType = 'SERVICEHISTORY', this.plateNo});
+  /// The bike whose history is wanted. Required — the backend has no "all
+  /// bikes" answer, so there is no null to forget about.
+  final String plateNo;
+
+  const GetServicesParams({
+    this.serviceType = 'SERVICEHISTORY',
+    required this.plateNo,
+  });
 
   @override
   List<Object?> get props => [serviceType, plateNo];

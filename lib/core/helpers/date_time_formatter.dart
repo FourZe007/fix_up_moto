@@ -148,6 +148,13 @@ class DateTimeFormatter {
     return '${date.day} ${shortMonthId(date)} ${date.year}';
   }
 
+  /// Formats [date] as "30 Agustus 2026" — the full month name, for a line that
+  /// has room for it. Returns an empty string if [date] is null.
+  static String toLongDateId(DateTime? date) {
+    if (date == null) return '';
+    return '${date.day} ${_monthsId[date.month - 1]} ${date.year}';
+  }
+
   /// Formats [date] as "Jumat, 30 Oktober" — the full names, for screen readers.
   static String toSpokenDateId(DateTime date) =>
       '${_weekdaysId[date.weekday - 1]}, ${date.day} '

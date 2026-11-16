@@ -58,9 +58,11 @@ class ApiConstants {
   /// filter), or `{Jenis: "INVOICEBYMEMBER", MemberID, Kode, BeginDate,
   /// EndDate}` for a member's invoices (`Kode` is `"SERVICE"` or `"SPAREPART"`,
   /// the dates are `yyyy-MM-dd` and both included; each record carries its
-  /// lines in `Detail`). Backs the home dashboard stats, My Bikes' list, My
-  /// Bookings, the notification inbox and Riwayat Invoice; `Jenis` selects
-  /// which projection is returned.
+  /// lines in `Detail`), or `{Jenis: "SERVICEHISTORY", PlateNo}` for one bike's
+  /// past services (exactly those two fields: no `MemberID`, and `PlateNo` is
+  /// required). Backs the home dashboard stats, My Bikes' list, My
+  /// Bookings, the notification inbox, Riwayat Invoice and the Bookings tab's
+  /// Riwayat; `Jenis` selects which projection is returned.
   static const String browseTrans = '/apiSAMP/BrowseTrans';
 
   /// GET — the receipt (struk) of one invoice, as a PDF.
@@ -267,8 +269,9 @@ class ApiConstants {
   /// POST — body: `{CategoryID}` (empty string for "all") → list of services.
   static const String services = '/apiSAMP/BrowseService';
 
-  /// POST — body: `{ServiceID}` → single service record.
-  static const String serviceDetail = '/apiSAMP/BrowseServiceDetail';
+  // There is no endpoint for one service's details: each history record
+  // (BrowseTrans, `SERVICEHISTORY`) already carries its own `Detail` and
+  // `Detail2`, so the detail page shows the record it was opened from.
 
   // ── Bookings Endpoints ────────────────────────────────────────────────────
 

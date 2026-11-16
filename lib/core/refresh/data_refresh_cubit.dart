@@ -8,6 +8,11 @@ enum DataKind {
 
   /// The member's dashboard stats record (Home, Membership and Profile).
   stats,
+
+  /// The member's list of bikes: one was added, edited (its plate can change) or
+  /// deleted. Unlike [stats] this fires on an edit too, since a bike's plate is
+  /// what the Bookings tab's Riwayat asks the backend about.
+  bikes,
 }
 
 /// One "this data changed" signal. [version] is what makes two signals for the

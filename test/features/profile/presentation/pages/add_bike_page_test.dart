@@ -93,6 +93,21 @@ void main() {
     expect(refreshCubit.state.kind, DataKind.stats);
   });
 
+  testWidgets("adding a bike also tells Bookings' Riwayat its plates changed", (
+    tester,
+  ) async {
+    final signals = <DataKind?>[];
+    final subscription = refreshCubit.stream.listen((s) => signals.add(s.kind));
+    addTearDown(subscription.cancel);
+    await openAddBikePage(tester);
+
+    states.add(const BikesAdded('Bike added successfully'));
+    await tester.pumpAndSettle();
+
+    // Stats stays the last signal; the bikes one goes first.
+    expect(signals, [DataKind.bikes, DataKind.stats]);
+  });
+
   testWidgets('it still pops with true so My Bikes reloads its own list', (
     tester,
   ) async {

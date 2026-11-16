@@ -15,8 +15,13 @@ import 'package:fix_up_moto/features/bookings/domain/entities/booking_entity.dar
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
+import 'package:fix_up_moto/features/bookings/presentation/models/bike_plate_label.dart';
 import 'package:fix_up_moto/features/bookings/presentation/models/booking_date_range.dart';
 import 'package:fix_up_moto/features/bookings/presentation/widgets/booking_filter_sheet.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
@@ -27,9 +32,11 @@ import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_works
 /// segments of one tab rather than two separate tabs — both are about the
 /// member's visits to FixUp Moto, one past and one upcoming.
 ///
-/// Both [ServicesBloc] and [BookingsBloc] fetch immediately on mount now that
-/// `BookingsRepositoryImpl.getBookings()` targets the confirmed
-/// `BrowseTrans`/`SERVICEBOOKINGHISTORYBYMEMBER` endpoint.
+/// [BookingsBloc] fetches immediately on mount, for the confirmed
+/// `BrowseTrans`/`SERVICEBOOKINGHISTORYBYMEMBER` endpoint. [ServicesBloc] cannot:
+/// Riwayat asks `BrowseTrans`/`SERVICEHISTORY` about one bike's plate (and
+/// nothing else — no member id), so the page first loads the member's bikes
+/// through [BikesBloc], picks the first one, and only then asks for its history.
 class BookingsPage extends StatelessWidget {
   const BookingsPage({super.key});
 
@@ -37,12 +44,12 @@ class BookingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => sl<ServicesBloc>()..add(const ServicesListRequested()),
-        ),
-        // No initial event here: the date range lives in _BookingsViewState,
-        // which dispatches the first load itself (see its initState).
+        // No initial events on any of these: the date range and the chosen
+        // plate live in _BookingsViewState, which dispatches the first loads
+        // itself (see its initState and _onBikes).
+        BlocProvider(create: (_) => sl<ServicesBloc>()),
         BlocProvider(create: (_) => sl<BookingsBloc>()),
+        BlocProvider(create: (_) => sl<BikesBloc>()),
       ],
       child: const _BookingsView(),
     );
@@ -75,6 +82,33 @@ class _BookingsViewState extends State<_BookingsView>
   bool get _filterActive =>
       _dateRange != BookingRangePreset.defaultRange(DateTime.now());
 
+  // ── Riwayat (service history) ─────────────────────────────────────────────
+  // Its own filter, apart from [_dateRange]: that one looks ahead from tomorrow
+  // for upcoming bookings, so applied to past visits it would hide every one.
+  // The panel looks the same on both tabs, so it opens on that same default
+  // range here too; the page just does not treat the default as a cut.
+
+  /// The member's bikes, as last loaded. Kept here (not read off the bloc when
+  /// the panel opens) because the bloc's state is a spinner while it reloads.
+  List<BikeEntity> _bikes = const [];
+
+  /// The bike whose history Riwayat shows. Required by the backend, so it is
+  /// null only until the bikes have loaded (or if the member has none): the
+  /// first bike is picked the moment they do.
+  String? _plateNo;
+
+  /// Past visits are cut to this range on the device. Null (the start, and
+  /// whenever the panel is applied on its default range) shows them all: the
+  /// default is tomorrow to a month ahead, which no past visit falls inside.
+  DateTimeRange? _historyRange;
+
+  /// Whether Riwayat is on something other than what it opens on (every date,
+  /// the first bike). The plate is always set, so it only counts when it is not
+  /// the first bike.
+  bool get _historyFilterActive =>
+      _historyRange != null ||
+      (_bikes.isNotEmpty && _plateNo != _bikes.first.plateNo);
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +117,7 @@ class _BookingsViewState extends State<_BookingsView>
         if (!_tabController.indexIsChanging) setState(() {});
       });
     _loadBookings();
+    _loadBikes();
   }
 
   // Opens the filter SlidingUpPanel as a transparent route on the *root*
@@ -97,7 +132,15 @@ class _BookingsViewState extends State<_BookingsView>
   // (also a root-navigator route) opened *under* the panel and its dimmed
   // backdrop swallowed every tap on it. Routes stack in push order, so the
   // picker lands on top of this one.
+  //
+  // The tab cannot change while the panel is open, so which of the two panels
+  // to build is decided here, once.
   void _openFilter() {
+    final history = !_onMyBookings;
+    // Riwayat has nothing to choose between without a bike. (The filter button
+    // is disabled then; this guards a stale tap.)
+    if (history && _bikes.isEmpty) return;
+
     showGeneralDialog<void>(
       context: context,
       useRootNavigator: true,
@@ -106,12 +149,25 @@ class _BookingsViewState extends State<_BookingsView>
       barrierDismissible: false,
       barrierColor: Colors.transparent,
       transitionDuration: Duration.zero,
-      pageBuilder: (_, _, _) => BookingFilterSheet(
-        initialRange: _dateRange,
-        onApply: _applyDateRange,
-      ),
+      pageBuilder: (_, _, _) => history
+          ? BookingFilterSheet(
+              initialRange:
+                  _historyRange ??
+                  BookingRangePreset.defaultRange(DateTime.now()),
+              bikes: _bikes,
+              initialPlateNo: _plateNo,
+              onApply: _applyHistoryFilter,
+            )
+          : BookingFilterSheet(
+              initialRange: _dateRange,
+              onApply: (range, _) => _applyDateRange(range),
+            ),
     );
   }
+
+  /// The filter button works on My Bookings always, and on Riwayat once there is
+  /// a bike to choose.
+  bool get _canOpenFilter => _onMyBookings || _bikes.isNotEmpty;
 
   @override
   void dispose() {
@@ -160,6 +216,56 @@ class _BookingsViewState extends State<_BookingsView>
   void _resetDateRange() =>
       _applyDateRange(BookingRangePreset.defaultRange(DateTime.now()));
 
+  /// Fetches the member's bikes: the plates Riwayat can ask about.
+  void _loadBikes() =>
+      context.read<BikesBloc>().add(const BikesLoadRequested());
+
+  /// Fetches the history of the chosen bike. Nothing to ask without a plate.
+  void _loadHistory() {
+    final plateNo = _plateNo;
+    if (plateNo == null) return;
+    context.read<ServicesBloc>().add(ServicesListRequested(plateNo: plateNo));
+  }
+
+  /// The bikes arrived (first load, or a reload after one was added, edited or
+  /// deleted). Keeps the chosen plate if that bike is still there; otherwise
+  /// picks the first one, and with none there is nothing to show.
+  void _onBikes(BuildContext context, BikesState state) {
+    if (state is! BikesLoaded) return;
+
+    final bikes = state.bikes;
+    final before = _plateNo;
+    final stillThere = bikes.any((bike) => bike.plateNo == before);
+    final plateNo = stillThere
+        ? before
+        : (bikes.isEmpty ? null : bikes.first.plateNo);
+
+    setState(() {
+      _bikes = bikes;
+      _plateNo = plateNo;
+    });
+    // Only a different bike changes what Riwayat shows.
+    if (plateNo != before) _loadHistory();
+  }
+
+  /// From the Riwayat panel. A new plate is fetched from the backend; a new
+  /// date range only changes what is cut from what is already loaded. The
+  /// panel's default range (what it opens on, and what "Reset" gives) is no cut
+  /// at all, as it is for My Bookings, where the default is simply not a filter.
+  void _applyHistoryFilter(DateTimeRange range, String? plateNo) {
+    // The panel is a route of its own and can outlive this page's State.
+    if (!mounted) return;
+    final changedPlate = plateNo != null && plateNo != _plateNo;
+    final isDefault = range == BookingRangePreset.defaultRange(DateTime.now());
+    setState(() {
+      _historyRange = isDefault ? null : range;
+      if (plateNo != null) _plateNo = plateNo;
+    });
+    if (changedPlate) _loadHistory();
+  }
+
+  void _resetHistoryRange() => setState(() => _historyRange = null);
+
   @override
   Widget build(BuildContext context) {
     // The bar is orange in light mode (dark text) and black in dark mode
@@ -169,15 +275,30 @@ class _BookingsViewState extends State<_BookingsView>
         : AppColors.backgroundDark;
 
     // This tab stays alive while hidden, so it reloads the moment a booking is
-    // created elsewhere (the create page signals DataKind.bookings).
+    // created elsewhere (the create page signals DataKind.bookings), and its
+    // plate list the moment a bike is added, edited or deleted (DataKind.bikes).
+    //
+    // The bikes listener sits here, above both tabs, rather than inside
+    // Riwayat: the TabBarView only builds the tab on screen, and the first
+    // bike must be picked (and its history asked for) whichever tab is open.
     return RefreshOn(
       kind: DataKind.bookings,
       onRefresh: (_) => _loadBookings(),
-      child: _scaffold(context, searchColor),
+      child: RefreshOn(
+        kind: DataKind.bikes,
+        onRefresh: (_) => _loadBikes(),
+        child: BlocListener<BikesBloc, BikesState>(
+          listener: _onBikes,
+          child: _scaffold(context, searchColor),
+        ),
+      ),
     );
   }
 
   Widget _scaffold(BuildContext context, Color searchColor) {
+    final filterOn = _onMyBookings ? _filterActive : _historyFilterActive;
+    final filterName = _onMyBookings ? 'Filter tanggal' : 'Filter riwayat';
+
     return Scaffold(
       // MainShell.backdropOf repeats this colour for the iOS tab bar's strip.
       backgroundColor: AppTheme.brandBackdrop(context),
@@ -210,18 +331,18 @@ class _BookingsViewState extends State<_BookingsView>
             onPressed: () => context.push(RouteNames.myBikes),
           ),
 
-          // Date filter button — a dot on it says a filter is on.
+          // Filter button — a dot on it says a filter is on. It follows the
+          // tab: dates on My Bookings, bike and dates on Riwayat (where it
+          // waits for a bike).
           IconButton(
             icon: Badge(
-              isLabelVisible: _filterActive,
+              isLabelVisible: filterOn,
               smallSize: 10,
               backgroundColor: Colors.white,
               child: const Icon(Icons.tune),
             ),
-            tooltip: _filterActive
-                ? 'Filter tanggal (aktif)'
-                : 'Filter tanggal',
-            onPressed: _openFilter,
+            tooltip: filterOn ? '$filterName (aktif)' : filterName,
+            onPressed: _canOpenFilter ? _openFilter : null,
           ),
         ],
         bottom: TabBar(
@@ -248,13 +369,27 @@ class _BookingsViewState extends State<_BookingsView>
         child: LightSurfaceScope(
           child: Column(
             children: [
-              // Says which range the lists are cut to, once it is not the
+              // Says which range My Bookings is cut to, once it is not the
               // default; its cross goes back to the default.
-              if (_filterActive)
+              if (_onMyBookings && _filterActive)
                 _ActiveRangeChip(
                   range: _dateRange,
                   onTap: _openFilter,
                   onClear: _resetDateRange,
+                ),
+              // Riwayat always says which bike it shows (the backend answers
+              // per plate, so there is always one), and which dates once cut.
+              if (!_onMyBookings && _plateNo != null)
+                _HistoryChips(
+                  plateLabel:
+                      _bikes
+                          .where((bike) => bike.plateNo == _plateNo)
+                          .map((bike) => bike.plateLabel)
+                          .firstOrNull ??
+                      _plateNo!,
+                  range: _historyRange,
+                  onTap: _openFilter,
+                  onClearRange: _resetHistoryRange,
                 ),
               Expanded(
                 child: TabBarView(
@@ -293,10 +428,7 @@ class _BookingsViewState extends State<_BookingsView>
                               child: Column(
                                 spacing: 20,
                                 mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AppSpinner(),
-                                  Text('Loading...'),
-                                ],
+                                children: [AppSpinner(), Text('Loading...')],
                               ),
                             ),
                             BookingsError(:final message) => Center(
@@ -306,10 +438,7 @@ class _BookingsViewState extends State<_BookingsView>
                               child: Column(
                                 spacing: 20,
                                 mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AppSpinner(),
-                                  Text('Loading...'),
-                                ],
+                                children: [AppSpinner(), Text('Loading...')],
                               ),
                             ),
                             BookingsLoaded(:final bookings) =>
@@ -318,7 +447,7 @@ class _BookingsViewState extends State<_BookingsView>
                         },
                       ),
                     ),
-                    ServicesHistoryView(query: _query, dateRange: _dateRange),
+                    _buildHistory(),
                   ],
                 ),
               ),
@@ -334,6 +463,77 @@ class _BookingsViewState extends State<_BookingsView>
               child: const Icon(Icons.add),
             )
           : null,
+    );
+  }
+
+  /// The Riwayat tab. Once a bike is chosen it shows that bike's history; until
+  /// then there is nothing to ask the backend about, so it shows where the
+  /// member is on the way to one: loading the bikes, failing to, or having none.
+  Widget _buildHistory() {
+    final plateNo = _plateNo;
+    if (plateNo != null) {
+      return ServicesHistoryView(
+        query: _query,
+        dateRange: _historyRange,
+        plateNo: plateNo,
+      );
+    }
+
+    return BlocBuilder<BikesBloc, BikesState>(
+      builder: (context, state) {
+        return switch (state) {
+          BikesError(:final message) => Center(
+            child: Column(
+              spacing: 12,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(message),
+                ElevatedButton(
+                  key: const Key('history-bikes-retry'),
+                  onPressed: _loadBikes,
+                  child: const Text('Muat Ulang'),
+                ),
+              ],
+            ),
+          ),
+          BikesLoaded(:final bikes) when bikes.isEmpty => Center(
+            key: const Key('history-no-bikes'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                spacing: 12,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Belum ada motor terdaftar',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const Text(
+                    'Riwayat servis ditampilkan per motor. Tambahkan motor '
+                    'kamu dulu.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12.5, color: AppColors.grey700),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(RouteNames.myBikes),
+                    icon: const Icon(Icons.motorcycle_rounded),
+                    label: const Text('Motor Saya'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Not loaded yet (or loaded a moment ago, before the page has picked
+          // the first bike): the same spinner as everywhere else.
+          _ => const Center(
+            child: Column(
+              spacing: 20,
+              mainAxisSize: MainAxisSize.min,
+              children: [AppSpinner(), Text('Loading...')],
+            ),
+          ),
+        };
+      },
     );
   }
 
@@ -383,9 +583,12 @@ class _BookingsViewState extends State<_BookingsView>
             // elevation: 0 removes the shadow entirely rather than just
             // hiding its color, which would still reserve shadow space.
             elevation: 0,
+            color: Theme.of(context).colorScheme.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.grey[300]!),
+              // The same warm hairline as the Riwayat card and the invoices,
+              // so the two tabs' cards read as one design.
+              side: const BorderSide(color: AppColors.peachHairline),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
@@ -420,26 +623,36 @@ class _BookingsViewState extends State<_BookingsView>
                                 DateTimeFormatter.toFullDateTime(
                                   booking.scheduledAt,
                                 ),
-                                style: Theme.of(context).textTheme.bodySmall,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppColors.grey700),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(width: 8),
-                        _StatusBadge(status: booking.status),
+                        _StatusLabel(status: booking.status),
                       ],
                     ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(height: 1),
+                      child: Divider(height: 1, color: AppColors.peachHairline),
                     ),
                     Text(
                       '${booking.plateNo} · ${booking.unitId}',
-                      style: TextStyle(fontSize: 14),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.grey700,
+                      ),
                     ),
                     if (booking.notes != null) ...[
                       const SizedBox(height: 4),
-                      Text(booking.notes ?? '', style: TextStyle(fontSize: 12)),
+                      Text(
+                        booking.notes ?? '',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.grey700,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -553,14 +766,77 @@ class _ActiveRangeChip extends StatelessWidget {
   }
 }
 
-/// Coloured badge showing the booking status string verbatim (the backend
-/// sends Bahasa Indonesia text, e.g. "MENUNGGU KONFIRMASI" — not a fixed
-/// enum), so only the one confirmed value gets its own colour; anything else
-/// stays neutral until more of the vocabulary is confirmed against the
-/// backend, rather than guessing translations/other status strings.
-class _StatusBadge extends StatelessWidget {
+/// What Riwayat is showing, as chips under the tabs: the bike (always — there
+/// is no "all bikes"), and the date range once it is cut. Tapping either opens
+/// the panel; the range's cross goes back to every date. The bike has no cross,
+/// since one is required.
+class _HistoryChips extends StatelessWidget {
+  final String plateLabel;
+  final DateTimeRange? range;
+  final VoidCallback onTap;
+  final VoidCallback onClearRange;
+
+  const _HistoryChips({
+    required this.plateLabel,
+    required this.range,
+    required this.onTap,
+    required this.onClearRange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final range = this.range;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            InputChip(
+              key: const Key('history-plate-chip'),
+              avatar: const Icon(
+                Icons.motorcycle_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              label: Text(plateLabel),
+              onPressed: onTap,
+              backgroundColor: AppColors.peachMist,
+              side: const BorderSide(color: AppColors.peachHairline),
+            ),
+            if (range != null)
+              InputChip(
+                key: const Key('history-range-chip'),
+                avatar: const Icon(
+                  Icons.date_range_outlined,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+                label: Text(range.chipLabel),
+                onPressed: onTap,
+                onDeleted: onClearRange,
+                deleteButtonTooltipMessage: 'Hapus filter tanggal',
+                backgroundColor: AppColors.peachMist,
+                side: const BorderSide(color: AppColors.peachHairline),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The booking status string verbatim (the backend sends Bahasa Indonesia
+/// text, e.g. "MENUNGGU KONFIRMASI" — not a fixed enum), as plain coloured text
+/// like the amount on the Riwayat card, with no tinted, outlined box. Only the
+/// one confirmed value gets its own colour; anything else stays neutral until
+/// more of the vocabulary is confirmed against the backend, rather than
+/// guessing translations/other status strings.
+class _StatusLabel extends StatelessWidget {
   final String status;
-  const _StatusBadge({required this.status});
+  const _StatusLabel({required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -569,20 +845,11 @@ class _StatusBadge extends StatelessWidget {
       _ => AppColors.grey600,
     };
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
+    return Text(
+      status,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: color,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

@@ -77,8 +77,9 @@ class RouteNames {
   // ── Detail / nested routes ────────────────────────────────────────────────
 
   /// Service detail screen, nested under Bookings now that Services has no
-  /// tab of its own — append the service ID when navigating:
-  ///   `context.go('${RouteNames.serviceDetail}/abc123')`
+  /// tab of its own. The record to show goes as `extra`, since it already holds
+  /// its own details and there is no call to load them again:
+  ///   `context.push(RouteNames.serviceDetail, extra: serviceEntity)`
   static const String serviceDetail = '/bookings/services/detail';
 
   /// Create a new booking — opened from the Services detail or Bookings tab.

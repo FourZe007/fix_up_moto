@@ -143,6 +143,9 @@ class _MyBikesViewState extends State<_MyBikesView> {
     final updated = await context.push<bool>(RouteNames.editBike, extra: bike);
     if (updated == true && mounted) {
       context.read<BikesBloc>().add(const BikesLoadRequested());
+      // The plate may have changed, and Bookings' Riwayat asks the backend by
+      // plate. Not stats: an edit leaves the bike count unchanged.
+      context.read<DataRefreshCubit>().invalidate(DataKind.bikes);
     }
   }
 
@@ -241,8 +244,12 @@ class _MyBikesViewState extends State<_MyBikesView> {
 
                 context.read<BikesBloc>().add(BikesLoadRequested());
 
-                // The bike count Home, Membership and Profile show has changed.
-                context.read<DataRefreshCubit>().invalidate(DataKind.stats);
+                // The bike count Home, Membership and Profile show has changed,
+                // and so has the plate list Bookings' Riwayat chooses from. The
+                // bikes signal goes first, so stats stays the last one sent.
+                context.read<DataRefreshCubit>()
+                  ..invalidate(DataKind.bikes)
+                  ..invalidate(DataKind.stats);
               } else if (state is BikesUpdated) {
                 context.read<BikesBloc>().add(BikesLoadRequested());
               }

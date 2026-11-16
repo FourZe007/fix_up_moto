@@ -110,7 +110,6 @@ import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_works
 import 'package:fix_up_moto/features/services/data/datasources/services_remote_data_source.dart';
 import 'package:fix_up_moto/features/services/data/repositories/services_repository_impl.dart';
 import 'package:fix_up_moto/features/services/domain/repositories/services_repository.dart';
-import 'package:fix_up_moto/features/services/domain/usecases/get_service_detail_usecase.dart';
 import 'package:fix_up_moto/features/services/domain/usecases/get_services_usecase.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/features/otp/data/datasources/otp_remote_data_source.dart';
@@ -286,12 +285,7 @@ Future<void> initDependencies() async {
     () => ServicesRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
   sl.registerLazySingleton(() => GetServicesUseCase(sl<ServicesRepository>()));
-  sl.registerLazySingleton(
-    () => GetServiceDetailUseCase(sl<ServicesRepository>()),
-  );
-  sl.registerFactory(
-    () => ServicesBloc(getServices: sl(), getServiceDetail: sl()),
-  );
+  sl.registerFactory(() => ServicesBloc(getServices: sl()));
 
   // ── Feeds Feature ─────────────────────────────────────────────────────────
 

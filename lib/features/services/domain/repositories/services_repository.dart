@@ -3,12 +3,10 @@ import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/features/services/domain/entities/service_entity.dart';
 
 abstract class ServicesRepository {
-  /// Returns all available services, optionally filtered by [categoryId].
+  /// Returns the service history of the bike with [plateNo]. The plate is
+  /// required: the backend answers per plate, never per member.
   Future<Either<Failure, List<ServiceEntity>>> getServices({
     String serviceType = 'SERVICEHISTORY',
-    String? plateNo,
+    required String plateNo,
   });
-
-  /// Returns full details for the service identified by [id].
-  Future<Either<Failure, ServiceEntity>> getServiceDetail(String id);
 }

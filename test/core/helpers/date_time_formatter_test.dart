@@ -26,6 +26,19 @@ void main() {
       expect(DateTimeFormatter.toShortDateId(null), '');
     });
 
+    test('toLongDateId writes the full month name without the weekday', () {
+      expect(
+        DateTimeFormatter.toLongDateId(DateTime(2026, 8, 30)),
+        '30 Agustus 2026',
+      );
+      expect(DateTimeFormatter.toLongDateId(friday), '30 Oktober 2026');
+      expect(
+        DateTimeFormatter.toLongDateId(DateTime(2024, 9, 5)),
+        '5 September 2024',
+      );
+      expect(DateTimeFormatter.toLongDateId(null), '');
+    });
+
     test('toSpokenDateId writes the full names', () {
       expect(DateTimeFormatter.toSpokenDateId(friday), 'Jumat, 30 Oktober');
     });

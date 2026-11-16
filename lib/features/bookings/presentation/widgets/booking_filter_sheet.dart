@@ -1,11 +1,28 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
+import 'package:fix_up_moto/features/bookings/presentation/models/bike_plate_label.dart';
 import 'package:fix_up_moto/features/bookings/presentation/models/booking_date_range.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 
-/// The Bookings date filter as the whole content of the route that
+/// How many bikes Riwayat lists before "Lihat Semua". Five or fewer show whole,
+/// with no button.
+const int _collapsedBikeCount = 5;
+
+/// The gap above and below a section title (see `_label`).
+const double _labelTopGap = 20;
+const double _labelBottomGap = 10;
+
+/// What the panel hands back from "Terapkan" or "Reset": the date range, and on
+/// Riwayat the chosen bike's plate (always set there; null on My Bookings).
+typedef BookingFilterApply =
+    void Function(DateTimeRange range, String? plateNo);
+
+/// The Bookings filter as the whole content of the route that
 /// `_BookingsViewState._openFilter` pushes: a dimmed backdrop over the page and
 /// a [SlidingUpPanel] sliding up from the bottom.
 ///
@@ -14,9 +31,16 @@ import 'package:fix_up_moto/features/bookings/presentation/models/booking_date_r
 /// slid back out, however it was closed (Terapkan, Reset, the X, a tap on
 /// the backdrop, a drag down, or the back button).
 ///
+/// The date section is the same on both tabs; Riwayat adds a "Motor" section
+/// above it, chosen by [bikes]. The tab cannot change while the panel is open,
+/// so the page decides once, when it opens it.
+///
 /// ```text
-/// (o)  Filter Tanggal                                  [X]
-///      Berlaku untuk My Bookings dan History
+/// (o)  Filter Tanggal / Filter Riwayat                 [X]
+///      Berlaku untuk My Bookings / Pilih motor dan rentang tanggal
+///
+/// Motor                                   (Riwayat only)
+/// [v B 1234 XY · YAMAHA R25] [D 5678 CD · HONDA BEAT]   Lihat Semua
 ///
 /// Pilihan cepat
 /// [7 hari] [v 1 bulan] [Bulan ini] [3 bulan] [Pilih sendiri]
@@ -32,14 +56,25 @@ class BookingFilterSheet extends StatefulWidget {
   /// The range currently applied — what the panel starts on.
   final DateTimeRange initialRange;
 
-  /// Called with the range to apply, from "Terapkan" or, with the default
-  /// range, from "Reset". The panel closes itself right after.
-  final ValueChanged<DateTimeRange> onApply;
+  /// The member's bikes, which adds the Riwayat panel's "Motor" section: one
+  /// choice per bike. Null on My Bookings. Must not be empty when set — Riwayat
+  /// asks the backend about one plate, so there has to be one to pick.
+  final List<BikeEntity>? bikes;
+
+  /// The plate currently applied on Riwayat. If it is not among [bikes] the
+  /// first bike is chosen.
+  final String? initialPlateNo;
+
+  /// Called from "Terapkan" and from "Reset" (which applies the page's
+  /// defaults). The panel closes itself right after.
+  final BookingFilterApply onApply;
 
   const BookingFilterSheet({
     super.key,
     required this.initialRange,
     required this.onApply,
+    this.bikes,
+    this.initialPlateNo,
   });
 
   @override
@@ -76,11 +111,18 @@ class _BookingFilterSheetState extends State<BookingFilterSheet> {
   }
 
   /// Tall enough for the header, two rows of shortcuts, the two date cards and
-  /// the buttons; grows with the text size and the gesture bar, never past
-  /// most of the screen. The panel scrolls if its content is still taller.
+  /// the buttons (Riwayat adds the "Motor" section on top, a row more for each
+  /// bike showing at first, since a plate and model leave one chip to a row on
+  /// a phone); grows with the text size and the gesture bar, never past most of
+  /// the screen. The panel scrolls if its content is still taller, as it will
+  /// once the list of bikes is expanded.
   double _panelHeight(BuildContext context) {
     final media = MediaQuery.of(context);
-    final height = 480 * media.textScaler.scale(1) + media.viewPadding.bottom;
+    final bikes = widget.bikes;
+    final base = bikes == null
+        ? 480
+        : 600 + 50 * (math.min(bikes.length, _collapsedBikeCount) - 1);
+    final height = base * media.textScaler.scale(1) + media.viewPadding.bottom;
     return height.clamp(0.0, media.size.height * 0.9).toDouble();
   }
 
@@ -117,6 +159,8 @@ class _BookingFilterSheetState extends State<BookingFilterSheet> {
         panel: LightSurfaceScope(
           child: _FilterPanel(
             initialRange: widget.initialRange,
+            bikes: widget.bikes,
+            initialPlateNo: widget.initialPlateNo,
             onApply: widget.onApply,
             onClose: _controller.close,
           ),
@@ -126,15 +170,19 @@ class _BookingFilterSheetState extends State<BookingFilterSheet> {
   }
 }
 
-/// What is inside the panel. The member edits a draft range here; nothing
-/// reaches the page until "Terapkan".
+/// What is inside the panel. The member edits a draft (a range and, on
+/// Riwayat, a plate) here; nothing reaches the page until "Terapkan".
 class _FilterPanel extends StatefulWidget {
   final DateTimeRange initialRange;
-  final ValueChanged<DateTimeRange> onApply;
+  final List<BikeEntity>? bikes;
+  final String? initialPlateNo;
+  final BookingFilterApply onApply;
   final VoidCallback onClose;
 
   const _FilterPanel({
     required this.initialRange,
+    required this.bikes,
+    required this.initialPlateNo,
     required this.onApply,
     required this.onClose,
   });
@@ -146,14 +194,48 @@ class _FilterPanel extends StatefulWidget {
 class _FilterPanelState extends State<_FilterPanel> {
   late DateTimeRange _draft = widget.initialRange;
 
+  /// The plate chosen on Riwayat; always one of the bikes, never null there.
+  /// Null on My Bookings, which has no plate.
+  late String? _plateNo = _startingPlate();
+
+  /// Whether Riwayat lists every bike instead of the first few. It starts open
+  /// when the bike already applied is one of the hidden ones, so the panel never
+  /// opens with the member's current choice out of sight.
+  late bool _showAllBikes = _plateIsHidden();
+
+  /// Whether this is the Riwayat panel.
+  bool get _history => widget.bikes != null;
+
+  bool _plateIsHidden() {
+    final bikes = widget.bikes;
+    if (bikes == null) return false;
+    final index = bikes.indexWhere((bike) => bike.plateNo == _plateNo);
+    return index >= _collapsedBikeCount;
+  }
+
+  String? _startingPlate() {
+    final bikes = widget.bikes;
+    if (bikes == null) return null;
+    final applied = widget.initialPlateNo;
+    return bikes.any((bike) => bike.plateNo == applied)
+        ? applied
+        : bikes.first.plateNo;
+  }
+
   /// The full range picker, which both "Pilih sendiri" and the two date cards
   /// open. It is a route on the root navigator, so it lands above the panel's
   /// own route.
+  ///
+  /// Both tabs can pick a year ahead (the panel opens on a range that starts
+  /// tomorrow, which has to fit). Riwayat can look back as far as a bike might
+  /// have been serviced; My Bookings only a year.
   Future<void> _pickRange() async {
     final today = DateUtils.dateOnly(DateTime.now());
     final picked = await showDateRangePicker(
       context: context,
-      firstDate: DateUtils.addDaysToDate(today, -365),
+      firstDate: _history
+          ? DateTime(today.year - 10)
+          : DateUtils.addDaysToDate(today, -365),
       lastDate: DateUtils.addDaysToDate(today, 365),
       initialDateRange: _draft,
       helpText: 'Pilih rentang tanggal',
@@ -167,16 +249,48 @@ class _FilterPanelState extends State<_FilterPanel> {
     if (picked != null && mounted) setState(() => _draft = picked);
   }
 
-  Widget _label(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 20, bottom: 10),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: AppColors.grey700,
+  /// A section title, with [trailing] (a text button) at the right end of the
+  /// same row, centred on the title.
+  ///
+  /// With a [trailing] the title's own gap above and below is split into an
+  /// equal part inside a centre-aligned row (so the button and the title share
+  /// a middle whatever their heights) and the rest outside it. The title lands
+  /// exactly where a plain one does, and nothing below it moves — as long as the
+  /// button is no taller than the title and its equal gap, which a text button
+  /// is not.
+  Widget _label(String text, {Widget? trailing}) {
+    final title = Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: AppColors.grey700,
+      ),
+    );
+    if (trailing == null) {
+      return Padding(
+        padding: const EdgeInsets.only(
+          top: _labelTopGap,
+          bottom: _labelBottomGap,
         ),
+        child: title,
+      );
+    }
+
+    // The equal gap kept inside the row: the most the bottom gap can give.
+    const inside = _labelBottomGap;
+    return Padding(
+      padding: const EdgeInsets.only(top: _labelTopGap - inside),
+      child: Row(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: inside),
+              child: title,
+            ),
+          ),
+          trailing,
+        ],
       ),
     );
   }
@@ -215,6 +329,15 @@ class _FilterPanelState extends State<_FilterPanel> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final selected = BookingRangePreset.matching(_draft, now);
+    final bikes = widget.bikes;
+    // Which bikes show as chips: all of them, or the first few until the member
+    // opens the rest.
+    final hasHiddenBikes = bikes != null && bikes.length > _collapsedBikeCount;
+    final Iterable<BikeEntity> shownBikes = bikes == null
+        ? const []
+        : (hasHiddenBikes && !_showAllBikes
+              ? bikes.take(_collapsedBikeCount)
+              : bikes);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
     // A transparent Material between the panel's coloured box and the chips
@@ -254,27 +377,29 @@ class _FilterPanelState extends State<_FilterPanel> {
                     color: AppColors.peachLight,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.date_range_outlined,
+                  child: Icon(
+                    _history ? Icons.history : Icons.date_range_outlined,
                     color: AppColors.primaryDark,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Filter Tanggal',
-                        style: TextStyle(
+                        _history ? 'Filter Riwayat' : 'Filter Tanggal',
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                         ),
                       ),
                       Text(
-                        'Berlaku untuk My Bookings dan History',
-                        style: TextStyle(
+                        _history
+                            ? 'Pilih motor dan rentang tanggal'
+                            : 'Berlaku untuk My Bookings',
+                        style: const TextStyle(
                           fontSize: 12.5,
                           color: AppColors.grey700,
                         ),
@@ -291,6 +416,55 @@ class _FilterPanelState extends State<_FilterPanel> {
                 ),
               ],
             ),
+
+            // ── Motor (Riwayat only) ────────────────────────────────────────
+            // Always one chosen: the backend answers per plate, so there is no
+            // "all bikes" to offer. Past five bikes only the first five show,
+            // with "Lihat Semua" at the right of the title to open the rest;
+            // with five or fewer there is nothing hidden, so no button.
+            if (bikes != null) ...[
+              _label(
+                'Motor',
+                trailing: hasHiddenBikes
+                    ? TextButton(
+                        key: const Key('history-plates-toggle'),
+                        onPressed: () =>
+                            setState(() => _showAllBikes = !_showAllBikes),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primaryDark,
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 8,
+                          ),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        child: Text(
+                          _showAllBikes
+                              ? 'Tampilkan lebih sedikit'
+                              : 'Lihat Semua',
+                        ),
+                      )
+                    : null,
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final bike in shownBikes)
+                    _chip(
+                      key: Key('history-plate-${bike.plateNo}'),
+                      label: bike.plateLabel,
+                      selected: bike.plateNo == _plateNo,
+                      onTap: () => setState(() => _plateNo = bike.plateNo),
+                    ),
+                ],
+              ),
+            ],
 
             // ── Shortcuts ───────────────────────────────────────────────────
             _label('Pilihan cepat'),
@@ -361,8 +535,13 @@ class _FilterPanelState extends State<_FilterPanel> {
                   flex: 5,
                   child: OutlinedButton(
                     key: const Key('bookings-filter-reset'),
+                    // Back to what the tab opens on: the default range, and on
+                    // Riwayat the first bike.
                     onPressed: () {
-                      widget.onApply(BookingRangePreset.defaultRange(now));
+                      widget.onApply(
+                        BookingRangePreset.defaultRange(now),
+                        bikes?.first.plateNo,
+                      );
                       widget.onClose();
                     },
                     // The app theme gives ElevatedButton a tall minimumSize and
@@ -391,7 +570,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                   child: ElevatedButton(
                     key: const Key('bookings-filter-apply'),
                     onPressed: () {
-                      widget.onApply(_draft);
+                      widget.onApply(_draft, _plateNo);
                       widget.onClose();
                     },
                     style: ElevatedButton.styleFrom(

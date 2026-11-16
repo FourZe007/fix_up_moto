@@ -18,7 +18,7 @@ class ServicesRepositoryImpl implements ServicesRepository {
   @override
   Future<Either<Failure, List<ServiceEntity>>> getServices({
     String serviceType = 'SERVICEHISTORY',
-    String? plateNo,
+    required String plateNo,
   }) async {
     if (!await networkInfo.isConnected) {
       return const Left(NetworkFailure('No internet connection'));
@@ -35,25 +35,6 @@ class ServicesRepositoryImpl implements ServicesRepository {
       return Left(PermissionFailure(e.message));
     } on NotFoundException catch (e) {
       return Left(NotFoundFailure(e.message));
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message, statusCode: e.statusCode));
-    }
-  }
-
-  @override
-  Future<Either<Failure, ServiceEntity>> getServiceDetail(String id) async {
-    if (!await networkInfo.isConnected) {
-      return const Left(NetworkFailure('No internet connection'));
-    }
-    try {
-      final model = await remoteDataSource.getServiceDetail(id);
-      return Right(model.toEntity());
-    } on UnauthorizedException {
-      return const Left(AuthFailure('Session expired. Please sign in again.'));
-    } on ForbiddenException catch (e) {
-      return Left(PermissionFailure(e.message));
-    } on NotFoundException {
-      return const Left(NotFoundFailure('Service not found'));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }

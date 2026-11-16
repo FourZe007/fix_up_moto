@@ -90,7 +90,11 @@ class _AddBikeView extends StatelessWidget {
                   // A new bike can change the member's stats (Home, Membership
                   // and Profile are alive in the tab stack), so tell them to
                   // reload. Read before the pop, while this context is active.
-                  context.read<DataRefreshCubit>().invalidate(DataKind.stats);
+                  // The bikes signal goes first: Bookings' Riwayat reloads its
+                  // plate list on it.
+                  context.read<DataRefreshCubit>()
+                    ..invalidate(DataKind.bikes)
+                    ..invalidate(DataKind.stats);
 
                   // Popping with `true` lets whichever caller pushed this
                   // route (MyBikesPage's FAB) know a bike was actually added,

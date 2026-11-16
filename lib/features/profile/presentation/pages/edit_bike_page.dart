@@ -84,8 +84,9 @@ class _EditBikeView extends StatelessWidget {
                   // Popping with `true` tells My Bikes a bike really changed, so
                   // it reloads its own (separate) BikesBloc — this page's Bloc
                   // and that one are different page-scoped instances. No
-                  // DataRefreshCubit signal: an edit leaves the bike count that
-                  // Home, Membership and Profile show unchanged.
+                  // DataRefreshCubit signal from here: an edit leaves the bike
+                  // count that Home, Membership and Profile show unchanged. My
+                  // Bikes sends DataKind.bikes itself when it sees this result.
                   context.pop(true);
                 } else if (state is BikesError) {
                   ScaffoldMessenger.of(context).showSnackBar(

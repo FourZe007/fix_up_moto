@@ -4,11 +4,12 @@ import 'package:fix_up_moto/core/network/samp_envelope.dart';
 import 'package:fix_up_moto/features/services/data/models/service_model.dart';
 
 abstract class ServicesRemoteDataSource {
+  /// One bike's service history. [plateNo] is required: the endpoint takes only
+  /// `Jenis` and `PlateNo` (no `MemberID`), so the plate is the whole question.
   Future<List<ServiceModel>> getServices({
     String serviceType = 'SERVICEHISTORY',
-    String? plateNo,
+    required String plateNo,
   });
-  Future<ServiceModel> getServiceDetail(String id);
 }
 
 class ServicesRemoteDataSourceImpl implements ServicesRemoteDataSource {
@@ -18,31 +19,18 @@ class ServicesRemoteDataSourceImpl implements ServicesRemoteDataSource {
   @override
   Future<List<ServiceModel>> getServices({
     String serviceType = 'SERVICEHISTORY',
-    String? plateNo,
+    required String plateNo,
   }) async {
     try {
       final response = await _dio.post(
         ApiConstants.browseTrans,
-        // SAMP filters come through the body, not the query string.
-        // An empty CategoryID means "all categories".
+        // SAMP filters come through the body, not the query string. This
+        // request takes exactly these two fields and no MemberID: the plate
+        // alone says whose history it is.
         data: {'Jenis': serviceType, 'PlateNo': plateNo},
       );
       return SampEnvelope.rows(response).map(ServiceModel.fromJson).toList();
     } on DioException catch (e) {
-      SampEnvelope.error(e);
-    }
-  }
-
-  @override
-  Future<ServiceModel> getServiceDetail(String id) async {
-    try {
-      final response = await _dio.post(
-        ApiConstants.serviceDetail,
-        data: {'ServiceID': id},
-      );
-      return ServiceModel.fromJson(SampEnvelope.first(response));
-    } on DioException catch (e) {
-      // SampEnvelope.error maps 404 to NotFoundException for us.
       SampEnvelope.error(e);
     }
   }

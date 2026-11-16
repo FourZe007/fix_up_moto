@@ -323,7 +323,7 @@ void main() {
     });
 
     testWidgets('reloads the list when a bike was saved', (tester) async {
-      final bloc = await pumpMyBikes(tester);
+      final bloc = await pumpMyBikes(tester, refreshCubit: DataRefreshCubit());
 
       await tapEditFor(tester);
       await tester.tap(find.byKey(_editPopTrue));
@@ -332,6 +332,37 @@ void main() {
       // Once on open, once for the reload.
       verify(() => bloc.add(const BikesLoadRequested())).called(2);
       expect(find.text('Motor Saya'), findsOneWidget);
+    });
+
+    testWidgets("tells Bookings' Riwayat the plate may have changed, and "
+        'nothing else', (tester) async {
+      final refreshCubit = DataRefreshCubit();
+      final signals = <DataKind?>[];
+      final subscription = refreshCubit.stream.listen(
+        (s) => signals.add(s.kind),
+      );
+      addTearDown(subscription.cancel);
+      await pumpMyBikes(tester, refreshCubit: refreshCubit);
+
+      await tapEditFor(tester);
+      await tester.tap(find.byKey(_editPopTrue));
+      await tester.pumpAndSettle();
+
+      // Not stats: an edit leaves the bike count Home and Profile show alone.
+      expect(signals, [DataKind.bikes]);
+    });
+
+    testWidgets('signals nothing when the member just backed out', (
+      tester,
+    ) async {
+      final refreshCubit = DataRefreshCubit();
+      await pumpMyBikes(tester, refreshCubit: refreshCubit);
+
+      await tapEditFor(tester);
+      await tester.tap(find.byKey(_editPopNothing));
+      await tester.pumpAndSettle();
+
+      expect(refreshCubit.state.kind, isNull);
     });
 
     testWidgets('does not reload when the member just backed out', (
@@ -517,6 +548,28 @@ void main() {
       expect(find.text('Motor berhasil dihapus!'), findsOneWidget);
       // The bike count on Home, Membership and Profile has changed.
       expect(refreshCubit.state.kind, DataKind.stats);
+    });
+
+    testWidgets("also tells Bookings' Riwayat its plate list has changed", (
+      tester,
+    ) async {
+      final refreshCubit = DataRefreshCubit();
+      final signals = <DataKind?>[];
+      final subscription = refreshCubit.stream.listen(
+        (s) => signals.add(s.kind),
+      );
+      addTearDown(subscription.cancel);
+      await pumpMyBikes(
+        tester,
+        states: states.stream,
+        refreshCubit: refreshCubit,
+      );
+
+      states.add(const BikesDeleted('Bike deleted successfully'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(signals, [DataKind.bikes, DataKind.stats]);
     });
 
     testWidgets('a finished delete gives a success tap on iOS', (tester) async {

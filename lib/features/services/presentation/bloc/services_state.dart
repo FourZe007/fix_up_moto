@@ -15,22 +15,22 @@ final class ServicesLoading extends ServicesState {
   const ServicesLoading();
 }
 
-/// Service list loaded — [services] may be filtered by category.
+/// One bike's service history loaded. Each record carries its own details
+/// (`detail`, `detail2`), so the detail page needs no load of its own.
 final class ServicesLoaded extends ServicesState {
   final List<ServiceEntity> services;
-  const ServicesLoaded(this.services);
+
+  /// True while a pull-to-refresh is fetching: [services] is still the old
+  /// list, kept on screen so the list being pulled is not unmounted. It is also
+  /// what makes the refreshed answer a *different* state even when the records
+  /// are unchanged — a bloc drops an emit equal to the current state, and the
+  /// pull indicator is waiting for exactly that emit.
+  final bool refreshing;
+
+  const ServicesLoaded(this.services, {this.refreshing = false});
 
   @override
-  List<Object> get props => [services];
-}
-
-/// Single service detail loaded.
-final class ServiceDetailLoaded extends ServicesState {
-  final ServiceEntity service;
-  const ServiceDetailLoaded(this.service);
-
-  @override
-  List<Object> get props => [service];
+  List<Object> get props => [services, refreshing];
 }
 
 final class ServicesError extends ServicesState {

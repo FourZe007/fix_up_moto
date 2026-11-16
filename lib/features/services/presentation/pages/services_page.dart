@@ -15,19 +15,34 @@ import 'package:fix_up_moto/features/services/presentation/widgets/service_card.
 /// **Not its own page or route** — Services has no bottom-nav tab of its own;
 /// past visits and upcoming bookings are both about the member's relationship
 /// with FixUp Moto, so this is embedded directly inside [BookingsPage] as one
-/// half of a [TabBarView]. Provides its own [ServicesBloc] regardless, the
-/// same page-scoped-factory pattern every other tab uses, so this segment's
-/// data is independent of whatever the "My Bookings" segment is doing.
+/// half of a [TabBarView]. Reads the [ServicesBloc] [BookingsPage] provides (a
+/// page-scoped factory, like every other tab's), so this segment's data is
+/// independent of whatever the "My Bookings" segment is doing.
 ///
-/// [query] and [dateRange] come from [BookingsPage]'s shared search bar and
+/// Pulling the loaded list down loads it again ([ServicesRefreshRequested]); the
+/// old list stays on screen until the new one arrives.
+///
+/// The backend answers per bike, so everything here is about one [plateNo]; the
+/// page decides which and asks the bloc for it, and this view only shows what
+/// arrives (and asks again for the same plate on a retry).
+///
+/// [query] and [dateRange] come from [BookingsPage]'s search bar and Riwayat
 /// filter panel — filtering happens here, client-side, the same pattern
-/// [WorkshopListPage] already uses, since the backend `getServices` call has
-/// no search parameter to delegate to.
+/// [WorkshopListPage] already uses, since the backend call has no search or
+/// date parameter to delegate to. A null [dateRange] shows every date.
 class ServicesHistoryView extends StatelessWidget {
   final String query;
   final DateTimeRange? dateRange;
 
-  const ServicesHistoryView({super.key, this.query = '', this.dateRange});
+  /// The bike whose history this is.
+  final String plateNo;
+
+  const ServicesHistoryView({
+    super.key,
+    required this.plateNo,
+    this.query = '',
+    this.dateRange,
+  });
 
   /// Matches on branch name, transaction number, or mechanic name — the
   /// things someone actually remembers about a past visit.
@@ -74,7 +89,7 @@ class ServicesHistoryView extends StatelessWidget {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () => context.read<ServicesBloc>().add(
-                    const ServicesListRequested(),
+                    ServicesListRequested(plateNo: plateNo),
                   ),
                   child: const Text('Muat Ulang'),
                 ),
@@ -82,17 +97,59 @@ class ServicesHistoryView extends StatelessWidget {
             ),
           ),
           ServicesLoaded(:final services) => _buildList(context, services),
-          // ServiceDetailLoaded is handled on the detail page, not here
-          _ => const SizedBox.shrink(),
         };
       },
     );
   }
 
+  /// Asks the bloc for the same bike's history again and resolves once the
+  /// answer is in, so the pull indicator keeps spinning for exactly that long.
+  ///
+  /// It waits for a [ServicesLoaded] that is **not** [ServicesLoaded.refreshing]
+  /// (the old list kept on screen meanwhile) or a [ServicesError].
+  Future<void> _refresh(BuildContext context) {
+    final bloc = context.read<ServicesBloc>();
+    bloc.add(ServicesRefreshRequested(plateNo: plateNo));
+
+    return bloc.stream
+        .firstWhere(
+          (state) =>
+              state is ServicesError ||
+              (state is ServicesLoaded && !state.refreshing),
+          // The page closed meanwhile: nothing left to wait for.
+          orElse: () => const ServicesInitial(),
+        )
+        .then<void>((_) {});
+  }
+
+  /// A message in the middle of the screen that can still be pulled. A pull
+  /// needs something scrollable to start from, and a short message is not.
+  Widget _pullableMessage(Widget message) {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: message),
+        ),
+      ],
+    );
+  }
+
+  /// The loaded history, pulled down to load it again — also when it is empty
+  /// or the search leaves nothing, so a visit that was just paid for can be
+  /// fetched without leaving the tab.
   Widget _buildList(BuildContext context, List<ServiceEntity> services) {
+    return RefreshIndicator.adaptive(
+      onRefresh: () => _refresh(context),
+      child: _buildContent(context, services),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, List<ServiceEntity> services) {
     if (services.isEmpty) {
-      return Center(
-        child: Column(
+      return _pullableMessage(
+        Column(
           spacing: 16,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -103,7 +160,7 @@ class ServicesHistoryView extends StatelessWidget {
 
             OutlinedButton.icon(
               onPressed: () => context.read<ServicesBloc>().add(
-                const ServicesListRequested(),
+                ServicesListRequested(plateNo: plateNo),
               ),
               icon: const Icon(Icons.refresh),
               label: const Text('Muat ulang'),
@@ -121,20 +178,30 @@ class ServicesHistoryView extends StatelessWidget {
       );
     }
 
-    // Check this function why it removed all history even though the data are exist
-    // final filtered = _filter(services);
-    // if (filtered.isEmpty) {
-    //   return const Center(child: Text('No services match your search'));
-    // }
+    // This once emptied the whole list. The cause was the range it was given —
+    // the page's upcoming-bookings default, tomorrow to a month ahead — which
+    // no past visit can fall inside; Riwayat now has its own range, null (every
+    // date) until the member picks one.
+    final filtered = _filter(services);
+    if (filtered.isEmpty) {
+      return _pullableMessage(
+        const Text(
+          'Tidak ada riwayat yang cocok dengan pencarian atau tanggal',
+        ),
+      );
+    }
 
     return ListView.builder(
-      itemCount: services.length,
+      // Pullable even when the few visits fit on the screen.
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: filtered.length,
       itemBuilder: (context, index) {
-        final service = services[index];
+        final service = filtered[index];
         return ServiceCard(
           service: service,
-          onTap: () =>
-              context.push('${RouteNames.serviceDetail}/${service.transNo}'),
+          // The record already holds its details, so it is handed over as it is
+          // rather than looked up again by number.
+          onTap: () => context.push(RouteNames.serviceDetail, extra: service),
         );
       },
     );
