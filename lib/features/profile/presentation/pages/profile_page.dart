@@ -20,9 +20,6 @@ import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
 import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
-import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 
 /// Shows the signed-in member and the sign-out action.
 ///
@@ -457,7 +454,7 @@ class _ProfileBody extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          Center(child: Text('Versi Aplikasi 2.1.1')),
+          Center(child: Text('Versi Aplikasi 2.2.0')),
 
           // const Divider(),
 

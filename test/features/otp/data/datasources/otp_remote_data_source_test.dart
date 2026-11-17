@@ -6,6 +6,7 @@ import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/network/interceptors/logging_interceptor.dart';
 import 'package:fix_up_moto/features/otp/data/datasources/otp_remote_data_source.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
 
 class MockDio extends Mock implements Dio {}
 
@@ -348,6 +349,246 @@ void main() {
         }
       },
     );
+  });
+
+  group('sendWhatsAppViaProxy', () {
+    Future<void> send({
+      OtpRemoteDataSource? using,
+      OtpPurpose purpose = OtpPurpose.register,
+    }) => (using ?? dataSource).sendWhatsAppViaProxy(
+      phoneNumber: '6281234567890',
+      code: '482915',
+      purpose: purpose,
+    );
+
+    const url = ApiConstants.whatsAppProxyUrl;
+
+    Options sentOptions() =>
+        verify(
+              () => dio.post<dynamic>(
+                url,
+                data: any<dynamic>(named: 'data'),
+                options: captureAny<Options?>(named: 'options'),
+              ),
+            ).captured.single
+            as Options;
+
+    test('posts phoneNumber, code and purpose, and no message text', () async {
+      givenResponse(url, {'status': 'pending'});
+
+      await send();
+
+      final captured = verify(
+        () => dio.post<dynamic>(
+          url,
+          data: captureAny<dynamic>(named: 'data'),
+          options: any<Options?>(named: 'options'),
+        ),
+      ).captured;
+      expect(captured.single, {
+        'phoneNumber': '6281234567890',
+        'code': '482915',
+        'purpose': 'register',
+      });
+    });
+
+    test(
+      'goes to the app\'s own relay, not the gateway or the SAMP backend',
+      () {
+        expect(url, 'https://fixupmoto-proxy.vercel.app/api/otp/whatsapp');
+        expect(url, isNot(ApiConstants.whatsAppSendUrl));
+        expect(url, isNot(startsWith(ApiConstants.baseUrl)));
+      },
+    );
+
+    test('sends the gateway key nowhere: no Authorization header, and works '
+        'even when the build has no key', () async {
+      givenResponse(url, {'status': 'pending'});
+
+      for (final key in ['', 'test-key']) {
+        await send(using: OtpRemoteDataSourceImpl(dio, whatsAppApiKey: key));
+      }
+
+      final headers = verify(
+        () => dio.post<dynamic>(
+          url,
+          data: any<dynamic>(named: 'data'),
+          options: captureAny<Options?>(named: 'options'),
+        ),
+      ).captured.cast<Options>().map((o) => o.headers);
+      expect(headers, everyElement(anyOf(isNull, isEmpty)));
+    });
+
+    test(
+      'keeps the body out of the debug log, because it carries the code',
+      () {
+        givenResponse(url, null);
+
+        return send().then((_) {
+          expect(sentOptions().extra?[LoggingInterceptor.hideBodyKey], isTrue);
+        });
+      },
+    );
+
+    test('sends each purpose under the name the relay knows it by', () async {
+      // api/otp/whatsapp.js in fixupmoto-proxy keys its wording by exactly
+      // these names; renaming one here without it would make the relay refuse.
+      expect(OtpPurpose.values.map((p) => p.name).toSet(), {
+        'register',
+        'changePassword',
+        'editProfile',
+        'resetPassword',
+      });
+
+      givenResponse(url, {'status': 'pending'});
+      for (final purpose in OtpPurpose.values) {
+        await send(purpose: purpose);
+      }
+      final sent = verify(
+        () => dio.post<dynamic>(
+          url,
+          data: captureAny<dynamic>(named: 'data'),
+          options: any<Options?>(named: 'options'),
+        ),
+      ).captured.cast<Map<String, dynamic>>().map((b) => b['purpose']);
+      expect(sent, OtpPurpose.values.map((p) => p.name));
+    });
+
+    test('takes the relay\'s pending answer as sent', () async {
+      givenResponse(url, {
+        'id': 'kwid-14d09bb80ecc42e68374452fd20',
+        'status': 'pending',
+        'message': 'Message is pending and waiting to be processed.',
+      });
+
+      await expectLater(send(), completes);
+    });
+
+    test('refuses a 2xx whose status says failed, with the gateway\'s words '
+        'the relay passed on', () async {
+      givenResponse(url, {
+        'status': 'failed',
+        'message': ' Nomor tidak terdaftar di WhatsApp ',
+      });
+
+      await expectLater(
+        send(),
+        throwsA(
+          isA<ServerException>()
+              .having(
+                (e) => e.message,
+                'message',
+                'Nomor tidak terdaftar di WhatsApp',
+              )
+              .having((e) => e.statusCode, 'statusCode', 200),
+        ),
+      );
+    });
+
+    test('a refusal keeps its HTTP status, so the caller can tell a 4xx from a '
+        '5xx', () async {
+      for (final (status, said) in [
+        (400, 'Permintaan tidak valid'),
+        (429, 'Terlalu banyak permintaan kode. Coba lagi nanti.'),
+        (502, 'Device tidak terhubung'),
+        (500, 'Layanan WhatsApp belum diatur'),
+      ]) {
+        givenFailure(
+          url,
+          DioExceptionType.badResponse,
+          status: status,
+          body: {'message': said},
+        );
+
+        await expectLater(
+          send(),
+          throwsA(
+            isA<ServerException>()
+                .having((e) => e.message, 'message', said)
+                .having((e) => e.statusCode, 'statusCode', status),
+          ),
+          reason: '$status',
+        );
+      }
+    });
+
+    test('a refusal with no usable words falls back to the status', () async {
+      givenFailure(
+        url,
+        DioExceptionType.badResponse,
+        status: 502,
+        body: '<html>Bad gateway</html>',
+      );
+
+      await expectLater(
+        send(),
+        throwsA(
+          isA<ServerException>().having(
+            (e) => e.message,
+            'message',
+            'Gagal mengirim pesan WhatsApp (HTTP 502)',
+          ),
+        ),
+      );
+    });
+
+    test('not being able to reach the relay is a NetworkException', () async {
+      for (final type in [
+        DioExceptionType.connectionError,
+        DioExceptionType.connectionTimeout,
+        DioExceptionType.badCertificate,
+      ]) {
+        givenFailure(url, type);
+
+        await expectLater(
+          send(),
+          throwsA(isA<NetworkException>()),
+          reason: '$type',
+        );
+      }
+    });
+
+    test('a relay too slow to answer is a ServerException with no status', () {
+      givenFailure(url, DioExceptionType.receiveTimeout);
+
+      return expectLater(
+        send(),
+        throwsA(
+          isA<ServerException>()
+              .having(
+                (e) => e.message,
+                'message',
+                'Layanan WhatsApp terlalu lama merespons',
+              )
+              .having((e) => e.statusCode, 'statusCode', isNull),
+        ),
+      );
+    });
+  });
+
+  group('canSendWhatsAppDirectly', () {
+    test('is true when the build carries a gateway key', () {
+      expect(
+        OtpRemoteDataSourceImpl(
+          dio,
+          whatsAppApiKey: 'test-key',
+        ).canSendWhatsAppDirectly,
+        isTrue,
+      );
+    });
+
+    test('is false when the key is empty or only spaces', () {
+      for (final key in ['', '   ']) {
+        expect(
+          OtpRemoteDataSourceImpl(
+            dio,
+            whatsAppApiKey: key,
+          ).canSendWhatsAppDirectly,
+          isFalse,
+          reason: '"$key"',
+        );
+      }
+    });
   });
 
   group('sendEmail', () {

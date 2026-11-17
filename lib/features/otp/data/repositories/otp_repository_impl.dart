@@ -37,10 +37,7 @@ class OtpRepositoryImpl implements OtpRepository {
     try {
       switch (request.channel) {
         case OtpChannel.whatsapp:
-          await remoteDataSource.sendWhatsApp(
-            phoneNumber: request.whatsAppNumber,
-            message: OtpMessage.whatsApp(request.purpose, code),
-          );
+          await _sendWhatsApp(request, code);
         case OtpChannel.email:
           await remoteDataSource.sendEmail(
             emailAddress: request.destination,
@@ -60,5 +57,49 @@ class OtpRepositoryImpl implements OtpRepository {
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message, statusCode: e.statusCode));
     }
+  }
+
+  /// WhatsApp goes through the app's own relay first: it holds the gateway's
+  /// key, so none has to travel in the app.
+  ///
+  /// If the relay cannot be reached, is not there, or fails on its own side, the
+  /// same code is sent straight to the gateway with the key built into this app,
+  /// the **backup**, when the build has one. A relay that *refuses* (400
+  /// malformed, 429 too many codes asked for) is final: going around a refusal
+  /// would defeat it. When there is no backup, or it fails too, the error
+  /// surfaces as the last one that happened.
+  Future<void> _sendWhatsApp(OtpRequest request, String code) async {
+    try {
+      await remoteDataSource.sendWhatsAppViaProxy(
+        phoneNumber: request.whatsAppNumber,
+        code: code,
+        purpose: request.purpose,
+      );
+    } on Exception catch (relayFailure) {
+      if (!_failedOnTheRelaysSide(relayFailure) ||
+          !remoteDataSource.canSendWhatsAppDirectly) {
+        rethrow;
+      }
+      await remoteDataSource.sendWhatsApp(
+        phoneNumber: request.whatsAppNumber,
+        message: OtpMessage.whatsApp(request.purpose, code),
+      );
+    }
+  }
+
+  /// True when the relay did not give an answer *about this request*: it could
+  /// not be reached, was too slow, is not there (404, not deployed yet), would
+  /// not let the call in (401/403/405) or broke (5xx). False when it answered:
+  /// a 2xx whose status says the message was not taken, or the refusals its own
+  /// code gives, 400 (malformed) and 429 (too many codes asked for).
+  static bool _failedOnTheRelaysSide(Exception e) {
+    if (e is NetworkException) return true;
+    if (e is! ServerException) return false;
+
+    final status = e.statusCode;
+    final answered =
+        status != null &&
+        ((status >= 200 && status < 300) || status == 400 || status == 429);
+    return !answered;
   }
 }

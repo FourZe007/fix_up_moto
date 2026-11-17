@@ -178,7 +178,7 @@ void main() {
         plateNo: 'D 5678 CD',
       );
 
-      await tester.tap(find.text('Muat Ulang'));
+      await tester.tap(find.text('Muat ulang'));
 
       verify(
         () => bloc.add(const ServicesListRequested(plateNo: 'D 5678 CD')),
@@ -361,9 +361,9 @@ void main() {
       expect(find.byType(RefreshIndicator), findsNothing);
 
       await pumpPullable(tester, state: const ServicesError('Gagal memuat'));
-      // The failure has its own "Muat Ulang" button instead.
+      // The failure has its own "Muat ulang" button instead.
       expect(find.byType(RefreshIndicator), findsNothing);
-      expect(find.text('Muat Ulang'), findsOneWidget);
+      expect(find.text('Muat ulang'), findsOneWidget);
     });
   });
 

@@ -212,13 +212,33 @@ class ApiConstants {
   /// build with `--dart-define-from-file=dart_defines.json`. VS Code's launch
   /// configuration already does for `Run`.
   ///
-  /// Empty means "not set": no message is sent. **A key inside an app can be
-  /// extracted from it**: anyone with the APK could send WhatsApp messages from
-  /// the gateway account. A call relayed through the backend, which holds the
-  /// key itself, would not have that weakness.
+  /// Empty means "not set": no message is sent this way. **A key inside an app
+  /// can be extracted from it**: anyone with the APK could send WhatsApp
+  /// messages from the gateway account. That is why [whatsAppProxyUrl] exists,
+  /// and why this key is now only the **backup**: it is used when the relay
+  /// cannot be reached or fails on its side. Once the backup is no longer
+  /// wanted, take the key out of the build (and rotate it at the gateway).
   static const String whatsAppApiKey = String.fromEnvironment(
     'KIRIMWA_API_KEY',
   );
+
+  /// POST — the app's own relay to the WhatsApp gateway: a Vercel function in
+  /// the same `fixupmoto-proxy` project as the Feed (see `FeedConstants`), which
+  /// holds the gateway's API key itself. Body: `{phoneNumber, code, purpose}`,
+  /// JSON, where `phoneNumber` is the full number starting with `62`, `code` the
+  /// six-digit code and `purpose` an `OtpPurpose` name. The function builds the
+  /// message text from a fixed template, so the app does not send any.
+  ///
+  /// This is the **first** way a code is sent; [whatsAppSendUrl] with the
+  /// build-time [whatsAppApiKey] is the backup (see `OtpRepositoryImpl`).
+  ///
+  /// It answers like the gateway: 2xx with `{id, status, message}` (`"pending"`
+  /// meaning accepted for delivery), 4xx `{message}` for a request it refuses
+  /// (400 malformed, 429 too many codes asked for), 5xx `{message}` when the
+  /// gateway or the relay's own setup fails. An absolute URL, like
+  /// [whatsAppSendUrl].
+  static const String whatsAppProxyUrl =
+      'https://fixupmoto-proxy.vercel.app/api/otp/whatsapp';
 
   /// The gateway's `device_id`: which linked WhatsApp device sends the message.
   /// The same for every message.

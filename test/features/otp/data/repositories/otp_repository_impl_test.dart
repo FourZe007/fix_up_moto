@@ -30,6 +30,8 @@ void main() {
     email: 'sari@gmail.com',
   );
 
+  setUpAll(() => registerFallbackValue(OtpPurpose.register));
+
   setUp(() {
     remote = MockRemote();
     network = MockNetworkInfo();
@@ -38,8 +40,31 @@ void main() {
       networkInfo: network,
     );
     when(() => network.isConnected).thenAnswer((_) async => true);
+    // A build that carries the gateway key, so the backup is there unless a
+    // test says otherwise.
+    when(() => remote.canSendWhatsAppDirectly).thenReturn(true);
   });
 
+  /// The app's own relay (the first way a WhatsApp code is sent).
+  void givenRelay(Future<void> Function() answer) {
+    when(
+      () => remote.sendWhatsAppViaProxy(
+        phoneNumber: any(named: 'phoneNumber'),
+        code: any(named: 'code'),
+        purpose: any(named: 'purpose'),
+      ),
+    ).thenAnswer((_) => answer());
+  }
+
+  void verifyRelayNeverUsed() => verifyNever(
+    () => remote.sendWhatsAppViaProxy(
+      phoneNumber: any(named: 'phoneNumber'),
+      code: any(named: 'code'),
+      purpose: any(named: 'purpose'),
+    ),
+  );
+
+  /// The gateway called directly with the key built into the app (the backup).
   void givenWhatsApp(Future<void> Function() answer) {
     when(
       () => remote.sendWhatsApp(
@@ -63,6 +88,7 @@ void main() {
       repository.sendCode(request: request, code: '482915');
 
   void verifyNothingSent() {
+    verifyRelayNeverUsed();
     verifyNever(
       () => remote.sendWhatsApp(
         phoneNumber: any(named: 'phoneNumber'),
@@ -78,19 +104,29 @@ void main() {
     );
   }
 
-  group('WhatsApp', () {
-    test('sends the message to the full number, starting with 62', () async {
-      givenWhatsApp(() async {});
+  void verifyBackupNeverUsed() => verifyNever(
+    () => remote.sendWhatsApp(
+      phoneNumber: any(named: 'phoneNumber'),
+      message: any(named: 'message'),
+    ),
+  );
+
+  group('WhatsApp, through the relay', () {
+    test('sends the code to the full number, starting with 62, and leaves the '
+        'backup alone', () async {
+      givenRelay(() async {});
 
       final result = await send(tWhatsApp);
 
       expect(result, const Right(unit));
       verify(
-        () => remote.sendWhatsApp(
+        () => remote.sendWhatsAppViaProxy(
           phoneNumber: '6281234567890',
-          message: OtpMessage.whatsApp(OtpPurpose.changePassword, '482915'),
+          code: '482915',
+          purpose: OtpPurpose.changePassword,
         ),
       ).called(1);
+      verifyBackupNeverUsed();
       verifyNever(
         () => remote.sendEmail(
           emailAddress: any(named: 'emailAddress'),
@@ -100,9 +136,117 @@ void main() {
       );
     });
 
+    test('a refusal (4xx) becomes a ServerFailure with the relay\'s wording '
+        'and is NOT gone around by the backup', () async {
+      for (final (status, said) in [
+        (400, 'Permintaan tidak valid'),
+        (429, 'Terlalu banyak permintaan kode. Coba lagi nanti.'),
+      ]) {
+        givenRelay(
+          () async => throw ServerException(message: said, statusCode: status),
+        );
+
+        expect(
+          await send(tWhatsApp),
+          Left(ServerFailure(said, statusCode: status)),
+          reason: '$status',
+        );
+      }
+      verifyBackupNeverUsed();
+    });
+
+    test('a 2xx that says the message was not taken is a refusal too, and '
+        'is not gone around', () async {
+      givenRelay(
+        () async => throw const ServerException(
+          message: 'Nomor tidak terdaftar',
+          statusCode: 200,
+        ),
+      );
+
+      expect(
+        await send(tWhatsApp),
+        const Left(ServerFailure('Nomor tidak terdaftar', statusCode: 200)),
+      );
+      verifyBackupNeverUsed();
+    });
+  });
+
+  group('WhatsApp, when the relay fails on its side', () {
+    final backupMessage = OtpMessage.whatsApp(
+      OtpPurpose.changePassword,
+      '482915',
+    );
+
+    test('an unreachable relay sends the same code straight to the gateway, '
+        'and that counts as sent', () async {
+      givenRelay(() async => throw const NetworkException(message: 'x'));
+      givenWhatsApp(() async {});
+
+      final result = await send(tWhatsApp);
+
+      expect(result, const Right(unit));
+      verify(
+        () => remote.sendWhatsApp(
+          phoneNumber: '6281234567890',
+          message: backupMessage,
+        ),
+      ).called(1);
+    });
+
+    test('a relay that is not there yet (404) or will not let the call in '
+        '(401, 403, 405) falls back too, so shipping the app before the relay '
+        'is deployed breaks nothing', () async {
+      for (final status in [404, 401, 403, 405]) {
+        givenRelay(
+          () async => throw ServerException(
+            message: 'Gagal mengirim pesan WhatsApp (HTTP $status)',
+            statusCode: status,
+          ),
+        );
+        givenWhatsApp(() async {});
+
+        expect(await send(tWhatsApp), const Right(unit), reason: '$status');
+      }
+      verify(
+        () => remote.sendWhatsApp(
+          phoneNumber: '6281234567890',
+          message: backupMessage,
+        ),
+      ).called(4);
+    });
+
+    test('a relay error (5xx) or a relay too slow (no status) does the '
+        'same', () async {
+      for (final failure in const [
+        ServerException(
+          message: 'Layanan WhatsApp belum diatur',
+          statusCode: 500,
+        ),
+        ServerException(message: 'Device tidak terhubung', statusCode: 502),
+        ServerException(message: 'Layanan WhatsApp terlalu lama merespons'),
+      ]) {
+        givenRelay(() async => throw failure);
+        givenWhatsApp(() async {});
+
+        expect(
+          await send(tWhatsApp),
+          const Right(unit),
+          reason: failure.message,
+        );
+      }
+      verify(
+        () => remote.sendWhatsApp(
+          phoneNumber: '6281234567890',
+          message: backupMessage,
+        ),
+      ).called(3);
+    });
+
     test(
-      'a refusal becomes a ServerFailure with the gateway\'s wording',
+      'if the backup fails too, the member hears the backup\'s reason',
       () async {
+        givenRelay(() async => throw const NetworkException(message: 'x'));
         givenWhatsApp(
           () async => throw const ServerException(
             message: 'Device tidak terhubung',
@@ -117,13 +261,42 @@ void main() {
       },
     );
 
-    test('a gateway that cannot be reached becomes a NetworkFailure', () async {
-      givenWhatsApp(() async => throw const NetworkException(message: 'x'));
+    test(
+      'a backup that cannot be reached either is a NetworkFailure',
+      () async {
+        givenRelay(() async => throw const NetworkException(message: 'x'));
+        givenWhatsApp(() async => throw const NetworkException(message: 'y'));
 
+        expect(
+          await send(tWhatsApp),
+          const Left(NetworkFailure('Tidak ada koneksi internet')),
+        );
+      },
+    );
+
+    test('with no key in the build there is no backup: the relay\'s own '
+        'failure is what the member hears', () async {
+      when(() => remote.canSendWhatsAppDirectly).thenReturn(false);
+
+      givenRelay(() async => throw const NetworkException(message: 'x'));
       expect(
         await send(tWhatsApp),
         const Left(NetworkFailure('Tidak ada koneksi internet')),
       );
+
+      givenRelay(
+        () async => throw const ServerException(
+          message: 'Layanan WhatsApp belum diatur',
+          statusCode: 500,
+        ),
+      );
+      expect(
+        await send(tWhatsApp),
+        const Left(
+          ServerFailure('Layanan WhatsApp belum diatur', statusCode: 500),
+        ),
+      );
+      verifyBackupNeverUsed();
     });
   });
 
@@ -141,12 +314,8 @@ void main() {
           body: '<p>OTP PENDAFTARAN APPLIKASI FIXUP MOTO</p>482915',
         ),
       ).called(1);
-      verifyNever(
-        () => remote.sendWhatsApp(
-          phoneNumber: any(named: 'phoneNumber'),
-          message: any(named: 'message'),
-        ),
-      );
+      verifyBackupNeverUsed();
+      verifyRelayNeverUsed();
     });
 
     test(

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fix_up_moto/core/widgets/app_spinner.dart';
-import 'package:fix_up_moto/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -44,9 +43,8 @@ class HomePage extends StatelessWidget {
         child: BlocBuilder<HomeBloc, HomeState>(
           builder: (context, state) {
             return switch (state) {
-              HomeInitial() || HomeLoading() => const Center(
-                child: AppSpinner(),
-              ),
+              HomeInitial() ||
+              HomeLoading() => const Center(child: AppSpinner()),
               HomeError(:final message) => _ErrorView(
                 message: message,
                 onRetry: () =>

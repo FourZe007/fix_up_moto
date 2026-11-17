@@ -5,6 +5,7 @@ import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/network/interceptors/logging_interceptor.dart';
 import 'package:fix_up_moto/core/network/samp_envelope.dart';
+import 'package:fix_up_moto/features/otp/domain/entities/otp_purpose.dart';
 
 /// Delivers a finished verification message. It does not make or check codes:
 /// the app does that, and these two calls only carry the words.
@@ -20,6 +21,25 @@ abstract class OtpRemoteDataSource {
     required String phoneNumber,
     required String message,
   });
+
+  /// Asks the app's own relay ([ApiConstants.whatsAppProxyUrl]) to send [code]
+  /// to [phoneNumber], which is the full number, starting with `62`. The relay
+  /// holds the gateway's key and writes the message itself from [purpose], so
+  /// no key and no text travel from here.
+  ///
+  /// Throws the same exceptions as [sendWhatsApp]: [NetworkException] when the
+  /// relay cannot be reached, [ServerException] when it refuses or fails (with
+  /// its HTTP status, so a caller can tell the relay's own refusals, 400 and
+  /// 429, from the relay being absent or broken: 404, 5xx, no answer in time).
+  Future<void> sendWhatsAppViaProxy({
+    required String phoneNumber,
+    required String code,
+    required OtpPurpose purpose,
+  });
+
+  /// Whether this build carries a gateway key, so that [sendWhatsApp] can work
+  /// as the backup for [sendWhatsAppViaProxy].
+  bool get canSendWhatsAppDirectly;
 
   /// Sends an email through the backend's mail sender
   /// ([ApiConstants.sendEmail]). [body] is HTML.
@@ -90,6 +110,35 @@ class OtpRemoteDataSourceImpl implements OtpRemoteDataSource {
 
       // Dio throws for anything but a 2xx, so the gateway took the request. It
       // answers a taken message with status "pending": queued, not delivered.
+      _throwIfGatewayRefused(response);
+    } on DioException catch (e) {
+      throw _gatewayException(e);
+    }
+  }
+
+  @override
+  bool get canSendWhatsAppDirectly => _whatsAppApiKey.trim().isNotEmpty;
+
+  @override
+  Future<void> sendWhatsAppViaProxy({
+    required String phoneNumber,
+    required String code,
+    required OtpPurpose purpose,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        ApiConstants.whatsAppProxyUrl,
+        // No key and no message text: the relay holds the one and writes the
+        // other. The body carries the code, so it stays out of the debug log.
+        data: {
+          'phoneNumber': phoneNumber,
+          'code': code,
+          'purpose': purpose.name,
+        },
+        options: _unlogged,
+      );
+
+      // The relay answers like the gateway, "pending" for a taken message.
       _throwIfGatewayRefused(response);
     } on DioException catch (e) {
       throw _gatewayException(e);

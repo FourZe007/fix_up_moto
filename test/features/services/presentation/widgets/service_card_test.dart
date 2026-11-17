@@ -78,7 +78,9 @@ void main() {
 
       expect(colorOf(tester, '5 Oct 2026'), AppColors.grey700);
       expect(
-        colorOf(tester, '3101SNT26100001 · NURUL FAHMI AZIS'),
+        // The mechanic's name comes shouted from the server and is shown
+        // title-cased; the transaction number is shown as sent.
+        colorOf(tester, '3101SNT26100001 · Nurul Fahmi Azis'),
         AppColors.grey700,
       );
     });

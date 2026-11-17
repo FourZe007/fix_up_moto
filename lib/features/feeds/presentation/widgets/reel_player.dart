@@ -44,9 +44,11 @@ class _ReelPlayerState extends State<ReelPlayer> {
   }
 
   Future<void> _initController() async {
-    if (!widget.post.isVideo) return; // image posts have nothing to play
+    // Image posts, and videos Instagram sent without a file link, have
+    // nothing to play: they stay as their thumbnail.
+    if (!widget.post.isPlayable) return;
     final controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.post.mediaUrl),
+      Uri.parse(widget.post.mediaUrl!),
     );
     _controller = controller;
     try {
@@ -125,7 +127,8 @@ class _ReelPlayerState extends State<ReelPlayer> {
           fit: StackFit.expand,
           children: [
             // Thumbnail shown until the video is ready, and permanently for
-            // non-video posts (IMAGE / CAROUSEL_ALBUM).
+            // non-video posts (IMAGE / CAROUSEL_ALBUM) and for videos that
+            // came without a file link.
             if (widget.post.thumbnailUrl != null)
               Image.network(
                 widget.post.thumbnailUrl!,
@@ -147,7 +150,7 @@ class _ReelPlayerState extends State<ReelPlayer> {
                   size: 40,
                 ),
               )
-            else if (widget.post.isVideo)
+            else if (widget.post.isPlayable)
               const Center(
                 child: AppSpinner(color: Colors.white),
               ),
@@ -158,14 +161,14 @@ class _ReelPlayerState extends State<ReelPlayer> {
                 child: Icon(Icons.play_arrow, color: Colors.white70, size: 72),
               ),
 
-            _buildOverlay(widget.post.mediaUrl),
+            _buildOverlay(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOverlay(String mediaLink) {
+  Widget _buildOverlay() {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -188,7 +191,7 @@ class _ReelPlayerState extends State<ReelPlayer> {
                 Column(
                   spacing: 16,
                   children: [
-                    if (widget.post.isVideo)
+                    if (widget.post.isPlayable)
                       _ActionButton(
                         icon: _muted ? Icons.volume_off : Icons.volume_up,
                         onTap: _toggleMute,

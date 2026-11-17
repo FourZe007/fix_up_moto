@@ -83,15 +83,17 @@ class ServicesHistoryView extends StatelessWidget {
           ),
           ServicesError(:final message) => Center(
             child: Column(
+              spacing: 12,
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(message),
-                const SizedBox(height: 12),
-                ElevatedButton(
+                Text(message, textAlign: TextAlign.center),
+                OutlinedButton.icon(
                   onPressed: () => context.read<ServicesBloc>().add(
                     ServicesListRequested(plateNo: plateNo),
                   ),
-                  child: const Text('Muat Ulang'),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Muat ulang'),
                 ),
               ],
             ),

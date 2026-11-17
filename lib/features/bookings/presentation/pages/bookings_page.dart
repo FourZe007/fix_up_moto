@@ -486,12 +486,14 @@ class _BookingsViewState extends State<_BookingsView>
             child: Column(
               spacing: 12,
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(message),
-                ElevatedButton(
+                Text(message, textAlign: TextAlign.center),
+                OutlinedButton.icon(
                   key: const Key('history-bikes-retry'),
                   onPressed: _loadBikes,
-                  child: const Text('Muat Ulang'),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Muat ulang'),
                 ),
               ],
             ),

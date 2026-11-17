@@ -8,8 +8,10 @@ class FeedEntity extends Equatable {
   /// e.g. "VIDEO", "IMAGE", "CAROUSEL_ALBUM".
   final String mediaType;
 
-  /// Direct URL to the video/image file.
-  final String mediaUrl;
+  /// Direct URL to the video/image file. Instagram leaves it out of some posts
+  /// (for example a reel with copyrighted music), so it can be null; such a
+  /// post still has its [thumbnailUrl] and [permalink].
+  final String? mediaUrl;
 
   /// Only present for VIDEO/CAROUSEL_ALBUM items.
   final String? thumbnailUrl;
@@ -23,13 +25,17 @@ class FeedEntity extends Equatable {
     required this.id,
     required this.caption,
     required this.mediaType,
-    required this.mediaUrl,
+    this.mediaUrl,
     this.thumbnailUrl,
     required this.permalink,
     required this.timestamp,
   });
 
   bool get isVideo => mediaType == 'VIDEO';
+
+  /// A video that actually has a file to play. A video without one is shown as
+  /// its thumbnail, like an image post.
+  bool get isPlayable => isVideo && mediaUrl != null;
 
   @override
   List<Object?> get props => [

@@ -8,9 +8,9 @@ part of 'feed_model.dart';
 
 FeedModel _$FeedModelFromJson(Map<String, dynamic> json) => FeedModel(
   id: json['id'] as String,
-  caption: json['caption'] as String,
+  caption: json['caption'] as String? ?? '',
   mediaType: json['mediaType'] as String,
-  mediaUrl: json['mediaUrl'] as String,
+  mediaUrl: json['mediaUrl'] as String?,
   thumbnailUrl: json['thumbnailUrl'] as String?,
   permalink: json['permalink'] as String,
   timestamp: json['timestamp'] as String,

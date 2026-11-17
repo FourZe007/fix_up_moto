@@ -9,9 +9,14 @@ part 'feed_model.g.dart';
 @JsonSerializable()
 class FeedModel {
   final String id;
+
+  /// Instagram leaves the caption out of a post that has none. The proxy
+  /// already fills in '', but the app does not rely on that: a missing or null
+  /// caption becomes '' here instead of failing the whole post.
+  @JsonKey(defaultValue: '')
   final String caption;
   final String mediaType;
-  final String mediaUrl;
+  final String? mediaUrl; // Instagram omits it for some posts
   final String? thumbnailUrl;
   final String permalink;
   final String timestamp;
@@ -20,7 +25,7 @@ class FeedModel {
     required this.id,
     required this.caption,
     required this.mediaType,
-    required this.mediaUrl,
+    this.mediaUrl,
     this.thumbnailUrl,
     required this.permalink,
     required this.timestamp,
