@@ -2,9 +2,12 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fix_up_moto/core/helpers/haptics.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/tour/app_tour_handoff.dart';
+import 'package:fix_up_moto/core/tour/app_tour_host.dart';
 import 'package:fix_up_moto/core/widgets/app_tab_bar.dart';
 
 /// Persistent bottom navigation bar shell shared by the five main tabs.
@@ -23,7 +26,29 @@ class MainShell extends StatelessWidget {
   /// The tab pages and which one is showing, supplied by the router.
   final StatefulNavigationShell navigationShell;
 
-  const MainShell({super.key, required this.navigationShell});
+  /// Where the app tour remembers it has been seen. Given, the tour plays once
+  /// by itself for a member who has not seen it; null (the default) turns that
+  /// off, and the shell is exactly what it was before the tour. Profile's replay
+  /// button works either way.
+  final SharedPreferences? prefs;
+
+  /// What the app tour's last step offers the member, asked each time the tour
+  /// starts (see [AppTourHost.handoff]); null (the default) keeps the plain
+  /// ending.
+  final AppTourHandoff? Function()? tourHandoff;
+
+  /// How many bikes the member has, or null while not known (see
+  /// [AppTourHost.bikeCount]): what limits the tour's automatic start to new
+  /// members. Null (the default) means it is not limited.
+  final int? Function()? tourBikeCount;
+
+  const MainShell({
+    super.key,
+    required this.navigationShell,
+    this.prefs,
+    this.tourHandoff,
+    this.tourBikeCount,
+  });
 
   /// The colour the page of [tab] paints at its bottom edge, for the iOS bar to
   /// float on (see [AppTabBar.backdropColor]); null for a page on the plain
@@ -49,35 +74,48 @@ class MainShell extends StatelessWidget {
     // (including Home's own "Booking"/"Bikes List" quick actions) instead of
     // returning to Home, which is the behaviour every bottom-nav app is
     // expected to have.
-    return PopScope(
-      canPop: current == MainTabs.home,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return; // already on Home — let the OS handle it (exit)
-        log('Return to Home');
-        navigationShell.goBranch(MainTabs.home);
-      },
-      child: Scaffold(
-        // On the iOS pill, the Feed's video runs to the bottom edge, behind
-        // it, like a full-screen reel. The Feed then gets the bar's height as
-        // bottom padding, so its caption and buttons stay just above the pill
-        // where they were. Every other tab, and Android's bar, end where the
-        // bar begins.
-        extendBody: AppTabBar.isFloating(context) && current == MainTabs.feeds,
-        // the active tab's page, rendered above the nav bar
-        body: navigationShell,
-        // Android's Material bar or iOS's Cupertino bar; the choice is made
-        // inside AppTabBar, so a tap does the same thing on both.
-        bottomNavigationBar: AppTabBar(
-          selectedIndex: current,
-          backdropColor: backdropOf(context, current),
-          // Tapping the tab you are already on goes back to its first page
-          // (e.g. out of a service's detail); tapping another switches to
-          // it, keeping whatever it was showing.
-          onSelected: (index) {
-            // A light click on iPhone, nothing on Android.
-            Haptics.selection();
-            navigationShell.goBranch(index, initialLocation: index == current);
-          },
+    //
+    // The app tour hangs off the shell: AppTourHost gives the bar the keys the
+    // tour lights up, plays the tour the first time, and lets Profile replay it.
+    return AppTourHost(
+      prefs: prefs,
+      handoff: tourHandoff,
+      bikeCount: tourBikeCount,
+      builder: (context, tabKeys) => PopScope(
+        canPop: current == MainTabs.home,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return; // already on Home — let the OS handle it (exit)
+          log('Return to Home');
+          navigationShell.goBranch(MainTabs.home);
+        },
+        child: Scaffold(
+          // On the iOS pill, the Feed's video runs to the bottom edge, behind
+          // it, like a full-screen reel. The Feed then gets the bar's height as
+          // bottom padding, so its caption and buttons stay just above the pill
+          // where they were. Every other tab, and Android's bar, end where the
+          // bar begins.
+          extendBody:
+              AppTabBar.isFloating(context) && current == MainTabs.feeds,
+          // the active tab's page, rendered above the nav bar
+          body: navigationShell,
+          // Android's Material bar or iOS's Cupertino bar; the choice is made
+          // inside AppTabBar, so a tap does the same thing on both.
+          bottomNavigationBar: AppTabBar(
+            selectedIndex: current,
+            backdropColor: backdropOf(context, current),
+            tabKeys: tabKeys,
+            // Tapping the tab you are already on goes back to its first page
+            // (e.g. out of a service's detail); tapping another switches to
+            // it, keeping whatever it was showing.
+            onSelected: (index) {
+              // A light click on iPhone, nothing on Android.
+              Haptics.selection();
+              navigationShell.goBranch(
+                index,
+                initialLocation: index == current,
+              );
+            },
+          ),
         ),
       ),
     );

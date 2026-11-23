@@ -4,11 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/go_router_refresh_stream.dart';
+import 'package:fix_up_moto/core/tour/app_tour_handoff.dart';
 import 'package:fix_up_moto/core/widgets/splash_page.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/complete_google_profile_page.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
+import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/welcome_page.dart';
@@ -38,6 +41,7 @@ import 'package:fix_up_moto/features/services/domain/entities/service_entity.dar
 import 'package:fix_up_moto/features/services/presentation/pages/service_detail_page.dart';
 import 'package:fix_up_moto/features/workshops/presentation/pages/workshop_list_page.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
+import 'package:fix_up_moto/core/router/first_task_step.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/router/welcome_seen.dart';
@@ -62,6 +66,15 @@ import 'package:fix_up_moto/core/router/welcome_seen.dart';
 ///   the bottom nav bar attached.
 class AppRouter {
   AppRouter._(); // static-only class — never instantiated
+
+  /// How many bikes the signed-in member has, from the stats [HomeBloc] holds
+  /// right now; null until they have loaded, so a caller never mistakes "not
+  /// known yet" for "none". What the app tour reads to decide who it plays for
+  /// and what its last step offers.
+  static int? _memberBikeCount() {
+    final home = sl<HomeBloc>().state;
+    return home is HomeLoaded ? home.stats.qty : null;
+  }
 
   /// The authentication guard, as a pure function of the auth state, the
   /// location being resolved and its `extra`, so every branch can be tested
@@ -260,7 +273,12 @@ class AppRouter {
       // route.
       GoRoute(
         path: RouteNames.createBooking,
-        builder: (_, _) => const CreateBookingPage(),
+        // Opened as the guidance's booking step, it points to the Booking tab
+        // once the booking is made. Any other way in has no extra, and is
+        // unchanged.
+        builder: (_, state) => CreateBookingPage(
+          pointToBookings: state.extra == FirstTaskStep.createBooking,
+        ),
       ),
       // Reached from both Home's picker and Create Booking's — it used to be
       // nested under /home on the assumption only Home would ever push it,
@@ -320,7 +338,14 @@ class AppRouter {
       // Reached from MyBikesPage's FAB — used to be nested under /profile on
       // the assumption only Profile would ever push it, the same mistake
       // /home/workshops made before. Top-level avoids repeating that bug.
-      GoRoute(path: RouteNames.addBike, builder: (_, _) => const AddBikePage()),
+      GoRoute(
+        path: RouteNames.addBike,
+        // Opened as the guidance's bike step (Home's card, the app tour), it
+        // offers a booking once the bike is saved. Any other way in has no
+        // extra, and is unchanged.
+        builder: (_, state) =>
+            AddBikePage(offerBooking: state.extra == FirstTaskStep.addBike),
+      ),
       // Opened from MyBikesPage's more-actions sheet, which hands over the bike
       // as `extra`. A bike can't be rebuilt from the path (it has no id), so
       // without one — a deep link, a restored session — there is nothing to
@@ -340,8 +365,18 @@ class AppRouter {
       // visit; Feeds is the exception that is dropped while hidden (see
       // buildTabContainer).
       StatefulShellRoute(
-        builder: (_, _, navigationShell) =>
-            MainShell(navigationShell: navigationShell),
+        builder: (_, _, navigationShell) => MainShell(
+          navigationShell: navigationShell,
+          // Lets the app tour play once, by itself, for a new member who has
+          // not seen it.
+          prefs: sl<SharedPreferences>(),
+          // Both read the member's bike count from the stats held right now:
+          // it limits the tour's automatic start to members with no bike, and
+          // decides whether its last step offers adding one. Until the stats
+          // have loaded there is no count (null), so neither guesses.
+          tourBikeCount: _memberBikeCount,
+          tourHandoff: () => AppTourHandoff.forBikeCount(_memberBikeCount()),
+        ),
         navigatorContainerBuilder: (context, navigationShell, branches) =>
             buildTabContainer(
               context,
@@ -355,7 +390,9 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: RouteNames.home,
-                builder: (_, _) => const HomePage(),
+                // prefs lets Home remember who is new, for its "first booking"
+                // card.
+                builder: (_, _) => HomePage(prefs: sl<SharedPreferences>()),
               ),
             ],
           ),

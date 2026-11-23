@@ -32,11 +32,17 @@ class AppTabBar extends StatelessWidget {
   /// the page behind. Android's bar has its own surface and ignores this.
   final Color? backdropColor;
 
+  /// One key per tab, in `MainTabs` order, put on each tab so the app tour can
+  /// find where it is on screen and light it up. Null (the default) adds
+  /// nothing: the bar is drawn exactly as it is without a tour.
+  final List<GlobalKey>? tabKeys;
+
   const AppTabBar({
     super.key,
     required this.selectedIndex,
     required this.onSelected,
     this.backdropColor,
+    this.tabKeys,
   });
 
   /// Whether the bar is the floating iOS pill (true) or Android's Material bar
@@ -58,8 +64,13 @@ class AppTabBar extends StatelessWidget {
             onSelected: onSelected,
             items: _iosTabs,
             backdropColor: backdropColor,
+            tabKeys: tabKeys,
           )
-        : _AndroidTabBar(selectedIndex: selectedIndex, onSelected: onSelected);
+        : _AndroidTabBar(
+            selectedIndex: selectedIndex,
+            onSelected: onSelected,
+            tabKeys: tabKeys,
+          );
   }
 }
 
@@ -67,8 +78,42 @@ class AppTabBar extends StatelessWidget {
 class _AndroidTabBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+  final List<GlobalKey>? tabKeys;
 
-  const _AndroidTabBar({required this.selectedIndex, required this.onSelected});
+  const _AndroidTabBar({
+    required this.selectedIndex,
+    required this.onSelected,
+    this.tabKeys,
+  });
+
+  /// The five tabs, in `MainTabs` order.
+  static const _destinations = [
+    NavigationDestination(
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home),
+      label: 'Beranda',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.play_circle_outline),
+      selectedIcon: Icon(Icons.play_circle),
+      label: 'Feed',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.credit_card_rounded),
+      selectedIcon: Icon(Icons.credit_card_rounded),
+      label: 'MyPoint',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.calendar_month_outlined),
+      selectedIcon: Icon(Icons.calendar_month),
+      label: 'Booking',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.person_outline),
+      selectedIcon: Icon(Icons.person),
+      label: 'Saya',
+    ),
+  ];
 
   /// The bar's own theme with only the selected tab restyled: no highlight
   /// pill behind it, and its filled icon and its label in the brand colour.
@@ -103,37 +148,19 @@ class _AndroidTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final keys = tabKeys;
+
     return NavigationBarTheme(
       data: _barTheme(context),
       child: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: onSelected,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Beranda',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.play_circle_outline),
-            selectedIcon: Icon(Icons.play_circle),
-            label: 'Feed',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.credit_card_rounded),
-            selectedIcon: Icon(Icons.credit_card_rounded),
-            label: 'MyPoint',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'Booking',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Saya',
-          ),
+        destinations: [
+          for (var i = 0; i < _destinations.length; i++)
+            // Without keys the tabs go in bare, as they always did.
+            keys == null
+                ? _destinations[i]
+                : KeyedSubtree(key: keys[i], child: _destinations[i]),
         ],
       ),
     );

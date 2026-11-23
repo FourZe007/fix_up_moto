@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 
 import 'package:fix_up_moto/core/constants/google_auth_constants.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
@@ -274,7 +275,14 @@ Future<void> initDependencies() async {
   // Profile all read this one stats record instead of each fetching their own;
   // StatsBootstrap loads it at sign-in and clears it at sign-out, so one
   // member's data cannot show for the next.
-  sl.registerLazySingleton(() => HomeBloc(getDashboardStats: sl()));
+  //
+  // The debug-only new-member simulation is handed in only when it was asked
+  // for (`--dart-define=SIMULATE_NEW_MEMBER=true`) and never in a release build.
+  final simulateNewMember = await SimulatedNewMember.start(prefs);
+  sl.registerLazySingleton(
+    () =>
+        HomeBloc(getDashboardStats: sl(), simulateNewMember: simulateNewMember),
+  );
 
   // ── Services Feature ──────────────────────────────────────────────────────
 

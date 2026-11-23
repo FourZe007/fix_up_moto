@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/router/tab_container.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/tour/app_tour.dart';
+import 'package:fix_up_moto/core/tour/app_tour_handoff.dart';
+import 'package:fix_up_moto/core/tour/app_tour_host.dart';
+import 'package:fix_up_moto/core/tour/app_tour_seen.dart';
 import 'package:fix_up_moto/core/widgets/ios_floating_tab_bar.dart';
 import 'package:fix_up_moto/core/widgets/main_shell.dart';
 import '../../support/haptic_recorder.dart';
@@ -51,6 +57,9 @@ final Map<String, double> bottomPadding = {};
 Future<Map<String, int>> pumpShell(
   WidgetTester tester, {
   ThemeData? theme,
+  SharedPreferences? prefs,
+  AppTourHandoff? Function()? tourHandoff,
+  int? Function()? tourBikeCount,
 }) async {
   final builds = <String, int>{};
   bottomPadding.clear();
@@ -68,7 +77,12 @@ Future<Map<String, int>> pumpShell(
     initialLocation: '/home',
     routes: [
       StatefulShellRoute(
-        builder: (_, _, shell) => MainShell(navigationShell: shell),
+        builder: (_, _, shell) => MainShell(
+          navigationShell: shell,
+          prefs: prefs,
+          tourHandoff: tourHandoff,
+          tourBikeCount: tourBikeCount,
+        ),
         navigatorContainerBuilder: (context, shell, branches) =>
             buildTabContainer(
               context,
@@ -83,6 +97,11 @@ Future<Map<String, int>> pumpShell(
           branch('bookings'),
           branch('profile'),
         ],
+      ),
+      // Where the app tour's hand-off lands.
+      GoRoute(
+        path: RouteNames.addBike,
+        builder: (_, _) => const Scaffold(body: Text('add-bike-page')),
       ),
     ],
   );
@@ -112,6 +131,192 @@ void main() {
     final builds = await pumpShell(tester);
 
     expect(builds, {'home': 1});
+  });
+
+  group('the app tour', () {
+    Future<SharedPreferences> prefsWith(Map<String, Object> saved) async {
+      SharedPreferences.setMockInitialValues(saved);
+      return SharedPreferences.getInstance();
+    }
+
+    Future<void> waitForTour(WidgetTester tester) async {
+      await tester.pump(AppTourHost.checkEvery * AppTourHost.calmChecksNeeded);
+      await tester.pumpAndSettle();
+    }
+
+    final card = find.byType(AppTourCard);
+
+    testWidgets('plays once over the real shell for a new member', (
+      tester,
+    ) async {
+      final prefs = await prefsWith({});
+      await pumpShell(tester, prefs: prefs);
+      expect(card, findsNothing);
+
+      await waitForTour(tester);
+
+      expect(card, findsOneWidget);
+      expect(find.text('1 dari 5'), findsOneWidget);
+    });
+
+    testWidgets('does not play for a member who has seen it', (tester) async {
+      await pumpShell(tester, prefs: await prefsWith({AppTourSeen.key: true}));
+
+      await waitForTour(tester);
+
+      expect(card, findsNothing);
+    });
+
+    testWidgets('does not play when the shell is given no preferences', (
+      tester,
+    ) async {
+      await pumpShell(tester);
+
+      await waitForTour(tester);
+
+      expect(card, findsNothing);
+    });
+
+    testWidgets('does not play on top of a page that has been opened', (
+      tester,
+    ) async {
+      await pumpShell(tester, prefs: await prefsWith({}));
+      // Something takes the screen before the quiet moment is up.
+      final navigator = tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      );
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('a pushed page')),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+
+      expect(find.text('a pushed page'), findsOneWidget);
+      expect(card, findsNothing);
+    });
+
+    testWidgets('the bar still switches tabs after the tour', (tester) async {
+      await pumpShell(tester, prefs: await prefsWith({}));
+      await waitForTour(tester);
+      await tester.tap(find.text('Lewati'));
+      await tester.pumpAndSettle();
+
+      await openTab(tester, 'MyPoint');
+
+      expect(find.text('membership taps: 0'), findsOneWidget);
+    });
+
+    testWidgets('plays by itself for a member with no bike', (tester) async {
+      await pumpShell(
+        tester,
+        prefs: await prefsWith({}),
+        tourBikeCount: () => 0,
+      );
+
+      await waitForTour(tester);
+
+      expect(card, findsOneWidget);
+    });
+
+    testWidgets('does not play by itself for a member who has a bike', (
+      tester,
+    ) async {
+      final prefs = await prefsWith({});
+      await pumpShell(tester, prefs: prefs, tourBikeCount: () => 2);
+
+      await waitForTour(tester);
+
+      expect(card, findsNothing);
+      expect(AppTourSeen.read(prefs), isTrue);
+    });
+
+    testWidgets('waits while the shell does not know the count yet', (
+      tester,
+    ) async {
+      await pumpShell(
+        tester,
+        prefs: await prefsWith({}),
+        tourBikeCount: () => null,
+      );
+
+      await waitForTour(tester);
+      await tester.pump(const Duration(seconds: 10));
+
+      expect(card, findsNothing);
+    });
+
+    testWidgets('its last step offers the hand-off the shell was given', (
+      tester,
+    ) async {
+      await pumpShell(
+        tester,
+        prefs: await prefsWith({}),
+        tourHandoff: () => AppTourHandoff.addFirstBike,
+      );
+      await waitForTour(tester);
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.byKey(const Key('tour-next')));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.byKey(const Key('tour-accept')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('tour-accept')));
+      await tester.pumpAndSettle();
+
+      expect(card, findsNothing);
+      expect(find.text('add-bike-page'), findsOneWidget);
+    });
+
+    testWidgets('without a hand-off the last step ends the plain way', (
+      tester,
+    ) async {
+      await pumpShell(tester, prefs: await prefsWith({}));
+      await waitForTour(tester);
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.byKey(const Key('tour-next')));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.byKey(const Key('tour-accept')), findsNothing);
+      expect(find.text('Selesai'), findsOneWidget);
+    });
+
+    testWidgets('a page in a tab can play it again', (tester) async {
+      final prefs = await prefsWith({AppTourSeen.key: true});
+      await pumpShell(tester, prefs: prefs);
+      expect(card, findsNothing);
+
+      // What Profile's row does: ask the host above the page.
+      final scope = AppTourScope.maybeOf(
+        tester.element(find.text('home taps: 0')),
+      );
+      expect(scope, isNotNull);
+      expect(scope!.start(), isTrue);
+      // The overlay goes in a moment after the call, and the package starts
+      // its focus a moment after that: two short pumps, then it settles.
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      expect(card, findsOneWidget);
+    });
+
+    testWidgets('the bar is drawn the same with the tour wired in', (
+      tester,
+    ) async {
+      await pumpShell(tester, prefs: await prefsWith({AppTourSeen.key: true}));
+      final withTour = tester.getRect(find.byType(NavigationBar));
+
+      await pumpShell(tester);
+      final without = tester.getRect(find.byType(NavigationBar));
+
+      expect(withTour, without);
+    });
   });
 
   group('haptics', () {

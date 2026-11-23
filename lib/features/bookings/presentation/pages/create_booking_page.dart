@@ -208,23 +208,33 @@ class _SetupRow extends StatelessWidget {
 /// a pushed page can never see).
 ///
 /// A workshop must already be selected by the time this page is reached —
-/// [BookingsPage]'s FAB gates on that before ever pushing here, so this page
+/// [BookingsPage]'s FAB (and `startGuidedBooking`) gate on that before ever
+/// pushing here, so this page
 /// only ever needs to display [SelectedWorkshopCubit]'s current value and let
 /// the user change it, never force-collect it itself.
 class CreateBookingPage extends StatelessWidget {
-  const CreateBookingPage({super.key});
+  /// True when the booking was started away from the Bookings tab, by the
+  /// first-task guidance (see `FirstTaskStep.createBooking`). Once it is made,
+  /// the confirmation then points to the Booking tab, where the member can see
+  /// it, instead of leaving them to find it. False (the default) is the plain
+  /// confirmation, as for every other way of getting here.
+  final bool pointToBookings;
+
+  const CreateBookingPage({super.key, this.pointToBookings = false});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<BookingsBloc>(),
-      child: const _CreateBookingView(),
+      child: _CreateBookingView(pointToBookings: pointToBookings),
     );
   }
 }
 
 class _CreateBookingView extends StatefulWidget {
-  const _CreateBookingView();
+  final bool pointToBookings;
+
+  const _CreateBookingView({required this.pointToBookings});
 
   @override
   State<_CreateBookingView> createState() => _CreateBookingViewState();
@@ -303,8 +313,11 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
   /// carry maps/addresses that justify their own page), picking a bike is a
   /// smaller, in-context decision. Gives its own [BikesBloc] since this page
   /// doesn't otherwise provide one.
+  ///
+  /// The sheet answers with the tapped bike, or with [_PickerAnswer.addBike]
+  /// when the member has none and asked to add one (see [_addBikeThenPick]).
   Future<void> _pickBike() async {
-    final picked = await showModalBottomSheet<BikeEntity>(
+    final picked = await showModalBottomSheet<Object>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -312,7 +325,24 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
       ),
       builder: (_) => const _BikePickerSheet(),
     );
-    if (picked != null && mounted) setState(() => _selectedBike = picked);
+    if (!mounted) return;
+    if (picked is BikeEntity) {
+      setState(() => _selectedBike = picked);
+    } else if (picked == _PickerAnswer.addBike) {
+      await _addBikeThenPick();
+    }
+  }
+
+  /// For a member with no bike: opens Add Bike on top of this page, and once a
+  /// bike has really been saved, opens the picker again so the new bike is one
+  /// tap away. The booking they were filling in is still here, as they left it.
+  ///
+  /// Add Bike tells the rest of the app (stats, bike list) itself; this only
+  /// needs to know it succeeded. Backing out (`null`/`false`) leaves the member
+  /// where they were, with no bike chosen.
+  Future<void> _addBikeThenPick() async {
+    final added = await context.push<bool>(RouteNames.addBike);
+    if (added == true && mounted) await _pickBike();
   }
 
   void _submit() {
@@ -477,15 +507,38 @@ class _CreateBookingViewState extends State<_CreateBookingView> {
                     DataKind.bookings,
                   );
 
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(state.message.toLowerCase()),
-                      action: SnackBarAction(
-                        label: 'Tutup',
-                        onPressed: messenger.clearSnackBars,
+                  if (widget.pointToBookings) {
+                    // The member did not come from the Bookings tab, so the
+                    // page they land on is not their bookings: say where it is,
+                    // with a button that goes there. Like [messenger], taken
+                    // before the pop below.
+                    final router = GoRouter.of(context);
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: const Text(
+                          'Booking berhasil! Lihat di tab Booking.',
+                        ),
+                        // A pointer, not a notice to keep: it goes by itself
+                        // (a snack bar with a button would otherwise stay).
+                        persist: false,
+                        duration: const Duration(seconds: 10),
+                        action: SnackBarAction(
+                          label: 'Lihat',
+                          onPressed: () => router.go(RouteNames.bookings),
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  } else {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(state.message.toLowerCase()),
+                        action: SnackBarAction(
+                          label: 'Tutup',
+                          onPressed: messenger.clearSnackBars,
+                        ),
+                      ),
+                    );
+                  }
 
                   // Pop back to the bookings list after a successful booking
                   context.pop();
@@ -701,6 +754,62 @@ class _SummaryBar extends StatelessWidget {
   }
 }
 
+/// What the bike picker answers besides a bike.
+enum _PickerAnswer {
+  /// The member has no bike and wants to add one now.
+  addBike,
+}
+
+/// The picker for a member with no bike registered. A booking needs a bike, so
+/// instead of a dead end it says why and offers the way forward: closing the
+/// sheet with [_PickerAnswer.addBike], which [_CreateBookingViewState] answers
+/// by opening Add Bike.
+///
+/// "Belum ada motor terdaftar" is the same line Riwayat shows for the same case.
+class _NoBikesYet extends StatelessWidget {
+  const _NoBikesYet();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 8,
+        children: [
+          const Icon(
+            Icons.two_wheeler_outlined,
+            size: 40,
+            color: AppColors.primary,
+          ),
+          Text(
+            'Belum ada motor terdaftar',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            'Daftarkan motor Anda dulu untuk membuat booking.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              key: const Key('booking-add-bike'),
+              onPressed: () => Navigator.of(context).pop(_PickerAnswer.addBike),
+              child: const Text('Tambah Motor'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Bottom-sheet content for [_CreateBookingViewState._pickBike] — its own
 /// [BikesBloc] (this page doesn't otherwise provide one), listing the
 /// member's registered bikes and returning the tapped one via
@@ -731,10 +840,7 @@ class _BikePickerSheet extends StatelessWidget {
               ),
               BikesLoaded(:final bikes) =>
                 bikes.isEmpty
-                    ? const SizedBox(
-                        height: 160,
-                        child: Center(child: Text('Belum ada motor terdaftar')),
-                      )
+                    ? const _NoBikesYet()
                     : ListView.builder(
                         shrinkWrap: true,
                         padding: const EdgeInsets.symmetric(vertical: 8),

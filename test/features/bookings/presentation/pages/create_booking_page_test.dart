@@ -9,16 +9,33 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/helpers/date_time_formatter.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_bloc.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_event.dart';
 import 'package:fix_up_moto/features/bookings/presentation/bloc/bookings_state.dart';
 import 'package:fix_up_moto/features/bookings/presentation/pages/create_booking_page.dart';
 import 'package:fix_up_moto/features/bookings/presentation/widgets/booking_date_strip.dart';
+import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
+import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 import '../../../../support/haptic_recorder.dart';
 
 class MockBookingsBloc extends MockBloc<BookingsEvent, BookingsState>
     implements BookingsBloc {}
+
+class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
+    implements BikesBloc {}
+
+const r25 = BikeEntity(
+  unitId: 'YAMAHA R25',
+  plateNo: 'B 1234 ABC',
+  chasisNo: 'C1',
+  engineNo: 'E1',
+  color: 'Biru',
+  year: '2022',
+);
 
 void main() {
   late DataRefreshCubit refreshCubit;
@@ -36,10 +53,38 @@ void main() {
 
   /// Opens the create page on top of a stand-in Bookings page, so a successful
   /// create can pop back to something.
-  Future<void> openCreatePage(WidgetTester tester) async {
+  ///
+  /// [bikesPerOpen] is what the bike picker finds each time it opens, in order
+  /// (its last entry is reused after that): one list of registered bikes per
+  /// opening, so a test can have the member start with none and then add one.
+  ///
+  /// [pointToBookings] opens it as the guidance's booking step, whose
+  /// confirmation points to the Booking tab; the stand-in for that tab is a
+  /// separate route, so going there can be told from going back.
+  Future<void> openCreatePage(
+    WidgetTester tester, {
+    List<List<BikeEntity>> bikesPerOpen = const [[]],
+    bool pointToBookings = false,
+  }) async {
     final bloc = MockBookingsBloc();
     whenListen(bloc, states.stream, initialState: const BookingsInitial());
     sl.registerFactory<BookingsBloc>(() => bloc);
+
+    // The picker builds its own BikesBloc each time it opens.
+    var opens = 0;
+    sl.registerFactory<BikesBloc>(() {
+      final index = opens < bikesPerOpen.length
+          ? opens
+          : bikesPerOpen.length - 1;
+      opens++;
+      final bikes = MockBikesBloc();
+      whenListen(
+        bikes,
+        const Stream<BikesState>.empty(),
+        initialState: BikesLoaded(bikesPerOpen[index]),
+      );
+      return bikes;
+    });
 
     final router = GoRouter(
       routes: [
@@ -47,7 +92,31 @@ void main() {
           path: '/',
           builder: (_, _) => const Scaffold(body: Text('bookings-tab')),
         ),
-        GoRoute(path: '/create', builder: (_, _) => const CreateBookingPage()),
+        GoRoute(
+          path: '/create',
+          builder: (_, _) =>
+              CreateBookingPage(pointToBookings: pointToBookings),
+        ),
+        GoRoute(
+          path: RouteNames.bookings,
+          builder: (_, _) => const Scaffold(body: Text('bookings-route')),
+        ),
+        // Stands in for Add Bike: "Simpan" is a bike saved (pops true), and the
+        // system back button is backing out (pops nothing).
+        GoRoute(
+          path: RouteNames.addBike,
+          builder: (context, _) => Scaffold(
+            body: Column(
+              children: [
+                const Text('add-bike-page'),
+                TextButton(
+                  onPressed: () => context.pop(true),
+                  child: const Text('Simpan'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
 
@@ -116,6 +185,90 @@ void main() {
     // Still on the create page, with the error shown.
     expect(find.text('bookings-tab'), findsNothing);
     expect(find.text('Server down'), findsOneWidget);
+  });
+
+  group('the confirmation', () {
+    final plain = find.text('booking confirmed!');
+    final pointer = find.text('Booking berhasil! Lihat di tab Booking.');
+    final seeIt = find.text('Lihat');
+
+    testWidgets('is the plain one, with Tutup, when opened as usual', (
+      tester,
+    ) async {
+      await openCreatePage(tester);
+
+      states.add(const BookingActionSuccess('Booking confirmed!'));
+      await tester.pumpAndSettle();
+
+      expect(plain, findsOneWidget);
+      expect(find.text('Tutup'), findsOneWidget);
+      expect(pointer, findsNothing);
+      expect(seeIt, findsNothing);
+    });
+
+    testWidgets('points to the Booking tab when opened as the booking step', (
+      tester,
+    ) async {
+      await openCreatePage(tester, pointToBookings: true);
+
+      states.add(const BookingActionSuccess('Booking confirmed!'));
+      await tester.pumpAndSettle();
+
+      expect(pointer, findsOneWidget);
+      expect(seeIt, findsOneWidget);
+      // One confirmation, not two stacked.
+      expect(plain, findsNothing);
+      expect(find.text('Tutup'), findsNothing);
+    });
+
+    testWidgets('still reloads the Bookings tab and goes back, pointer or not', (
+      tester,
+    ) async {
+      await openCreatePage(tester, pointToBookings: true);
+
+      states.add(const BookingActionSuccess('Booking confirmed!'));
+      await tester.pumpAndSettle();
+
+      expect(refreshCubit.state.kind, DataKind.bookings);
+      expect(find.text('bookings-tab'), findsOneWidget);
+    });
+
+    testWidgets('"Lihat" opens the Booking tab', (tester) async {
+      await openCreatePage(tester, pointToBookings: true);
+      states.add(const BookingActionSuccess('Booking confirmed!'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(seeIt);
+      await tester.pumpAndSettle();
+
+      expect(find.text('bookings-route'), findsOneWidget);
+    });
+
+    testWidgets('the pointer lapses by itself if it is ignored', (
+      tester,
+    ) async {
+      await openCreatePage(tester, pointToBookings: true);
+      states.add(const BookingActionSuccess('Booking confirmed!'));
+      await tester.pumpAndSettle();
+      expect(pointer, findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 11));
+      await tester.pumpAndSettle();
+
+      expect(pointer, findsNothing);
+      expect(find.text('bookings-route'), findsNothing);
+    });
+
+    testWidgets('a failed booking points nowhere', (tester) async {
+      await openCreatePage(tester, pointToBookings: true);
+
+      states.add(const BookingsError('Server down'));
+      await tester.pumpAndSettle();
+
+      expect(pointer, findsNothing);
+      expect(seeIt, findsNothing);
+      expect(find.text('Server down'), findsOneWidget);
+    });
   });
 
   group('date strip', () {
@@ -188,6 +341,157 @@ void main() {
           '*Booking tidak tersedia pada hari Sabtu dan Minggu. Booking minimal satu hari sebelumnya.',
         ),
         findsOneWidget,
+      );
+    });
+  });
+
+  group('the bike picker', () {
+    final addBike = find.byKey(const Key('booking-add-bike'));
+    // The bike row on the page (the summary bar below repeats its words).
+    final bikeRow = find.text('Pilih motor Anda').first;
+
+    /// Opens the picker, taps Tambah Motor, and "saves" a bike in the stand-in
+    /// Add Bike page: the member is back on the booking, picker open again.
+    Future<void> addABike(WidgetTester tester) async {
+      await tester.tap(bikeRow);
+      await tester.pumpAndSettle();
+      await tester.tap(addBike);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Simpan'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'lists the bikes of a member who has some, with no add button',
+      (tester) async {
+        await openCreatePage(
+          tester,
+          bikesPerOpen: const [
+            [r25],
+          ],
+        );
+
+        await tester.tap(bikeRow);
+        await tester.pumpAndSettle();
+
+        expect(find.text('YAMAHA R25'), findsOneWidget);
+        expect(find.text('B 1234 ABC'), findsOneWidget);
+        expect(addBike, findsNothing);
+        expect(find.text('Belum ada motor terdaftar'), findsNothing);
+      },
+    );
+
+    testWidgets('a member with no bike is told why, and can add one', (
+      tester,
+    ) async {
+      await openCreatePage(tester);
+
+      await tester.tap(bikeRow);
+      await tester.pumpAndSettle();
+
+      // Not a dead end: the line is still there, with the reason and a way on.
+      expect(find.text('Belum ada motor terdaftar'), findsOneWidget);
+      expect(
+        find.text('Daftarkan motor Anda dulu untuk membuat booking.'),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: addBike, matching: find.text('Tambah Motor')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Tambah Motor closes the picker and opens Add Bike', (
+      tester,
+    ) async {
+      await openCreatePage(tester);
+      await tester.tap(bikeRow);
+      await tester.pumpAndSettle();
+
+      await tester.tap(addBike);
+      await tester.pumpAndSettle();
+
+      expect(find.text('add-bike-page'), findsOneWidget);
+      expect(find.text('Belum ada motor terdaftar'), findsNothing);
+    });
+
+    testWidgets('once the bike is saved the picker opens again with it', (
+      tester,
+    ) async {
+      await openCreatePage(
+        tester,
+        bikesPerOpen: const [
+          [],
+          [r25],
+        ],
+      );
+
+      await addABike(tester);
+
+      // Back on the booking, with the picker open on the new bike.
+      expect(find.text('add-bike-page'), findsNothing);
+      expect(find.text('YAMAHA R25'), findsOneWidget);
+      expect(addBike, findsNothing);
+    });
+
+    testWidgets('picking the new bike puts it on the booking', (tester) async {
+      await openCreatePage(
+        tester,
+        bikesPerOpen: const [
+          [],
+          [r25],
+        ],
+      );
+      await addABike(tester);
+
+      await tester.tap(find.text('YAMAHA R25'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pilih motor Anda'), findsNothing);
+      expect(find.textContaining('B 1234 ABC'), findsWidgets);
+    });
+
+    testWidgets('backing out of Add Bike leaves the booking as it was', (
+      tester,
+    ) async {
+      await openCreatePage(tester);
+      await tester.tap(bikeRow);
+      await tester.pumpAndSettle();
+      await tester.tap(addBike);
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // No picker re-opened, no bike chosen, still on the booking page.
+      expect(find.text('add-bike-page'), findsNothing);
+      expect(find.text('Belum ada motor terdaftar'), findsNothing);
+      expect(find.text('Pilih motor Anda'), findsNWidgets(2));
+      expect(find.text('Konfirmasi'), findsOneWidget);
+    });
+
+    testWidgets('what was already chosen on the page survives the detour', (
+      tester,
+    ) async {
+      await openCreatePage(
+        tester,
+        bikesPerOpen: const [
+          [],
+          [r25],
+        ],
+      );
+      await tester.tap(find.text('09:00 - 10:00'));
+      await tester.pump();
+      await addABike(tester);
+      await tester.tap(find.text('YAMAHA R25'));
+      await tester.pumpAndSettle();
+
+      // The time picked before the detour is still picked, and with the bike
+      // now chosen Konfirmasi is on.
+      expect(find.textContaining('09:00 - 10:00'), findsWidgets);
+      expect(
+        tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
+        isNotNull,
       );
     });
   });

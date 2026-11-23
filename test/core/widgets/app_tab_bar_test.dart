@@ -159,4 +159,87 @@ void main() {
       expect(find.byIcon(CupertinoIcons.house), findsOneWidget);
     });
   });
+
+  group('tab keys (for the app tour)', () {
+    /// A bar with [keys] on its tabs, or none, on [platform].
+    Future<List<int>> pumpKeyed(
+      WidgetTester tester,
+      TargetPlatform platform,
+      List<GlobalKey>? keys,
+    ) async {
+      final taps = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: platform),
+          home: Scaffold(
+            bottomNavigationBar: AppTabBar(
+              selectedIndex: 0,
+              onSelected: taps.add,
+              tabKeys: keys,
+            ),
+          ),
+        ),
+      );
+      return taps;
+    }
+
+    for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+      group(platform.name, () {
+        testWidgets('each key lands on its own tab, left to right', (
+          tester,
+        ) async {
+          final keys = List.generate(5, (_) => GlobalKey());
+          await pumpKeyed(tester, platform, keys);
+
+          for (final (i, label) in labels.indexed) {
+            expect(
+              find.descendant(
+                of: find.byKey(keys[i]),
+                matching: find.text(label),
+              ),
+              findsOneWidget,
+              reason: label,
+            );
+          }
+        });
+
+        testWidgets('the bar is drawn exactly the same with and without', (
+          tester,
+        ) async {
+          await pumpKeyed(tester, platform, null);
+          final bare = {
+            for (final label in labels) label: tester.getRect(find.text(label)),
+          };
+
+          await pumpKeyed(
+            tester,
+            platform,
+            List.generate(5, (_) => GlobalKey()),
+          );
+
+          for (final label in labels) {
+            expect(
+              tester.getRect(find.text(label)),
+              bare[label],
+              reason: label,
+            );
+          }
+        });
+
+        testWidgets('tapping a keyed tab still reports its index', (
+          tester,
+        ) async {
+          final taps = await pumpKeyed(
+            tester,
+            platform,
+            List.generate(5, (_) => GlobalKey()),
+          );
+
+          await tester.tap(find.text('Booking'));
+
+          expect(taps, [3]);
+        });
+      });
+    }
+  });
 }

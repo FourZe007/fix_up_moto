@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:fix_up_moto/core/helpers/haptics.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
+import 'package:fix_up_moto/features/bookings/presentation/guided_booking.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/profile/presentation/widgets/bike_form.dart';
 import 'package:flutter/material.dart';
@@ -19,19 +23,28 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart'
 ///
 /// The fields themselves are [BikeForm], shared with Edit Bike.
 class AddBikePage extends StatelessWidget {
-  const AddBikePage({super.key});
+  /// True when the member was sent here to register their first bike (the Home
+  /// card, the app tour's hand-off; see [FirstTaskStep.addBike]). Once the bike
+  /// is saved, the confirmation then asks "Buat booking sekarang?" and starts
+  /// the booking if they say yes. False (the default) is the plain confirmation,
+  /// as for every other way of getting here.
+  final bool offerBooking;
+
+  const AddBikePage({super.key, this.offerBooking = false});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<BikesBloc>(),
-      child: const _AddBikeView(),
+      child: _AddBikeView(offerBooking: offerBooking),
     );
   }
 }
 
 class _AddBikeView extends StatelessWidget {
-  const _AddBikeView();
+  final bool offerBooking;
+
+  const _AddBikeView({required this.offerBooking});
 
   @override
   Widget build(BuildContext context) {
@@ -83,9 +96,38 @@ class _AddBikeView extends StatelessWidget {
               listener: (context, state) {
                 if (state is BikesAdded) {
                   Haptics.success();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Motor berhasil ditambah!')),
-                  );
+
+                  final messenger = ScaffoldMessenger.of(context);
+                  if (offerBooking) {
+                    // Taken now, while this context is active: the button below
+                    // runs after the pop, when this page is gone.
+                    final router = GoRouter.of(context);
+                    final workshop = context.read<SelectedWorkshopCubit>();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: const Text(
+                          'Motor tersimpan. Buat booking sekarang?',
+                        ),
+                        // A snack bar with a button stays until it is dismissed;
+                        // this is an offer, not a notice, so it goes by itself.
+                        persist: false,
+                        duration: const Duration(seconds: 10),
+                        action: SnackBarAction(
+                          label: 'Buat Booking',
+                          onPressed: () => unawaited(
+                            startGuidedBooking(
+                              router: router,
+                              workshop: workshop,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  } else {
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Motor berhasil ditambah!')),
+                    );
+                  }
 
                   // A new bike can change the member's stats (Home, Membership
                   // and Profile are alive in the tab stack), so tell them to

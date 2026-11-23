@@ -55,12 +55,17 @@ class IosFloatingTabBar extends StatelessWidget {
   /// background.
   final Color? backdropColor;
 
+  /// One key per entry of [items], put on each tab so the app tour can find it
+  /// on screen. Null adds nothing: the pill is drawn as it is without a tour.
+  final List<GlobalKey>? tabKeys;
+
   const IosFloatingTabBar({
     super.key,
     required this.selectedIndex,
     required this.onSelected,
     required this.items,
     this.backdropColor,
+    this.tabKeys,
   });
 
   /// Gap between the pill and the sides of the screen.
@@ -75,6 +80,18 @@ class IosFloatingTabBar extends StatelessWidget {
 
   /// Height of one tab, so the pill is this plus twice [_padding].
   static const double _tabHeight = 56;
+
+  Widget _tab(int i, Color idle) {
+    final tab = _IosFloatingTab(
+      item: items[i],
+      selected: i == selectedIndex,
+      idleColor: idle,
+      onTap: () => onSelected(i),
+    );
+    final keys = tabKeys;
+    // Without keys the tab goes in bare, as it always did.
+    return keys == null ? tab : KeyedSubtree(key: keys[i], child: tab);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,14 +136,7 @@ class IosFloatingTabBar extends StatelessWidget {
                 child: Row(
                   children: [
                     for (var i = 0; i < items.length; i++)
-                      Expanded(
-                        child: _IosFloatingTab(
-                          item: items[i],
-                          selected: i == selectedIndex,
-                          idleColor: idle,
-                          onTap: () => onSelected(i),
-                        ),
-                      ),
+                      Expanded(child: _tab(i, idle)),
                   ],
                 ),
               ),

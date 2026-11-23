@@ -13,6 +13,8 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
+import 'package:fix_up_moto/core/router/first_task_step.dart';
+import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
@@ -20,15 +22,33 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
 import 'package:fix_up_moto/features/profile/presentation/pages/add_bike_page.dart';
+import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
+import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 import '../../../../support/haptic_recorder.dart';
 
 class MockBikesBloc extends MockBloc<BikesEvent, BikesState>
     implements BikesBloc {}
 
+const workshop = WorkshopEntity(
+  branch: '31',
+  shop: '01',
+  bsName: 'FIXUP MOTO - KEDUNG TARUKAN',
+  bsAddress: 'JL. KUTISARI UTARA NO. 16A',
+  operationalHours: 'Senin - Jumat 08.00 - 16.00',
+  phoneNo: '0312345678',
+  active: true,
+  lat: -7.3,
+  lng: 112.7,
+);
+
 void main() {
   late DataRefreshCubit refreshCubit;
+  late SelectedWorkshopCubit selectedWorkshop;
   late StreamController<BikesState> states;
   late MockBikesBloc bloc;
+
+  /// What the stand-in booking form was last opened with as its `extra`.
+  Object? bookingExtra;
 
   setUpAll(() => registerFallbackValue(const BikesLoadRequested()));
 
@@ -42,19 +62,27 @@ void main() {
 
   setUp(() {
     refreshCubit = DataRefreshCubit();
+    selectedWorkshop = SelectedWorkshopCubit();
     states = StreamController<BikesState>();
+    bookingExtra = null;
   });
 
   tearDown(() async {
     await states.close();
+    await selectedWorkshop.close();
     await sl.reset();
   });
 
   /// Opens the add-bike page on top of a stand-in My Bikes page, returning the
   /// future that completes with whatever the page pops with.
+  ///
+  /// [offerBooking] opens it as the guidance's bike step. The stand-ins for the
+  /// workshop list (which answers with [workshop]) and the booking form are
+  /// there for the offer's button to go to.
   Future<Future<bool?>> openAddBikePage(
     WidgetTester tester, {
     ThemeData? theme,
+    bool offerBooking = false,
   }) async {
     bloc = MockBikesBloc();
     whenListen(bloc, states.stream, initialState: const BikesInitial());
@@ -66,13 +94,40 @@ void main() {
           path: '/',
           builder: (_, _) => const Scaffold(body: Text('my-bikes')),
         ),
-        GoRoute(path: '/add', builder: (_, _) => const AddBikePage()),
+        GoRoute(
+          path: '/add',
+          builder: (_, _) => AddBikePage(offerBooking: offerBooking),
+        ),
+        GoRoute(
+          path: RouteNames.workshops,
+          builder: (context, _) => Scaffold(
+            body: Column(
+              children: [
+                const Text('workshop-list'),
+                TextButton(
+                  onPressed: () => context.pop(workshop),
+                  child: const Text('Pilih bengkel'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: RouteNames.createBooking,
+          builder: (_, state) {
+            bookingExtra = state.extra;
+            return const Scaffold(body: Text('booking-form'));
+          },
+        ),
       ],
     );
 
     await tester.pumpWidget(
-      BlocProvider.value(
-        value: refreshCubit,
+      MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: refreshCubit),
+          BlocProvider.value(value: selectedWorkshop),
+        ],
         child: MaterialApp.router(theme: theme, routerConfig: router),
       ),
     );
@@ -154,6 +209,144 @@ void main() {
 
     expect(refreshCubit.state.kind, isNull);
     expect(find.text('my-bikes'), findsNothing);
+  });
+
+  group('the confirmation', () {
+    final saved = find.text('Motor berhasil ditambah!');
+    final offer = find.text('Motor tersimpan. Buat booking sekarang?');
+    final bookButton = find.text('Buat Booking');
+
+    testWidgets('is the plain one, with no offer, when opened as usual', (
+      tester,
+    ) async {
+      await openAddBikePage(tester);
+
+      states.add(const BikesAdded('Bike added successfully'));
+      await tester.pumpAndSettle();
+
+      expect(saved, findsOneWidget);
+      expect(offer, findsNothing);
+      expect(bookButton, findsNothing);
+    });
+
+    testWidgets("offers a booking when opened as the guidance's bike step", (
+      tester,
+    ) async {
+      await openAddBikePage(tester, offerBooking: true);
+
+      states.add(const BikesAdded('Bike added successfully'));
+      await tester.pumpAndSettle();
+
+      expect(offer, findsOneWidget);
+      expect(bookButton, findsOneWidget);
+      // One confirmation, not two stacked.
+      expect(saved, findsNothing);
+    });
+
+    testWidgets('still pops with true and tells the app, offer or not', (
+      tester,
+    ) async {
+      final signals = <DataKind?>[];
+      final subscription = refreshCubit.stream.listen(
+        (s) => signals.add(s.kind),
+      );
+      addTearDown(subscription.cancel);
+      final result = await openAddBikePage(tester, offerBooking: true);
+
+      states.add(const BikesAdded('Bike added successfully'));
+      await tester.pumpAndSettle();
+
+      expect(await result, isTrue);
+      expect(find.text('my-bikes'), findsOneWidget);
+      expect(signals, [DataKind.bikes, DataKind.stats]);
+    });
+
+    testWidgets('offers nothing when the add failed', (tester) async {
+      await openAddBikePage(tester, offerBooking: true);
+
+      states.add(const BikesError('Server down'));
+      await tester.pumpAndSettle();
+
+      expect(offer, findsNothing);
+      expect(bookButton, findsNothing);
+      expect(find.text('Server down'), findsOneWidget);
+    });
+
+    testWidgets('lapses by itself, and starts nothing, if it is ignored', (
+      tester,
+    ) async {
+      await openAddBikePage(tester, offerBooking: true);
+      states.add(const BikesAdded('Bike added successfully'));
+      await tester.pumpAndSettle();
+      expect(offer, findsOneWidget);
+
+      // A snack bar with a button would normally stay until dismissed.
+      await tester.pump(const Duration(seconds: 11));
+      await tester.pumpAndSettle();
+
+      expect(offer, findsNothing);
+      expect(find.text('workshop-list'), findsNothing);
+      expect(find.text('booking-form'), findsNothing);
+      expect(find.text('my-bikes'), findsOneWidget);
+    });
+
+    group('"Buat Booking"', () {
+      Future<void> addBikeAndTapOffer(WidgetTester tester) async {
+        await openAddBikePage(tester, offerBooking: true);
+        states.add(const BikesAdded('Bike added successfully'));
+        await tester.pumpAndSettle();
+        await tester.tap(bookButton);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('asks for a workshop first when none is chosen', (
+        tester,
+      ) async {
+        await addBikeAndTapOffer(tester);
+
+        expect(find.text('workshop-list'), findsOneWidget);
+        expect(find.text('booking-form'), findsNothing);
+      });
+
+      testWidgets('then opens the booking form, as the booking step', (
+        tester,
+      ) async {
+        await addBikeAndTapOffer(tester);
+
+        await tester.tap(find.text('Pilih bengkel'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('booking-form'), findsOneWidget);
+        expect(bookingExtra, FirstTaskStep.createBooking);
+        // The pick is the app-wide one, so the form shows it.
+        expect(selectedWorkshop.state, workshop);
+      });
+
+      testWidgets('goes straight to the form when a workshop is chosen', (
+        tester,
+      ) async {
+        selectedWorkshop.select(workshop);
+
+        await addBikeAndTapOffer(tester);
+
+        expect(find.text('workshop-list'), findsNothing);
+        expect(find.text('booking-form'), findsOneWidget);
+        expect(bookingExtra, FirstTaskStep.createBooking);
+      });
+
+      testWidgets('opens no form if the member backs out of the workshops', (
+        tester,
+      ) async {
+        await addBikeAndTapOffer(tester);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        expect(find.text('booking-form'), findsNothing);
+        expect(selectedWorkshop.state, isNull);
+        expect(find.text('my-bikes'), findsOneWidget);
+      });
+    });
   });
 
   group('the form', () {

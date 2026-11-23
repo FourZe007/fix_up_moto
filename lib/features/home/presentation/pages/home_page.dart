@@ -4,7 +4,9 @@ import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
+import 'package:fix_up_moto/core/router/first_task_step.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -13,6 +15,9 @@ import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/bookings/presentation/guided_booking.dart';
+import 'package:fix_up_moto/features/home/presentation/widgets/first_bike_card.dart';
+import 'package:fix_up_moto/features/home/presentation/widgets/first_booking_slot.dart';
 import 'package:fix_up_moto/features/notification/presentation/cubit/notification_count_cubit.dart';
 import 'package:fix_up_moto/features/promos/domain/entities/promo_image_entity.dart';
 import 'package:fix_up_moto/features/promos/presentation/bloc/promos_bloc.dart';
@@ -33,8 +38,14 @@ import 'package:fix_up_moto/features/workshops/presentation/widgets/workshop_pic
 /// Profile, MyPoint and Edit Profile) rather than fetching its own: `StatsBootstrap`
 /// loads it at sign-in and reloads it when something that changes the stats
 /// happens elsewhere (e.g. a bike is added), even while this tab is hidden.
+///
+/// [prefs] switches on the "Buat booking pertama Anda" card (see
+/// `FirstBookingSlot`), which needs somewhere on the phone to remember who is
+/// new. Null (the default) leaves it out and the page exactly as it was.
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  final SharedPreferences? prefs;
+
+  const HomePage({super.key, this.prefs});
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +61,7 @@ class HomePage extends StatelessWidget {
                 onRetry: () =>
                     context.read<HomeBloc>().add(const HomeStatsRequested()),
               ),
-              HomeLoaded(:final stats) => _HomeBody(stats: stats),
+              HomeLoaded(:final stats) => _HomeBody(stats: stats, prefs: prefs),
             };
           },
         ),
@@ -61,7 +72,8 @@ class HomePage extends StatelessWidget {
 
 class _HomeBody extends StatelessWidget {
   final DashboardStatsEntity stats;
-  const _HomeBody({required this.stats});
+  final SharedPreferences? prefs;
+  const _HomeBody({required this.stats, this.prefs});
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +85,40 @@ class _HomeBody extends StatelessWidget {
         children: [
           _GreetingHeader(name: stats.memberName, points: stats.point),
           const SizedBox(height: 16),
+          // A member with no bike cannot book yet, so the first thing offered is
+          // adding one. Driven by the stats' bike count, not by a remembered
+          // flag: once the bike is saved Add Bike signals the stats to reload
+          // and the card goes on its own, and a member who already has bikes
+          // never sees it.
+          if (stats.qty <= 0) ...[
+            FirstBikeCard(
+              key: const Key('first-bike-card'),
+              // push, so back returns to Home. Opened as the guidance's bike
+              // step: once the bike is saved, the member is offered a booking.
+              onTap: () => context.push(
+                RouteNames.addBike,
+                extra: FirstTaskStep.addBike,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          // The next first task, once there is a bike: a booking. Only for a
+          // member this phone saw with no bike (so never for existing members),
+          // and only until they have made one. Draws nothing otherwise.
+          if (prefs case final prefs?)
+            FirstBookingSlot(
+              prefs: prefs,
+              memberId: stats.memberId,
+              bikes: stats.qty,
+              // Not on the Bookings tab, so the booking points back to it when
+              // it is made (see FirstTaskStep.createBooking).
+              onTap: () => unawaited(
+                startGuidedBooking(
+                  router: GoRouter.of(context),
+                  workshop: context.read<SelectedWorkshopCubit>(),
+                ),
+              ),
+            ),
           const _WorkshopPicker(),
           const SizedBox(height: 20),
           const _PromoCarousel(),

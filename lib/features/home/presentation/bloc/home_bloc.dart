@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
 import 'home_event.dart';
 import 'home_state.dart';
@@ -15,15 +16,23 @@ import 'home_state.dart';
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final GetDashboardStatsUseCase _getDashboardStats;
 
+  /// A debug aid that lets a member who has bikes look new (see
+  /// [SimulatedNewMember]). Null, always, in a release build and whenever it was
+  /// not asked for, in which case the stats pass through untouched.
+  final SimulatedNewMember? _simulateNewMember;
+
   /// Which request is the current one. Every request and every reset takes the
   /// next number, and an answer is used only if its number is still the latest.
   /// That drops an answer that arrives after sign-out (so it cannot land in the
   /// next member's state) and lets the newest of two overlapping requests win.
   int _requestSeq = 0;
 
-  HomeBloc({required GetDashboardStatsUseCase getDashboardStats})
-    : _getDashboardStats = getDashboardStats,
-      super(const HomeInitial()) {
+  HomeBloc({
+    required GetDashboardStatsUseCase getDashboardStats,
+    SimulatedNewMember? simulateNewMember,
+  }) : _getDashboardStats = getDashboardStats,
+       _simulateNewMember = simulateNewMember,
+       super(const HomeInitial()) {
     on<HomeStatsRequested>(_onStatsRequested);
     on<HomeResetRequested>(_onResetRequested);
   }
@@ -56,12 +65,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       // fall back on, so only it shows the error.
       (failure) =>
           emit(shown != null ? HomeLoaded(shown) : HomeError(failure.message)),
-      (stats) => emit(HomeLoaded(stats)),
+      (stats) => emit(HomeLoaded(_simulateNewMember?.apply(stats) ?? stats)),
     );
   }
 
   void _onResetRequested(HomeResetRequested event, Emitter<HomeState> emit) {
     _requestSeq++;
+    _simulateNewMember?.reset();
     emit(const HomeInitial());
   }
 }

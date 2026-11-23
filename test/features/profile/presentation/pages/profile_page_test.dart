@@ -14,6 +14,7 @@ import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/tour/app_tour_host.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/user_entity.dart';
@@ -75,6 +76,9 @@ Future<Mocks> pumpProfile(
   Stream<HomeState> states = const Stream<HomeState>.empty(),
   ThemeData? theme,
   UserEntity user = tUser,
+  // Given, the page sits under the shell's app-tour host and this is what the
+  // "Panduan Aplikasi" row starts; left out, there is no host above the page.
+  bool Function()? tourStart,
 }) async {
   final homeBloc = MockHomeBloc();
   whenListen(homeBloc, states, initialState: homeState);
@@ -99,7 +103,12 @@ Future<Mocks> pumpProfile(
               value: authBloc,
               child: BlocProvider<HomeBloc>.value(
                 value: homeBloc,
-                child: const ProfilePage(),
+                child: tourStart == null
+                    ? const ProfilePage()
+                    : AppTourScope(
+                        start: tourStart,
+                        child: const ProfilePage(),
+                      ),
               ),
             ),
           ),
@@ -614,6 +623,97 @@ void main() {
       // The rest of the Akun card is untouched.
       expect(editRow, findsOneWidget);
       expect(pointsRow, findsOneWidget);
+    });
+  });
+
+  group('the Panduan Aplikasi row', () {
+    final row = find.byKey(const Key('app-tour'));
+
+    /// The row sits in the FixUp Moto group, below the fold on the default
+    /// test screen.
+    Future<void> showRow(WidgetTester tester) async {
+      await tester.scrollUntilVisible(
+        row,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('is there under the tour host, labelled and with a chevron', (
+      tester,
+    ) async {
+      await pumpProfile(tester, tourStart: () => true);
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      expect(
+        find.descendant(of: row, matching: find.text('Panduan Aplikasi')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('is the first row of the FixUp Moto group', (tester) async {
+      await pumpProfile(tester, tourStart: () => true);
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      // Above Layanan Whatsapp, which used to open the group.
+      expect(
+        tester.getTopLeft(row).dy,
+        lessThan(tester.getTopLeft(whatsappRow).dy),
+      );
+    });
+
+    testWidgets('pressing it starts the tour once', (tester) async {
+      var starts = 0;
+      await pumpProfile(
+        tester,
+        tourStart: () {
+          starts++;
+          return true;
+        },
+      );
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(starts, 1);
+    });
+
+    testWidgets('pressing it does not leave Profile', (tester) async {
+      await pumpProfile(tester, tourStart: () => true);
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(row, findsOneWidget);
+    });
+
+    testWidgets('is left out when no tour host is above the page', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+      // Scroll to where it would be, so "absent" is not just "not built yet".
+      await tester.scrollUntilVisible(
+        whatsappRow,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      // Not shown dead: the whole row is absent, and so is its label.
+      expect(row, findsNothing);
+      expect(find.text('Panduan Aplikasi'), findsNothing);
     });
   });
 

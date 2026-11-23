@@ -53,4 +53,13 @@ class AppConstants {
   static const String previewPlatform = String.fromEnvironment(
     'PREVIEW_PLATFORM',
   );
+
+  /// From `--dart-define=SIMULATE_NEW_MEMBER=true`: makes an account that
+  /// already has bikes look like a new member, and forgets the first-run
+  /// guidance's memory at each launch, so the app tour and the add-bike and
+  /// booking prompts can be seen without a second account. A debug/profile aid
+  /// only: a release build ignores it — see SimulatedNewMember.
+  static const bool simulateNewMember = bool.fromEnvironment(
+    'SIMULATE_NEW_MEMBER',
+  );
 }

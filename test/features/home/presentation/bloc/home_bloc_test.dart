@@ -5,6 +5,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
@@ -159,6 +160,87 @@ void main() {
       await sub.cancel();
       await bloc.close();
     });
+  });
+
+  group('the debug new-member simulation', () {
+    /// [tStats] (a member with one bike) with a different bike count.
+    DashboardStatsEntity withBikes(int qty) => DashboardStatsEntity(
+      status: tStats.status,
+      memberId: tStats.memberId,
+      memberName: tStats.memberName,
+      emailAddress: tStats.emailAddress,
+      phoneNo: tStats.phoneNo,
+      active: tStats.active,
+      qty: qty,
+      point: tStats.point,
+      detail: tStats.detail,
+      detail2: tStats.detail2,
+    );
+
+    HomeBloc buildSimulated() => HomeBloc(
+      getDashboardStats: getStats,
+      simulateNewMember: SimulatedNewMember(),
+    );
+
+    test('shows a member who has bikes as having none', () async {
+      when(() => getStats()).thenAnswer((_) async => Right(withBikes(3)));
+      final bloc = buildSimulated();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect((bloc.state as HomeLoaded).stats.qty, 0);
+      await bloc.close();
+    });
+
+    test(
+      'counts a bike added afterwards, on the reload that follows',
+      () async {
+        final answers = [withBikes(3), withBikes(4)];
+        when(() => getStats())
+            .thenAnswer((_) async => Right(answers.removeAt(0)));
+        final bloc = buildSimulated();
+
+        bloc.add(const HomeStatsRequested());
+        await pumpEventQueue();
+        bloc.add(const HomeStatsRequested());
+        await pumpEventQueue();
+
+        expect((bloc.state as HomeLoaded).stats.qty, 1);
+        await bloc.close();
+      },
+    );
+
+    test('starts again from none after signing out', () async {
+      final answers = [withBikes(3), withBikes(4)];
+      when(() => getStats())
+          .thenAnswer((_) async => Right(answers.removeAt(0)));
+      final bloc = buildSimulated();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+      bloc.add(const HomeResetRequested());
+      await pumpEventQueue();
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect((bloc.state as HomeLoaded).stats.qty, 0);
+      await bloc.close();
+    });
+
+    test(
+      'is not there unless it was handed in: the real count shows',
+      () async {
+        when(() => getStats()).thenAnswer((_) async => Right(withBikes(3)));
+        final bloc = build();
+
+        bloc.add(const HomeStatsRequested());
+        await pumpEventQueue();
+
+        expect((bloc.state as HomeLoaded).stats.qty, 3);
+        await bloc.close();
+      },
+    );
   });
 
   group('overlapping requests', () {

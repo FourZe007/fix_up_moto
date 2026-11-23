@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/helpers/external_link.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
+import 'package:fix_up_moto/core/tour/app_tour_host.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/copyable_member_id.dart';
 import 'package:fix_up_moto/core/widgets/profile_avatar.dart';
@@ -360,6 +361,20 @@ class _ProfileBody extends StatelessWidget {
           const SectionHeader('FixUp Moto'),
           SectionCard(
             children: [
+              // Plays the app tour again. It needs the shell's tour host above
+              // this page; without one (a test, a preview) the row is left out
+              // rather than shown dead.
+              if (AppTourScope.maybeOf(context) case final tour?)
+                ActionRow(
+                  key: const Key('app-tour'),
+                  name: 'Panduan Aplikasi',
+                  icon: Icon(
+                    Icons.help_outline_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  onPressed: tour.start,
+                ),
               ActionRow(
                 key: const Key('whatsapp-service'),
                 name: 'Layanan Whatsapp',
