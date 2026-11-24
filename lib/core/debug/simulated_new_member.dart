@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/constants/app_constants.dart';
 import 'package:fix_up_moto/core/tour/app_tour_seen.dart';
+import 'package:fix_up_moto/core/tour/field_guide_seen.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/widgets/first_booking_guide.dart';
 
@@ -18,8 +19,9 @@ import 'package:fix_up_moto/features/home/presentation/widgets/first_booking_gui
 ///
 /// What it does:
 /// - [start], once per app launch, forgets the guidance's memory on the phone
-///   (the tour's "seen" flag and the first-booking card's lists), so every launch
-///   is a first run.
+///   (the tour's "seen" flag, the Add Bike and Create Booking field guides', and
+///   the first-booking card's lists), so every launch is a first run: the tour,
+///   then Add Bike's guide to each field, then Create Booking's.
 /// - [apply] shows the member's stats with the bikes they already had when this
 ///   launch first saw them taken off the bike count. Adding a bike really saves
 ///   it and counts, so the chain carries on (bike card → add a bike → "Buat
@@ -43,12 +45,14 @@ class SimulatedNewMember {
     if (release || !enabled) return null;
 
     await prefs.remove(AppTourSeen.key);
+    await prefs.remove(FieldGuideSeen.keyFor(FieldGuideId.addBike));
+    await prefs.remove(FieldGuideSeen.keyFor(FieldGuideId.createBooking));
     await prefs.remove(FirstBookingGuide.pendingKey);
     await prefs.remove(FirstBookingGuide.settledKey);
     debugPrint(
       '[SIMULATE_NEW_MEMBER] on: the bikes this account already has are hidden '
-      'from the bike count, and the app tour and first-booking memory were '
-      'cleared.',
+      'from the bike count, and the app tour, the Add Bike and Create Booking '
+      'field guides and the first-booking memory were cleared.',
     );
     return SimulatedNewMember();
   }

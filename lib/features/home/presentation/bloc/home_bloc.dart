@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fix_up_moto/core/debug/simulated_first_booking.dart';
 import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_usecase.dart';
 import 'home_event.dart';
@@ -21,6 +22,12 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   /// not asked for, in which case the stats pass through untouched.
   final SimulatedNewMember? _simulateNewMember;
 
+  /// A debug aid that makes a member who has bikes look like one who has not
+  /// booked yet (see [SimulatedFirstBooking]). Null, always, in a release build
+  /// and whenever it was not asked for. It does not change the stats; it is
+  /// given each member's stats before they are shown.
+  final SimulatedFirstBooking? _simulateFirstBooking;
+
   /// Which request is the current one. Every request and every reset takes the
   /// next number, and an answer is used only if its number is still the latest.
   /// That drops an answer that arrives after sign-out (so it cannot land in the
@@ -30,8 +37,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   HomeBloc({
     required GetDashboardStatsUseCase getDashboardStats,
     SimulatedNewMember? simulateNewMember,
+    SimulatedFirstBooking? simulateFirstBooking,
   }) : _getDashboardStats = getDashboardStats,
        _simulateNewMember = simulateNewMember,
+       _simulateFirstBooking = simulateFirstBooking,
        super(const HomeInitial()) {
     on<HomeStatsRequested>(_onStatsRequested);
     on<HomeResetRequested>(_onResetRequested);
@@ -60,6 +69,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     // A newer request or a reset happened meanwhile: this answer is stale.
     if (seq != _requestSeq) return;
 
+    // Debug only: the phone must remember this member as "not booked yet"
+    // *before* Home draws, because the card reads that memory when it is built.
+    // Waiting here also means a sign-out during the write drops this answer too.
+    final simulateFirstBooking = _simulateFirstBooking;
+    if (simulateFirstBooking != null) {
+      await result.fold((_) async {}, simulateFirstBooking.prepare);
+      if (seq != _requestSeq) return;
+    }
+
     result.fold(
       // A failed reload keeps the old stats; only a first load has no stats to
       // fall back on, so only it shows the error.
@@ -72,6 +90,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   void _onResetRequested(HomeResetRequested event, Emitter<HomeState> emit) {
     _requestSeq++;
     _simulateNewMember?.reset();
+    _simulateFirstBooking?.reset();
     emit(const HomeInitial());
   }
 }

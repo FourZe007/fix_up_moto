@@ -12,14 +12,30 @@
     {
       // Debug only. An account that already has bikes looks like a new member
       // (the bikes it had at launch are hidden from the bike count), and the app
-      // tour and first-booking memory are cleared at every launch, so the
-      // first-run guidance shows each time. A release build ignores it.
+      // tour, Add Bike's field guide and first-booking memory are cleared at
+      // every launch, so the first-run guidance shows each time (the tour, then
+      // the guide to each text field on Add Bike). A release build ignores it.
       "name": "fix_up_moto (new member)",
       "request": "launch",
       "type": "dart",
       "toolArgs": [
         "--dart-define-from-file=dart_defines.json",
         "--dart-define=SIMULATE_NEW_MEMBER=true"
+      ]
+    },
+    {
+      // Debug only. The other half: an account that already has its bikes (they
+      // stay real) looks like a member who has not booked yet. The app tour
+      // plays at every launch and its last step offers "Buat booking sekarang",
+      // Home offers "Buat booking pertama Anda", and booking through either ends
+      // in the "Lihat" pointer to the Booking tab. A booking made in the app
+      // clears the card until the next launch. A release build ignores it.
+      "name": "fix_up_moto (first booking)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define-from-file=dart_defines.json",
+        "--dart-define=SIMULATE_FIRST_BOOKING=true"
       ]
     }
   ]

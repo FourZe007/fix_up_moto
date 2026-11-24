@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 
 import 'package:fix_up_moto/core/theme/app_colors.dart';
+import 'package:fix_up_moto/core/tour/field_guide.dart';
+import 'package:fix_up_moto/core/tour/field_guide_player.dart';
+import 'package:fix_up_moto/core/tour/field_guide_seen.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/core/widgets/warm_section.dart';
 import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
@@ -10,6 +14,7 @@ import 'package:fix_up_moto/features/profile/domain/entities/bike_entity.dart';
 import 'package:fix_up_moto/features/profile/presentation/widgets/bike_photo_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// What the member entered, trimmed and ready to send. [photo] is already the
 /// string to send: base64 of a newly picked image, `''` when the photo was
@@ -44,6 +49,14 @@ class BikeFormValues {
 ///
 /// Removing the photo asks first, so the page must sit under a
 /// [ConfirmPanelScope].
+///
+/// **The field guide** (Add Bike only): given [guidePrefs], the form can walk the
+/// member through its six text fields and then the photo box, one at a time,
+/// saying what goes in each, where to find it on the STNK and which can be left
+/// empty (see `buildFieldGuide`). [playGuide] plays it on request (Add Bike's help button),
+/// and with [autoGuide] it also plays by itself the first time the form opens on
+/// a phone that has not been through it. Without [guidePrefs] (the default, and
+/// Edit Bike) the form is exactly as it was.
 class BikeForm extends StatefulWidget {
   /// The bike being edited, or null for a new one.
   final BikeEntity? initial;
@@ -57,20 +70,66 @@ class BikeForm extends StatefulWidget {
   /// Called with the entered values once the form validates.
   final ValueChanged<BikeFormValues> onSubmit;
 
+  /// Where the field guide remembers it has been seen. Null (the default) means
+  /// the form has no guide.
+  final SharedPreferences? guidePrefs;
+
+  /// Whether the guide plays by itself, once, when the form opens and the phone
+  /// has not seen it. Ignored without [guidePrefs].
+  final bool autoGuide;
+
+  /// Set to true while the guide is on screen and false when it ends, for a page
+  /// that wants to react (Add Bike hides its help button, which the guide's own
+  /// "Lewati" would otherwise sit on top of). Null (the default) means nobody
+  /// is listening.
+  final ValueNotifier<bool>? guideActive;
+
+  /// How long after the form opens the automatic guide waits: for the page's
+  /// slide-in to finish, so the overlay is not drawn over a moving page.
+  static const Duration guideDelay = FieldGuidePlayer.autoDelay;
+
   const BikeForm({
     super.key,
     this.initial,
     this.isLoading = false,
     required this.submitLabel,
     required this.onSubmit,
+    this.guidePrefs,
+    this.autoGuide = false,
+    this.guideActive,
   });
 
   @override
-  State<BikeForm> createState() => _BikeFormState();
+  State<BikeForm> createState() => BikeFormState();
 }
 
-class _BikeFormState extends State<BikeForm> {
+class BikeFormState extends State<BikeForm> {
   final _formKey = GlobalKey<FormState>();
+
+  // One key per text field, which the guide lights up.
+  final _unitKey = GlobalKey();
+  final _colorKey = GlobalKey();
+  final _yearKey = GlobalKey();
+  final _plateKey = GlobalKey();
+  final _chasisKey = GlobalKey();
+  final _engineKey = GlobalKey();
+  final _photoKey = GlobalKey();
+
+  /// Lets the guide's end take the form back to its top.
+  final _scroll = ScrollController();
+
+  /// Runs the field guide (when it plays, scrolling, remembering it was seen).
+  late final FieldGuidePlayer _player;
+
+  /// Blank scroll room added under the form while the guide plays (0 otherwise).
+  ///
+  /// The guide scrolls each field up near the top of the screen and puts its
+  /// card below it. The last fields are near the end of the form and could not
+  /// scroll that far, which would leave their card with no room; this lets every
+  /// field reach the same spot. The guide's dark overlay covers the form, so the
+  /// blank space is never seen.
+  double _guideRoom = 0;
+
   // Feeds BikeFormValues.unitId directly — the backend has no separate
   // brand/model fields (BikeEntity only ever stores one combined string,
   // e.g. "YAMAHA R25"), so this is one field rather than two that just get
@@ -186,7 +245,98 @@ class _BikeFormState extends State<BikeForm> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _player = FieldGuidePlayer(
+      guideId: FieldGuideId.addBike,
+      steps: _guideSteps,
+      state: this,
+      prefs: widget.guidePrefs,
+      scroll: _scroll,
+      active: widget.guideActive,
+      onRoomChanged: (room) => setState(() => _guideRoom = room),
+    );
+    if (widget.autoGuide) _player.autoPlayOnce();
+  }
+
+  /// The seven steps (six text fields, then the photo box), in the form's own
+  /// order. The sentences say what goes in the field and where to find it;
+  /// "Wajib diisi" is only true of the two fields the form really refuses to
+  /// save without (see the validators below).
+  late final List<FieldGuideStep> _guideSteps = [
+    FieldGuideStep(
+      key: _unitKey,
+      title: 'Merek & Model',
+      message:
+          'Tulis merek dan tipe motor Anda dalam satu isian, misalnya Honda '
+          'Supra X 125. Keduanya tertera di STNK.',
+      required: true,
+    ),
+    FieldGuideStep(
+      key: _colorKey,
+      title: 'Warna',
+      message: 'Tulis warna motor Anda seperti di STNK, misalnya Hitam.',
+      required: false,
+    ),
+    FieldGuideStep(
+      key: _yearKey,
+      title: 'Tahun',
+      message:
+          'Isi dengan 4 angka tahun pembuatan motor, misalnya 2023. Tertera di '
+          'STNK.',
+      required: false,
+    ),
+    FieldGuideStep(
+      key: _plateKey,
+      title: 'Plat Nomor',
+      message:
+          'Ketik plat nomor seperti di motor, misalnya L 1234 AB. Hanya huruf '
+          'dan angka (3 sampai 8 karakter); huruf otomatis menjadi kapital.',
+      required: true,
+    ),
+    FieldGuideStep(
+      key: _chasisKey,
+      title: 'No Chasis',
+      message:
+          'Nomor rangka motor (NOKA). Ada di STNK dan tercetak pada rangka '
+          'motor. Ketik apa adanya.',
+      required: false,
+    ),
+    FieldGuideStep(
+      key: _engineKey,
+      title: 'No Mesin',
+      message:
+          'Nomor mesin motor (NOSIN). Ada di STNK dan tercetak pada blok '
+          'mesin. Ketik apa adanya.',
+      required: false,
+    ),
+    // Not a text field, but the last thing on the form and the one with no
+    // label or hint to explain it. What it says matches _PhotoPicker: empty it
+    // opens the gallery (no camera), a photo opens full screen, the X removes it
+    // after asking.
+    FieldGuideStep(
+      key: _photoKey,
+      title: 'Foto',
+      message:
+          'Ketuk kotak ini untuk memilih foto motor dari galeri. Setelah '
+          'dipilih, ketuk foto untuk memperbesarnya, atau ketuk tanda X di '
+          'pojok foto untuk menghapusnya.',
+      required: false,
+    ),
+  ];
+
+  /// Plays the field guide. False when it cannot: one is already playing or
+  /// about to, or the fields are not on screen to light up.
+  ///
+  /// Add Bike's help button calls this; the automatic start does too. Marks the
+  /// guide seen when it ends, if the form was given somewhere to remember that.
+  bool playGuide() => _player.play();
+
+  @override
   void dispose() {
+    // Takes the guide off the screen too (a back press mid-guide).
+    _player.dispose();
+    _scroll.dispose();
     _unitIdController.dispose();
     _colorController.dispose();
     _yearController.dispose();
@@ -231,6 +381,7 @@ class _BikeFormState extends State<BikeForm> {
           // Input Textfields
           Expanded(
             child: SingleChildScrollView(
+              controller: _scroll,
               child: Form(
                 key: _formKey,
                 // Surfaces each field's error as soon as the user
@@ -243,6 +394,7 @@ class _BikeFormState extends State<BikeForm> {
                   children: [
                     const SectionHeader('Informasi Motor'),
                     AuthTextField(
+                      key: _unitKey,
                       controller: _unitIdController,
                       label: 'Merek & Model',
                       hint: 'Contoh: Honda Supra x 125',
@@ -250,12 +402,14 @@ class _BikeFormState extends State<BikeForm> {
                       validator: (v) => _required('Merek & Model', v),
                     ),
                     AuthTextField(
+                      key: _colorKey,
                       controller: _colorController,
                       label: 'Warna',
                       hint: 'Contoh: Hitam',
                       prefixIcon: Icons.palette_outlined,
                     ),
                     AuthTextField(
+                      key: _yearKey,
                       controller: _yearController,
                       label: 'Tahun',
                       hint: 'Contoh: 2023',
@@ -276,6 +430,7 @@ class _BikeFormState extends State<BikeForm> {
                     const Divider(height: 20, color: AppColors.peachHairline),
                     const SectionHeader('Registrasi'),
                     AuthTextField(
+                      key: _plateKey,
                       controller: _plateController,
                       label: 'Plat Nomor',
                       hint: 'Contoh: L 1234 AB',
@@ -284,6 +439,7 @@ class _BikeFormState extends State<BikeForm> {
                       validator: _plateNumberValidator,
                     ),
                     AuthTextField(
+                      key: _chasisKey,
                       controller: _chasisController,
                       label: 'No Chasis',
                       hint: 'Masukkan nomor rangka',
@@ -291,6 +447,7 @@ class _BikeFormState extends State<BikeForm> {
                       textCapitalization: TextCapitalization.characters,
                     ),
                     AuthTextField(
+                      key: _engineKey,
                       controller: _engineController,
                       label: 'No Mesin',
                       hint: 'Masukkan nomor mesin',
@@ -303,10 +460,13 @@ class _BikeFormState extends State<BikeForm> {
                     const Divider(height: 20, color: AppColors.peachHairline),
                     const SectionHeader('Foto'),
                     _PhotoPicker(
+                      key: _photoKey,
                       image: _photoImage,
                       onPick: _pickPhoto,
                       onRemove: _removePhoto,
                     ),
+                    // Only while the field guide plays (see [_guideRoom]).
+                    if (_guideRoom > 0) SizedBox(height: _guideRoom),
                   ],
                 ),
               ),
@@ -346,6 +506,7 @@ class _PhotoPicker extends StatelessWidget {
   final VoidCallback onRemove;
 
   const _PhotoPicker({
+    super.key,
     required this.image,
     required this.onPick,
     required this.onRemove,

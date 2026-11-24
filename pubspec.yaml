@@ -80,6 +80,10 @@ dependencies:
   # image_picker: gallery-only photo selection on Add Bike — pickImage is
   # called with source: ImageSource.gallery, never .camera.
   image_picker: ^1.2.3
+  # geolocator: where the member is, only to choose the nearest workshop as the
+  # default for a booking (core/services/location_service.dart). Coarse,
+  # while-in-use location; the position is compared once, never stored or sent.
+  geolocator: ^14.1.2
 
   # ── UI ────────────────────────────────────────────────────────────────────
   # sliding_up_panel: the advanced-filter panel on the Bookings tab, and the

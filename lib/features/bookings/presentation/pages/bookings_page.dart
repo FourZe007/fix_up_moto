@@ -25,8 +25,6 @@ import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart'
 import 'package:fix_up_moto/features/services/presentation/bloc/services_bloc.dart';
 import 'package:fix_up_moto/features/services/presentation/bloc/services_event.dart';
 import 'package:fix_up_moto/features/services/presentation/pages/services_page.dart';
-import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
-import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 
 /// The Bookings tab: past service history and current bookings, as two
 /// segments of one tab rather than two separate tabs — both are about the
@@ -680,23 +678,11 @@ class _BookingsViewState extends State<_BookingsView>
     return bsName.substring(match.end).trim();
   }
 
-  /// Gates entry to [CreateBookingPage] on a workshop already being selected
-  /// — checked and resolved *before* pushing that page at all, so it's never
-  /// visible mid-pick. (An earlier version instead asked CreateBookingPage to
-  /// check for itself right after mounting, which meant the form flashed on
-  /// screen for a frame before the picker slid on top of it.)
-  Future<void> _openCreateBooking(BuildContext context) async {
-    final cubit = context.read<SelectedWorkshopCubit>();
-
-    if (cubit.state == null) {
-      final picked = await context.push<WorkshopEntity>(RouteNames.workshops);
-      if (picked == null) return; // backed out — stay on Bookings, untouched
-      if (!context.mounted) return;
-      cubit.select(picked);
-    }
-
-    if (context.mounted) context.push(RouteNames.createBooking);
-  }
+  /// Opens [CreateBookingPage]. There used to be a workshop list in front of it
+  /// when none was chosen; now the form picks a default itself (the first open
+  /// workshop) and lets the member change it from its own workshop row.
+  void _openCreateBooking(BuildContext context) =>
+      context.push(RouteNames.createBooking);
 
   void _confirmCancel(BuildContext context, String bookingId) {
     showAdaptiveDialog<void>(

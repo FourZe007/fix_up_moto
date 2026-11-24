@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 import 'package:fix_up_moto/core/tour/app_tour_seen.dart';
+import 'package:fix_up_moto/core/tour/field_guide_seen.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
 import 'package:fix_up_moto/features/home/presentation/widgets/first_booking_guide.dart';
 
@@ -32,6 +33,8 @@ void main() {
   group('start', () {
     final remembered = <String, Object>{
       AppTourSeen.key: true,
+      FieldGuideSeen.keyFor(FieldGuideId.addBike): true,
+      FieldGuideSeen.keyFor(FieldGuideId.createBooking): true,
       FirstBookingGuide.pendingKey: ['M-001'],
       FirstBookingGuide.settledKey: ['M-002'],
       'theme_mode': 'dark',
@@ -49,6 +52,8 @@ void main() {
       await SimulatedNewMember.start(prefs);
 
       expect(AppTourSeen.read(prefs), isTrue);
+      expect(FieldGuideSeen.read(prefs, FieldGuideId.addBike), isTrue);
+      expect(FieldGuideSeen.read(prefs, FieldGuideId.createBooking), isTrue);
       expect(FirstBookingGuide.isPending(prefs, 'M-001'), isTrue);
     });
 
@@ -63,6 +68,7 @@ void main() {
 
       expect(simulation, isNull);
       expect(AppTourSeen.read(prefs), isTrue);
+      expect(FieldGuideSeen.read(prefs, FieldGuideId.addBike), isTrue);
       expect(FirstBookingGuide.isPending(prefs, 'M-001'), isTrue);
       expect(prefs.getStringList(FirstBookingGuide.settledKey), ['M-002']);
     });
@@ -86,6 +92,12 @@ void main() {
           await SimulatedNewMember.start(prefs, enabled: true, release: false);
 
           expect(AppTourSeen.read(prefs), isFalse);
+          // So Add Bike's guide and Create Booking's play at every launch too.
+          expect(FieldGuideSeen.read(prefs, FieldGuideId.addBike), isFalse);
+          expect(
+            FieldGuideSeen.read(prefs, FieldGuideId.createBooking),
+            isFalse,
+          );
           expect(prefs.containsKey(FirstBookingGuide.pendingKey), isFalse);
           expect(prefs.containsKey(FirstBookingGuide.settledKey), isFalse);
         });

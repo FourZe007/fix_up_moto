@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ import 'package:fix_up_moto/core/tour/app_tour_audience.dart';
 import 'package:fix_up_moto/core/tour/app_tour_handoff.dart';
 import 'package:fix_up_moto/core/tour/app_tour_seen.dart';
 import 'package:fix_up_moto/core/tour/app_tour_steps.dart';
+import 'package:fix_up_moto/features/bookings/presentation/guided_booking.dart';
 
 /// What a page below an [AppTourHost] can ask of it: play the tour now.
 ///
@@ -50,11 +52,16 @@ class AppTourScope extends InheritedWidget {
 ///
 /// **Only for new members:** given [bikeCount], the host will not start on its
 /// own until it knows the member's bike count, and then only for a new member
-/// (see [AppTourAudience]). A member who already has a bike is not new: the tour
+/// (see [AppTourAudience]): one with no bike, or one with a bike who is still to
+/// make their first booking ([bookingPending]). Anyone else is not new: the tour
 /// is marked seen for them, so it never plays by itself, not even if they later
 /// delete their last bike. Until the count is known (the stats are still
 /// loading, or failed) it simply waits, and never guesses. Without [bikeCount]
 /// the audience is not checked at all.
+///
+/// In a debug build it prints one line to the console each time the reason it is
+/// not starting yet changes (`[app tour] ...`), so a tour that never appears can
+/// be explained.
 ///
 /// The tour is marked seen when it ends, by finishing or by "Lewati". Closing
 /// the app halfway therefore shows it again next time.
@@ -78,6 +85,12 @@ class AppTourHost extends StatefulWidget {
   /// for any member who has not seen it.
   final int? Function()? bikeCount;
 
+  /// Whether the phone remembers the member as still to make their first
+  /// booking, asked at every check along with [bikeCount]. It is what lets a
+  /// member who already has a bike be new to the tour. Null (the default) means
+  /// "no", so only the bike count decides.
+  final bool Function()? bookingPending;
+
   /// Builds the shell, given one key per tab in `MainTabs` order.
   final Widget Function(BuildContext context, List<GlobalKey> tabKeys) builder;
 
@@ -86,6 +99,7 @@ class AppTourHost extends StatefulWidget {
     this.prefs,
     this.handoff,
     this.bikeCount,
+    this.bookingPending,
     required this.builder,
   });
 
@@ -139,16 +153,33 @@ class _AppTourHostState extends State<AppTourHost> {
     super.dispose();
   }
 
-  /// Nothing else is on top, the app is in the foreground, and the bar is
-  /// drawn, so the overlay will not hide a dialog and has something to light up.
-  bool get _isFree {
-    if (!mounted) return false;
-    if (_route != null && !_route!.isCurrent) return false;
+  /// Why the tour cannot play right now, or null when nothing else is on top, the
+  /// app is in the foreground, and the bar is drawn, so the overlay will not hide
+  /// a dialog and has something to light up.
+  String? get _busyReason {
+    if (!mounted) return 'the shell is not on screen';
+    if (_route != null && !_route!.isCurrent) {
+      return 'another page or a dialog is on top of the shell';
+    }
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) {
-      return false;
+      return 'the app is not in the foreground ($lifecycle)';
     }
-    return _tabKeys.every((key) => key.currentContext != null);
+    if (!_tabKeys.every((key) => key.currentContext != null)) {
+      return 'the bottom bar is not drawn yet';
+    }
+    return null;
+  }
+
+  /// The last reason printed, so a reason that stays the same prints once.
+  String? _lastExplained;
+
+  /// Prints why the tour is not starting (debug builds only), once per change of
+  /// reason, so a tour that never appears can be explained from the console.
+  void _explain(String reason) {
+    if (kReleaseMode || reason == _lastExplained) return;
+    _lastExplained = reason;
+    debugPrint('[app tour] $reason');
   }
 
   void _check() {
@@ -164,16 +195,33 @@ class _AppTourHostState extends State<AppTourHost> {
       final bikes = countBikes();
       if (bikes == null) {
         _calmChecks = 0;
+        _explain(
+          'waiting: the stats have not loaded, so the bike count is unknown',
+        );
         return;
       }
-      if (!AppTourAudience.isNew(bikes)) {
+      final pending = widget.bookingPending?.call() ?? false;
+      if (!AppTourAudience.isNew(bikes, bookingPending: pending)) {
+        _explain(
+          'not for this member: $bikes bike(s) and no first booking pending, '
+          'so it is marked seen',
+        );
         _retire();
         return;
       }
     }
 
-    _calmChecks = _isFree ? _calmChecks + 1 : 0;
-    if (_calmChecks < AppTourHost.calmChecksNeeded) return;
+    final busy = _busyReason;
+    _calmChecks = busy == null ? _calmChecks + 1 : 0;
+    if (busy != null) {
+      _explain('waiting: $busy');
+      return;
+    }
+    if (_calmChecks < AppTourHost.calmChecksNeeded) {
+      _explain('waiting: the shell is free, counting quiet checks');
+      return;
+    }
+    _explain('starting');
     start();
   }
 
@@ -220,13 +268,23 @@ class _AppTourHostState extends State<AppTourHost> {
     _tour = null;
     _markSeen();
 
-    // The member took the hand-off: on to their first task. Pushed, so back
-    // returns to the page they were on; whatever the task changes (a saved bike)
-    // it announces itself.
+    // The member took the hand-off: on to their next task. Opened on top, so back
+    // returns to the page they were on; whatever the task changes (a saved bike,
+    // a booking) it announces itself.
     final accepted = _acceptedHandoff;
     _acceptedHandoff = null;
     if (accepted != null && mounted) {
-      unawaited(context.push<Object?>(accepted.route, extra: accepted.extra));
+      switch (accepted.task) {
+        case AppTourHandoffTask.addBike:
+          final route = accepted.route;
+          if (route != null) {
+            unawaited(context.push<Object?>(route, extra: accepted.extra));
+          }
+        case AppTourHandoffTask.bookService:
+          // The same start as Home's "Buat booking pertama Anda" card: the booking
+          // form, which points to the Booking tab once the booking is made.
+          unawaited(startGuidedBooking(router: GoRouter.of(context)));
+      }
     }
   }
 

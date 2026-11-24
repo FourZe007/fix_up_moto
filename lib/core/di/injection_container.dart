@@ -4,6 +4,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fix_up_moto/core/debug/simulated_first_booking.dart';
+import 'package:fix_up_moto/core/services/geolocator_location_service.dart';
+import 'package:fix_up_moto/core/services/location_service.dart';
 import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 
 import 'package:fix_up_moto/core/constants/google_auth_constants.dart';
@@ -279,10 +282,22 @@ Future<void> initDependencies() async {
   // The debug-only new-member simulation is handed in only when it was asked
   // for (`--dart-define=SIMULATE_NEW_MEMBER=true`) and never in a release build.
   final simulateNewMember = await SimulatedNewMember.start(prefs);
+  // Likewise `--dart-define=SIMULATE_FIRST_BOOKING=true`: the bikes stay real,
+  // and Home offers the first booking at every launch.
+  final simulateFirstBooking = await SimulatedFirstBooking.start(prefs);
   sl.registerLazySingleton(
-    () =>
-        HomeBloc(getDashboardStats: sl(), simulateNewMember: simulateNewMember),
+    () => HomeBloc(
+      getDashboardStats: sl(),
+      simulateNewMember: simulateNewMember,
+      simulateFirstBooking: simulateFirstBooking,
+    ),
   );
+
+  // Where the member is, for choosing the nearest workshop as the default for a
+  // booking. A lazy singleton so "asked for permission once per app run" really
+  // is once per run. Never throws and answers null whenever it cannot know, so
+  // Create Booking then falls back to the first open workshop.
+  sl.registerLazySingleton<LocationService>(() => GeolocatorLocationService());
 
   // ── Services Feature ──────────────────────────────────────────────────────
 

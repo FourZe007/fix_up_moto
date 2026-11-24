@@ -7,37 +7,21 @@ import 'package:go_router/go_router.dart';
 import 'package:fix_up_moto/core/router/first_task_step.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/features/bookings/presentation/guided_booking.dart';
-import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
-import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
-
-const kedungTarukan = WorkshopEntity(
-  branch: '31',
-  shop: '01',
-  bsName: 'FIXUP MOTO - KEDUNG TARUKAN',
-  bsAddress: 'JL. KUTISARI UTARA NO. 16A',
-  operationalHours: 'Senin - Jumat 08.00 - 16.00',
-  phoneNo: '0312345678',
-  active: true,
-  lat: -7.3,
-  lng: 112.7,
-);
 
 void main() {
-  late SelectedWorkshopCubit workshop;
   late GoRouter router;
   Object? formExtra;
   var formOpened = 0;
+  var workshopListOpened = 0;
 
   setUp(() {
-    workshop = SelectedWorkshopCubit();
     formExtra = null;
     formOpened = 0;
+    workshopListOpened = 0;
   });
 
-  tearDown(() => workshop.close());
-
-  /// A stand-in Home with the workshop list (answering with
-  /// [kedungTarukan]) and the booking form (recording its extra) beside it.
+  /// A stand-in Home with the booking form (recording its extra) beside it. The
+  /// workshop list is there too, only to count how often anything opens it.
   Future<void> pumpApp(WidgetTester tester) async {
     router = GoRouter(
       routes: [
@@ -47,17 +31,10 @@ void main() {
         ),
         GoRoute(
           path: RouteNames.workshops,
-          builder: (context, _) => Scaffold(
-            body: Column(
-              children: [
-                const Text('workshop-list'),
-                TextButton(
-                  onPressed: () => context.pop(kedungTarukan),
-                  child: const Text('Pilih bengkel'),
-                ),
-              ],
-            ),
-          ),
+          builder: (_, _) {
+            workshopListOpened++;
+            return const Scaffold(body: Text('workshop-list'));
+          },
         ),
         GoRoute(
           path: RouteNames.createBooking,
@@ -73,77 +50,41 @@ void main() {
   }
 
   Future<void> start(WidgetTester tester) async {
-    unawaited(startGuidedBooking(router: router, workshop: workshop));
+    unawaited(startGuidedBooking(router: router));
     await tester.pumpAndSettle();
   }
 
-  testWidgets('with no workshop chosen it asks for one before the form', (
-    tester,
-  ) async {
+  testWidgets('opens the booking form straight away', (tester) async {
     await pumpApp(tester);
 
     await start(tester);
 
-    expect(find.text('workshop-list'), findsOneWidget);
-    expect(find.text('booking-form'), findsNothing);
-  });
-
-  testWidgets(
-    'the pick is kept as the app-wide workshop, then the form opens',
-    (tester) async {
-      await pumpApp(tester);
-      await start(tester);
-
-      await tester.tap(find.text('Pilih bengkel'));
-      await tester.pumpAndSettle();
-
-      expect(workshop.state, kedungTarukan);
-      expect(find.text('booking-form'), findsOneWidget);
-    },
-  );
-
-  testWidgets("the form is opened as the guidance's booking step", (
-    tester,
-  ) async {
-    await pumpApp(tester);
-    await start(tester);
-    await tester.tap(find.text('Pilih bengkel'));
-    await tester.pumpAndSettle();
-
-    expect(formExtra, FirstTaskStep.createBooking);
-  });
-
-  testWidgets('with a workshop already chosen it goes straight to the form', (
-    tester,
-  ) async {
-    workshop.select(kedungTarukan);
-    await pumpApp(tester);
-
-    await start(tester);
-
-    expect(find.text('workshop-list'), findsNothing);
     expect(find.text('booking-form'), findsOneWidget);
-    expect(formExtra, FirstTaskStep.createBooking);
+    expect(formOpened, 1);
   });
 
-  testWidgets('backing out of the workshops stops there, and chooses nothing', (
-    tester,
-  ) async {
+  testWidgets('with no workshop list in front of it', (tester) async {
     await pumpApp(tester);
+
     await start(tester);
 
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
+    // The form chooses a workshop itself (the first open one).
+    expect(find.text('workshop-list'), findsNothing);
+    expect(workshopListOpened, 0);
+  });
 
-    expect(formOpened, 0);
-    expect(workshop.state, isNull);
-    expect(find.text('home'), findsOneWidget);
+  testWidgets("opens the form as the guidance's booking step", (tester) async {
+    await pumpApp(tester);
+
+    await start(tester);
+
+    // So that once the booking is made it points to the Booking tab.
+    expect(formExtra, FirstTaskStep.createBooking);
   });
 
   testWidgets('back from the form returns to where the member was', (
     tester,
   ) async {
-    workshop.select(kedungTarukan);
     await pumpApp(tester);
     await start(tester);
 
@@ -152,5 +93,17 @@ void main() {
 
     expect(find.text('booking-form'), findsNothing);
     expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('can be started again after coming back', (tester) async {
+    await pumpApp(tester);
+    await start(tester);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    await start(tester);
+
+    expect(formOpened, 2);
+    expect(find.text('booking-form'), findsOneWidget);
   });
 }

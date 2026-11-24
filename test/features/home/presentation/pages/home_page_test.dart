@@ -458,7 +458,7 @@ void main() {
       expect(card, findsNothing);
     });
 
-    testWidgets('pressing it asks for a workshop first when none is chosen', (
+    testWidgets('pressing it opens the booking form straight away', (
       tester,
     ) async {
       await pumpLoadedHome(
@@ -470,32 +470,26 @@ void main() {
       await tester.tap(card);
       await tester.pumpAndSettle();
 
-      expect(find.text('workshop-list'), findsOneWidget);
-      expect(bookingFormOpened, 0);
+      // No workshop list in front of it: the form picks a workshop itself.
+      expect(find.text('workshop-list'), findsNothing);
+      expect(find.text('booking-form'), findsOneWidget);
+      expect(bookingFormOpened, 1);
     });
 
-    testWidgets('then opens the booking form as the booking step', (
-      tester,
-    ) async {
+    testWidgets('opened as the guidance\'s booking step', (tester) async {
       await pumpLoadedHome(
         tester,
         stats: withBikes(1),
         prefs: await notedAsNew(),
       );
+
       await tester.tap(card);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Pilih bengkel'));
-      await tester.pumpAndSettle();
-
-      expect(selectedWorkshop.state, aWorkshop);
-      expect(find.text('booking-form'), findsOneWidget);
       expect(bookingExtra, FirstTaskStep.createBooking);
     });
 
-    testWidgets('goes straight to the form when a workshop is chosen', (
-      tester,
-    ) async {
+    testWidgets('does the same with a workshop already chosen', (tester) async {
       selectedWorkshop.select(aWorkshop);
       await pumpLoadedHome(
         tester,
@@ -509,9 +503,23 @@ void main() {
       expect(find.text('workshop-list'), findsNothing);
       expect(find.text('booking-form'), findsOneWidget);
       expect(bookingExtra, FirstTaskStep.createBooking);
+      expect(selectedWorkshop.state, aWorkshop);
     });
 
-    testWidgets('backing out of the workshops leaves the card where it was', (
+    testWidgets('leaves the workshop choice to the form', (tester) async {
+      await pumpLoadedHome(
+        tester,
+        stats: withBikes(1),
+        prefs: await notedAsNew(),
+      );
+
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+
+      expect(selectedWorkshop.state, isNull);
+    });
+
+    testWidgets('back from the form leaves the card where it was', (
       tester,
     ) async {
       await pumpLoadedHome(
@@ -525,7 +533,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      expect(bookingFormOpened, 0);
+      expect(find.text('booking-form'), findsNothing);
       expect(card, findsOneWidget);
     });
   });

@@ -53,14 +53,14 @@ abstract final class AppTourSteps {
       tab: MainTabs.bookings,
       title: 'Booking',
       message:
-          'Buat booking servis, lihat booking Anda, dan buka Riwayat servis '
+          'Buat booking servis, lihat booking Anda, dan buka Riwayat servis'
           'untuk setiap motor.',
     ),
     AppTourStep(
       tab: MainTabs.profile,
       title: 'Saya',
       message:
-          'Ubah data diri, kelola motor, buka Kotak Masuk, atau hubungi kami '
+          'Ubah data diri, kelola motor, buka Kotak Masuk, atau hubungi kami'
           'lewat WhatsApp. Panduan ini bisa dibuka lagi dari sini.',
     ),
   ];

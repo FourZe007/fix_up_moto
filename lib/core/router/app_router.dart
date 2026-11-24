@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/router/go_router_refresh_stream.dart';
+import 'package:fix_up_moto/core/tour/app_tour_audience.dart';
 import 'package:fix_up_moto/core/tour/app_tour_handoff.dart';
 import 'package:fix_up_moto/core/widgets/splash_page.dart';
 import 'package:fix_up_moto/features/auth/domain/entities/google_account_identity.dart';
@@ -12,6 +13,7 @@ import 'package:fix_up_moto/features/auth/presentation/bloc/auth_state.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/complete_google_profile_page.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/home/presentation/widgets/first_booking_guide.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/login_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/register_page.dart';
 import 'package:fix_up_moto/features/auth/presentation/pages/welcome_page.dart';
@@ -74,6 +76,19 @@ class AppRouter {
   static int? _memberBikeCount() {
     final home = sl<HomeBloc>().state;
     return home is HomeLoaded ? home.stats.qty : null;
+  }
+
+  /// Whether the signed-in member is still to make their first booking, as this
+  /// phone remembers it (see `FirstBookingGuide`); false until the stats have
+  /// loaded, since there is no member to ask about yet. What lets the app tour
+  /// treat a member who already has a bike as new, and offer them a booking.
+  static bool _memberBookingPending() {
+    final home = sl<HomeBloc>().state;
+    return home is HomeLoaded &&
+        FirstBookingGuide.isPending(
+          sl<SharedPreferences>(),
+          home.stats.memberId,
+        );
   }
 
   /// The authentication guard, as a pure function of the auth state, the
@@ -278,6 +293,13 @@ class AppRouter {
         // unchanged.
         builder: (_, state) => CreateBookingPage(
           pointToBookings: state.extra == FirstTaskStep.createBooking,
+          // The field guide: a help button for everyone, and it plays by itself
+          // (once) for a member whose first booking is still to make, whichever
+          // way they got here (Home's card, the tour's hand-off, the Bookings
+          // tab). The same "first booking pending" the tour and Home's card go
+          // by; an existing member was never noted, so only has the button.
+          guidePrefs: sl<SharedPreferences>(),
+          autoGuide: _memberBookingPending(),
         ),
       ),
       // Reached from both Home's picker and Create Booking's — it used to be
@@ -343,8 +365,20 @@ class AppRouter {
         // Opened as the guidance's bike step (Home's card, the app tour), it
         // offers a booking once the bike is saved. Any other way in has no
         // extra, and is unchanged.
-        builder: (_, state) =>
-            AddBikePage(offerBooking: state.extra == FirstTaskStep.addBike),
+        builder: (_, state) {
+          final bikes = _memberBikeCount();
+          return AddBikePage(
+            offerBooking: state.extra == FirstTaskStep.addBike,
+            // The field guide: a help button for everyone, and it plays by
+            // itself (once) for a member with no bike yet, whichever way they
+            // got here (Home's card, the tour's hand-off, My Bikes, Create
+            // Booking). The same "no bike = new" rule as the app tour. A member
+            // adding another bike knows the form; unknown (stats not loaded)
+            // never counts as "no bike".
+            guidePrefs: sl<SharedPreferences>(),
+            autoGuide: bikes != null && AppTourAudience.isNew(bikes),
+          );
+        },
       ),
       // Opened from MyBikesPage's more-actions sheet, which hands over the bike
       // as `extra`. A bike can't be rebuilt from the path (it has no id), so
@@ -370,12 +404,18 @@ class AppRouter {
           // Lets the app tour play once, by itself, for a new member who has
           // not seen it.
           prefs: sl<SharedPreferences>(),
-          // Both read the member's bike count from the stats held right now:
-          // it limits the tour's automatic start to members with no bike, and
-          // decides whether its last step offers adding one. Until the stats
-          // have loaded there is no count (null), so neither guesses.
+          // These read the member's bike count from the stats held right now,
+          // and whether the phone has them down for a first booking still to
+          // make: that limits the tour's automatic start to new members (no
+          // bike, or a bike and no booking yet), and decides what its last step
+          // offers (add a bike, or book). Until the stats have loaded there is
+          // no count (null), so none of it guesses.
           tourBikeCount: _memberBikeCount,
-          tourHandoff: () => AppTourHandoff.forBikeCount(_memberBikeCount()),
+          tourBookingPending: _memberBookingPending,
+          tourHandoff: () => AppTourHandoff.forBikeCount(
+            _memberBikeCount(),
+            bookingPending: _memberBookingPending(),
+          ),
         ),
         navigatorContainerBuilder: (context, navigationShell, branches) =>
             buildTabContainer(

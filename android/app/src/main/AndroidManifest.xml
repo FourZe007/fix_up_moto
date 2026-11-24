@@ -6,6 +6,12 @@
          Login cannot work in release without it. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Where the member is, only to choose the nearest workshop as the default
+         for a booking. Coarse (about a city block) is plenty to tell one branch
+         from another, and is a lighter ask than precise location, so precise
+         (ACCESS_FINE_LOCATION) is deliberately not requested. Asked for in
+         context, when Create Booking opens with no workshop chosen. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <application
         android:label="FixUp Moto"

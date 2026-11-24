@@ -112,12 +112,8 @@ class _HomeBody extends StatelessWidget {
               bikes: stats.qty,
               // Not on the Bookings tab, so the booking points back to it when
               // it is made (see FirstTaskStep.createBooking).
-              onTap: () => unawaited(
-                startGuidedBooking(
-                  router: GoRouter.of(context),
-                  workshop: context.read<SelectedWorkshopCubit>(),
-                ),
-              ),
+              onTap: () =>
+                  unawaited(startGuidedBooking(router: GoRouter.of(context))),
             ),
           const _WorkshopPicker(),
           const SizedBox(height: 20),

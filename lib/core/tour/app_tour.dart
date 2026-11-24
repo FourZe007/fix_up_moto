@@ -171,11 +171,7 @@ class AppTourCard extends StatelessWidget {
           child: Row(
             spacing: 10,
             children: [
-              const Icon(
-                Icons.two_wheeler_outlined,
-                color: AppColors.primary,
-                size: 22,
-              ),
+              Icon(handoff.icon, color: AppColors.primary, size: 22),
               Expanded(
                 child: Text(
                   handoff.message,

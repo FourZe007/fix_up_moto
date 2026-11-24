@@ -1,14 +1,15 @@
 import 'dart:async';
 
 import 'package:fix_up_moto/core/helpers/haptics.dart';
+import 'package:fix_up_moto/core/tour/field_guide_help_button.dart';
 import 'package:fix_up_moto/core/widgets/confirm_panel_scope.dart';
 import 'package:fix_up_moto/features/bookings/presentation/guided_booking.dart';
-import 'package:fix_up_moto/features/workshops/presentation/cubit/selected_workshop_cubit.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
 import 'package:fix_up_moto/features/profile/presentation/widgets/bike_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
@@ -30,21 +31,67 @@ class AddBikePage extends StatelessWidget {
   /// as for every other way of getting here.
   final bool offerBooking;
 
-  const AddBikePage({super.key, this.offerBooking = false});
+  /// Switches on the field guide: a help button in the app bar that walks the
+  /// member through each text field, remembering on the phone that it has been
+  /// seen (see `BikeForm`). Null (the default) leaves the page exactly as it was.
+  final SharedPreferences? guidePrefs;
+
+  /// Whether the guide also plays by itself, once, the first time the page
+  /// opens on a phone that has not seen it. The router sets it for a member who
+  /// has no bike yet; a member adding another bike knows the form and only has
+  /// the help button. Ignored without [guidePrefs].
+  final bool autoGuide;
+
+  const AddBikePage({
+    super.key,
+    this.offerBooking = false,
+    this.guidePrefs,
+    this.autoGuide = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<BikesBloc>(),
-      child: _AddBikeView(offerBooking: offerBooking),
+      child: _AddBikeView(
+        offerBooking: offerBooking,
+        guidePrefs: guidePrefs,
+        autoGuide: autoGuide,
+      ),
     );
   }
 }
 
-class _AddBikeView extends StatelessWidget {
+class _AddBikeView extends StatefulWidget {
   final bool offerBooking;
+  final SharedPreferences? guidePrefs;
+  final bool autoGuide;
 
-  const _AddBikeView({required this.offerBooking});
+  const _AddBikeView({
+    required this.offerBooking,
+    required this.guidePrefs,
+    required this.autoGuide,
+  });
+
+  @override
+  State<_AddBikeView> createState() => _AddBikeViewState();
+}
+
+class _AddBikeViewState extends State<_AddBikeView> {
+  /// Reaches the form, so the help button can play its guide.
+  final _formKey = GlobalKey<BikeFormState>();
+
+  /// True while the guide plays. The help button steps aside for it: the guide's
+  /// "Lewati" sits in the same corner of the screen and would land on top of it.
+  final _guideActive = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _guideActive.dispose();
+    super.dispose();
+  }
+
+  bool get offerBooking => widget.offerBooking;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +132,17 @@ class _AddBikeView extends StatelessWidget {
               style: IconButton.styleFrom(foregroundColor: onSurface),
               onPressed: () => context.pop(),
             ),
+            actions: [
+              // Plays the field guide again, any time: the automatic one only
+              // happens once.
+              if (widget.guidePrefs != null)
+                FieldGuideHelpButton(
+                  buttonKey: const Key('add-bike-guide-button'),
+                  active: _guideActive,
+                  color: onSurface,
+                  onPressed: () => _formKey.currentState?.playGuide(),
+                ),
+            ],
           ),
           // top: false — the AppBar above already accounts for the status bar;
           // this guards "Tambah Motor" at the form's end from the gesture nav
@@ -102,7 +160,6 @@ class _AddBikeView extends StatelessWidget {
                     // Taken now, while this context is active: the button below
                     // runs after the pop, when this page is gone.
                     final router = GoRouter.of(context);
-                    final workshop = context.read<SelectedWorkshopCubit>();
                     messenger.showSnackBar(
                       SnackBar(
                         content: const Text(
@@ -114,12 +171,8 @@ class _AddBikeView extends StatelessWidget {
                         duration: const Duration(seconds: 10),
                         action: SnackBarAction(
                           label: 'Buat Booking',
-                          onPressed: () => unawaited(
-                            startGuidedBooking(
-                              router: router,
-                              workshop: workshop,
-                            ),
-                          ),
+                          onPressed: () =>
+                              unawaited(startGuidedBooking(router: router)),
                         ),
                       ),
                     );
@@ -152,6 +205,10 @@ class _AddBikeView extends StatelessWidget {
                 }
               },
               child: BikeForm(
+                key: _formKey,
+                guidePrefs: widget.guidePrefs,
+                autoGuide: widget.autoGuide,
+                guideActive: _guideActive,
                 submitLabel: 'Tambah Motor',
                 onSubmit: (values) => context.read<BikesBloc>().add(
                   BikeAddRequested(

@@ -42,12 +42,18 @@ class MainShell extends StatelessWidget {
   /// members. Null (the default) means it is not limited.
   final int? Function()? tourBikeCount;
 
+  /// Whether the member is still to make their first booking (see
+  /// [AppTourHost.bookingPending]): what lets a member who already has a bike
+  /// still be new to the tour. Null (the default) means "no".
+  final bool Function()? tourBookingPending;
+
   const MainShell({
     super.key,
     required this.navigationShell,
     this.prefs,
     this.tourHandoff,
     this.tourBikeCount,
+    this.tourBookingPending,
   });
 
   /// The colour the page of [tab] paints at its bottom edge, for the iOS bar to
@@ -81,6 +87,7 @@ class MainShell extends StatelessWidget {
       prefs: prefs,
       handoff: tourHandoff,
       bikeCount: tourBikeCount,
+      bookingPending: tourBookingPending,
       builder: (context, tabKeys) => PopScope(
         canPop: current == MainTabs.home,
         onPopInvokedWithResult: (didPop, result) {

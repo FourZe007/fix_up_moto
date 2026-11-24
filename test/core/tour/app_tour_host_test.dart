@@ -42,6 +42,7 @@ Future<Harness> pumpHost(
   TargetPlatform platform = TargetPlatform.android,
   AppTourHandoff? Function()? handoff,
   int? Function()? bikeCount,
+  bool Function()? bookingPending,
 }) async {
   final taps = <int>[];
   late List<GlobalKey> keys;
@@ -56,6 +57,7 @@ Future<Harness> pumpHost(
           prefs: prefs,
           handoff: handoff,
           bikeCount: bikeCount,
+          bookingPending: bookingPending,
           builder: (context, tabKeys) {
             keys = tabKeys;
             return Scaffold(
@@ -105,6 +107,19 @@ Future<Harness> pumpHost(
           return const Scaffold(body: Text('add-bike-page'));
         },
       ),
+      // Stands in for the booking form, where the booking hand-off lands. The
+      // workshop list is here only to prove nothing opens it any more.
+      GoRoute(
+        path: RouteNames.workshops,
+        builder: (_, _) => const Scaffold(body: Text('workshop-list')),
+      ),
+      GoRoute(
+        path: RouteNames.createBooking,
+        builder: (_, state) {
+          bookingFormExtra = state.extra;
+          return const Scaffold(body: Text('booking-form'));
+        },
+      ),
     ],
   );
 
@@ -126,6 +141,9 @@ Future<void> waitForAutoStart(WidgetTester tester) async {
 
 /// What the stand-in Add Bike route was last opened with as its `extra`.
 Object? addBikeExtra;
+
+/// What the stand-in booking form was last opened with as its `extra`.
+Object? bookingFormExtra;
 
 final card = find.byType(AppTourCard);
 final next = find.byKey(const Key('tour-next'));
@@ -599,6 +617,76 @@ void main() {
       expect(card, findsNothing);
     });
 
+    testWidgets('a member with a bike who still has to book gets it too', (
+      tester,
+    ) async {
+      final prefs = await prefsWith({});
+      await pumpHost(
+        tester,
+        prefs: prefs,
+        bikeCount: () => 3,
+        bookingPending: () => true,
+      );
+
+      await waitForAutoStart(tester);
+
+      expect(card, findsOneWidget);
+      // Not marked yet: it is only marked when it ends.
+      expect(AppTourSeen.read(prefs), isFalse);
+    });
+
+    testWidgets('a member with a bike who has booked does not', (tester) async {
+      final prefs = await prefsWith({});
+      await pumpHost(
+        tester,
+        prefs: prefs,
+        bikeCount: () => 3,
+        bookingPending: () => false,
+      );
+
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+
+      expect(card, findsNothing);
+      expect(AppTourSeen.read(prefs), isTrue);
+    });
+
+    testWidgets('who still has to book is read once the count is known', (
+      tester,
+    ) async {
+      int? bikes;
+      var pending = false;
+      await pumpHost(
+        tester,
+        prefs: await prefsWith({}),
+        bikeCount: () => bikes,
+        bookingPending: () => pending,
+      );
+      await tester.pump(const Duration(seconds: 5));
+
+      bikes = 2;
+      pending = true;
+      await waitForAutoStart(tester);
+
+      expect(card, findsOneWidget);
+    });
+
+    testWidgets(
+      'a member with no bike gets it whether or not they are pending',
+      (tester) async {
+        await pumpHost(
+          tester,
+          prefs: await prefsWith({}),
+          bikeCount: () => 0,
+          bookingPending: () => false,
+        );
+
+        await waitForAutoStart(tester);
+
+        expect(card, findsOneWidget);
+      },
+    );
+
     testWidgets('and is marked as having seen it, so it stays gone', (
       tester,
     ) async {
@@ -1041,6 +1129,138 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('add-bike-page'), findsOneWidget);
+    });
+  });
+
+  group('handing a member who has a bike on to their first booking', () {
+    /// A member with a bike who still has to book, and the tour walked to its
+    /// last step.
+    Future<SharedPreferences> toLastStep(WidgetTester tester) async {
+      final prefs = await prefsWith({});
+      await pumpHost(
+        tester,
+        prefs: prefs,
+        bikeCount: () => 2,
+        bookingPending: () => true,
+        handoff: () => AppTourHandoff.bookFirstService,
+      );
+      await waitForAutoStart(tester);
+      for (var i = 0; i < 4; i++) {
+        await pressNext(tester);
+      }
+      return prefs;
+    }
+
+    testWidgets('the last step offers booking, with its own icon', (
+      tester,
+    ) async {
+      await toLastStep(tester);
+
+      expect(find.text('5 dari 5'), findsOneWidget);
+      expect(
+        find.text(AppTourHandoff.bookFirstService.message),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: accept,
+          matching: find.text('Buat booking sekarang'),
+        ),
+        findsOneWidget,
+      );
+      final offer = find.byKey(const Key('tour-handoff-message'));
+      expect(
+        find.descendant(
+          of: offer,
+          matching: find.byIcon(Icons.event_available_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: offer,
+          matching: find.byIcon(Icons.two_wheeler_outlined),
+        ),
+        findsNothing,
+      );
+      expect(find.text('Selesai'), findsNothing);
+    });
+
+    testWidgets('accepting closes the tour and opens the booking form', (
+      tester,
+    ) async {
+      await toLastStep(tester);
+
+      await tester.tap(accept);
+      await tester.pumpAndSettle();
+
+      expect(card, findsNothing);
+      expect(find.text('booking-form'), findsOneWidget);
+      expect(find.text('add-bike-page'), findsNothing);
+    });
+
+    testWidgets('with no workshop list in front of it: the form picks one', (
+      tester,
+    ) async {
+      await toLastStep(tester);
+
+      await tester.tap(accept);
+      await tester.pumpAndSettle();
+
+      expect(find.text('workshop-list'), findsNothing);
+    });
+
+    testWidgets("opened as the guidance's booking step", (tester) async {
+      bookingFormExtra = null;
+      await toLastStep(tester);
+
+      await tester.tap(accept);
+      await tester.pumpAndSettle();
+
+      // So that once the booking is made, the member is pointed to the Booking
+      // tab.
+      expect(bookingFormExtra, FirstTaskStep.createBooking);
+    });
+
+    testWidgets('accepting also marks the tour seen', (tester) async {
+      final prefs = await toLastStep(tester);
+      expect(AppTourSeen.read(prefs), isFalse);
+
+      await tester.tap(accept);
+      await tester.pumpAndSettle();
+
+      expect(AppTourSeen.read(prefs), isTrue);
+    });
+
+    testWidgets('back from the form leaves the member on the page', (
+      tester,
+    ) async {
+      await toLastStep(tester);
+      await tester.tap(accept);
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+
+      expect(find.text('booking-form'), findsNothing);
+      expect(find.text('Putar ulang'), findsOneWidget);
+      expect(card, findsNothing);
+    });
+
+    testWidgets('Nanti saja closes it, opens nothing, and marks it seen', (
+      tester,
+    ) async {
+      final prefs = await toLastStep(tester);
+
+      await tester.tap(decline);
+      await tester.pumpAndSettle();
+
+      expect(card, findsNothing);
+      expect(find.text('workshop-list'), findsNothing);
+      expect(find.text('booking-form'), findsNothing);
+      expect(AppTourSeen.read(prefs), isTrue);
     });
   });
 

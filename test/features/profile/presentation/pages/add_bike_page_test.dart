@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/core/refresh/data_refresh_cubit.dart';
@@ -17,7 +18,11 @@ import 'package:fix_up_moto/core/router/first_task_step.dart';
 import 'package:fix_up_moto/core/router/route_names.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
+import 'package:fix_up_moto/core/tour/field_guide.dart';
+import 'package:fix_up_moto/core/tour/field_guide_seen.dart';
 import 'package:fix_up_moto/core/widgets/warm_wash.dart';
+import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:fix_up_moto/features/profile/presentation/widgets/bike_form.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_bloc.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_event.dart';
 import 'package:fix_up_moto/features/profile/presentation/bloc/bikes_state.dart';
@@ -79,10 +84,15 @@ void main() {
   /// [offerBooking] opens it as the guidance's bike step. The stand-ins for the
   /// workshop list (which answers with [workshop]) and the booking form are
   /// there for the offer's button to go to.
+  ///
+  /// [guidePrefs] switches on the field guide (its help button, and its
+  /// automatic play when [autoGuide] is also set).
   Future<Future<bool?>> openAddBikePage(
     WidgetTester tester, {
     ThemeData? theme,
     bool offerBooking = false,
+    SharedPreferences? guidePrefs,
+    bool autoGuide = false,
   }) async {
     bloc = MockBikesBloc();
     whenListen(bloc, states.stream, initialState: const BikesInitial());
@@ -96,7 +106,11 @@ void main() {
         ),
         GoRoute(
           path: '/add',
-          builder: (_, _) => AddBikePage(offerBooking: offerBooking),
+          builder: (_, _) => AddBikePage(
+            offerBooking: offerBooking,
+            guidePrefs: guidePrefs,
+            autoGuide: autoGuide,
+          ),
         ),
         GoRoute(
           path: RouteNames.workshops,
@@ -211,6 +225,496 @@ void main() {
     expect(find.text('my-bikes'), findsNothing);
   });
 
+  group('the field guide', () {
+    final card = find.byType(FieldGuideCard);
+    final next = find.byKey(const Key('field-guide-next'));
+    final back = find.byKey(const Key('field-guide-back'));
+    final tag = find.byKey(const Key('field-guide-tag'));
+    final skip = find.text('Lewati');
+    final helpButton = find.byKey(const Key('add-bike-guide-button'));
+
+    /// The seven steps (six text fields, then the photo box), in the form's
+    /// order, and whether each is required.
+    const fields = <(String, bool)>[
+      ('Merek & Model', true),
+      ('Warna', false),
+      ('Tahun', false),
+      ('Plat Nomor', true),
+      ('No Chasis', false),
+      ('No Mesin', false),
+      ('Foto', false),
+    ];
+
+    /// What a step lights: the text field with that label, or the photo box.
+    Finder lit(String label) => label == 'Foto'
+        ? find.byWidgetPredicate(
+            (w) => w.runtimeType.toString() == '_PhotoPicker',
+          )
+        : find.widgetWithText(AuthTextField, label);
+
+    Future<SharedPreferences> prefsWith(Map<String, Object> values) {
+      SharedPreferences.setMockInitialValues(values);
+      return SharedPreferences.getInstance();
+    }
+
+    /// Lets the guide come up, or move to its next field, after it was asked to.
+    ///
+    /// Fixed steps rather than `pumpAndSettle`: the overlay's chain (scroll the
+    /// field in, light it, fade the card in) has gaps where no frame is
+    /// scheduled, and `pumpAndSettle` takes the first gap for the end. A phone
+    /// just keeps drawing frames. About 3 s covers the whole chain (fade out,
+    /// scroll, light, fade in is about 1.3 s), with room to spare.
+    Future<void> settleGuide(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump();
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 150));
+      }
+    }
+
+    /// Lets the automatic start's wait pass, then the guide come up.
+    Future<void> waitForAutoGuide(WidgetTester tester) async {
+      await tester.pump(BikeForm.guideDelay);
+      await settleGuide(tester);
+    }
+
+    Future<void> pressNext(WidgetTester tester) async {
+      await tester.tap(next);
+      await settleGuide(tester);
+    }
+
+    /// A page for a member with no bike, who has not seen the guide.
+    Future<SharedPreferences> openForNewMember(WidgetTester tester) async {
+      final prefs = await prefsWith({});
+      await openAddBikePage(tester, guidePrefs: prefs, autoGuide: true);
+      return prefs;
+    }
+
+    group('when it plays', () {
+      testWidgets('not at all without guide settings: the page is as it was', (
+        tester,
+      ) async {
+        await openAddBikePage(tester);
+
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+
+        expect(helpButton, findsNothing);
+        expect(card, findsNothing);
+      });
+
+      testWidgets('by itself the first time, for a member with no bike', (
+        tester,
+      ) async {
+        await openForNewMember(tester);
+
+        await waitForAutoGuide(tester);
+
+        expect(card, findsOneWidget);
+        expect(find.text('1 dari 7'), findsOneWidget);
+        expect(find.text('Merek & Model'), findsWidgets);
+      });
+
+      testWidgets('not before the page has settled in', (tester) async {
+        await openForNewMember(tester);
+
+        // Just short of the wait. (pumpAndSettle would step past it.)
+        await tester.pump(
+          BikeForm.guideDelay - const Duration(milliseconds: 200),
+        );
+
+        expect(card, findsNothing);
+      });
+
+      testWidgets('not for a member who already has a bike', (tester) async {
+        final prefs = await prefsWith({});
+        await openAddBikePage(tester, guidePrefs: prefs, autoGuide: false);
+
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+
+        expect(card, findsNothing);
+        // They still have the help button.
+        expect(helpButton, findsOneWidget);
+      });
+
+      testWidgets('not again once the phone has been through it', (
+        tester,
+      ) async {
+        final prefs = await prefsWith({
+          FieldGuideSeen.keyFor(FieldGuideId.addBike): true,
+        });
+        await openAddBikePage(tester, guidePrefs: prefs, autoGuide: true);
+
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+
+        expect(card, findsNothing);
+      });
+
+      testWidgets('again from the help button, even when it was seen', (
+        tester,
+      ) async {
+        final prefs = await prefsWith({
+          FieldGuideSeen.keyFor(FieldGuideId.addBike): true,
+        });
+        await openAddBikePage(tester, guidePrefs: prefs, autoGuide: true);
+
+        await tester.tap(helpButton);
+        await settleGuide(tester);
+
+        expect(card, findsOneWidget);
+        expect(find.text('1 dari 7'), findsOneWidget);
+      });
+
+      testWidgets('the help button is not doubled by a second press', (
+        tester,
+      ) async {
+        await openAddBikePage(tester, guidePrefs: await prefsWith({}));
+
+        await tester.tap(helpButton);
+        await settleGuide(tester);
+        // The overlay swallows taps; ask the form directly, as a fast second
+        // tap would.
+        final form = tester.state<BikeFormState>(find.byType(BikeForm));
+
+        expect(form.playGuide(), isFalse);
+        await tester.pumpAndSettle();
+        expect(card, findsOneWidget);
+      });
+
+      testWidgets('opening it for a replay waits for a raised keyboard', (
+        tester,
+      ) async {
+        await openAddBikePage(tester, guidePrefs: await prefsWith({}));
+        await tester.tap(find.widgetWithText(AuthTextField, 'Warna'));
+        await tester.pumpAndSettle();
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+
+        await tester.tap(helpButton);
+        // Not yet: the keyboard is lowered first.
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(card, findsNothing);
+
+        tester.view.resetViewInsets();
+        await tester.pump(const Duration(milliseconds: 400));
+        await settleGuide(tester);
+        expect(card, findsOneWidget);
+      });
+    });
+
+    group('walking through it', () {
+      testWidgets(
+        'lights the six fields in the form\'s order, with their tag',
+        (tester) async {
+          await openForNewMember(tester);
+          await waitForAutoGuide(tester);
+
+          for (var i = 0; i < fields.length; i++) {
+            final (label, required) = fields[i];
+            expect(find.text('${i + 1} dari 7'), findsOneWidget, reason: label);
+            expect(
+              find.descendant(of: card, matching: find.text(label)),
+              findsOneWidget,
+              reason: label,
+            );
+            expect(
+              find.descendant(
+                of: tag,
+                matching: find.text(required ? 'Wajib diisi' : 'Opsional'),
+              ),
+              findsOneWidget,
+              reason: '$label is ${required ? 'required' : 'optional'}',
+            );
+            if (i < fields.length - 1) await pressNext(tester);
+          }
+        },
+      );
+
+      testWidgets(
+        'its "Wajib diisi" tags match what the form really insists on',
+        (tester) async {
+          // Submit the empty form and see which fields refuse: the guide's tags
+          // must say the same, or it would mislead.
+          useTallScreen(tester);
+          await openAddBikePage(tester);
+
+          await tester.tap(find.widgetWithText(ElevatedButton, 'Tambah Motor'));
+          await tester.pumpAndSettle();
+
+          final refused = find.textContaining('wajib diisi');
+          expect(refused, findsNWidgets(2));
+          expect(find.text('Merek & Model wajib diisi'), findsOneWidget);
+          expect(find.text('Plat nomor wajib diisi'), findsOneWidget);
+          expect(fields.where((f) => f.$2).map((f) => f.$1).toList(), [
+            'Merek & Model',
+            'Plat Nomor',
+          ]);
+        },
+      );
+
+      testWidgets('Kembali goes back a field, and is missing on the first', (
+        tester,
+      ) async {
+        await openForNewMember(tester);
+        await waitForAutoGuide(tester);
+        expect(back, findsNothing);
+
+        await pressNext(tester);
+        await pressNext(tester);
+        expect(find.text('3 dari 7'), findsOneWidget);
+
+        await tester.tap(back);
+        await settleGuide(tester);
+
+        expect(find.text('2 dari 7'), findsOneWidget);
+      });
+
+      testWidgets('the last field says Selesai, and Lewati is gone', (
+        tester,
+      ) async {
+        await openForNewMember(tester);
+        await waitForAutoGuide(tester);
+        expect(skip, findsOneWidget);
+
+        for (var i = 0; i < fields.length - 1; i++) {
+          await pressNext(tester);
+        }
+
+        expect(find.text('7 dari 7'), findsOneWidget);
+        expect(
+          find.descendant(of: next, matching: find.text('Selesai')),
+          findsOneWidget,
+        );
+        expect(skip, findsNothing);
+      });
+
+      testWidgets('the help button steps aside while it plays, and comes back', (
+        tester,
+      ) async {
+        await openForNewMember(tester);
+        // Hidden, not removed (the title keeps its place), so look at the flag.
+        bool buttonShown() => tester
+            .widget<Visibility>(
+              find
+                  .ancestor(of: helpButton, matching: find.byType(Visibility))
+                  .first,
+            )
+            .visible;
+        expect(buttonShown(), isTrue);
+
+        await waitForAutoGuide(tester);
+        // "Lewati" sits in the same corner: the button must not be under it.
+        expect(buttonShown(), isFalse);
+
+        await tester.tap(skip);
+        await settleGuide(tester);
+
+        expect(buttonShown(), isTrue);
+      });
+
+      testWidgets('takes the form back to its top when it ends', (
+        tester,
+      ) async {
+        // A short screen, so the late fields really scroll.
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await openForNewMember(tester);
+        double scrolled() => tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(BikeForm),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position
+            .pixels;
+        await waitForAutoGuide(tester);
+        for (var i = 0; i < fields.length - 1; i++) {
+          await pressNext(tester);
+        }
+        expect(scrolled(), greaterThan(0), reason: 'the last field is below');
+
+        await pressNext(tester); // Selesai
+        await settleGuide(tester);
+
+        expect(scrolled(), 0);
+      });
+
+      testWidgets('leaves the form as it was when it ends: no extra room', (
+        tester,
+      ) async {
+        await openForNewMember(tester);
+        double maxScroll() => tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(BikeForm),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position
+            .maxScrollExtent;
+        final before = maxScroll();
+
+        await waitForAutoGuide(tester);
+        // While it plays the late fields have room to scroll up...
+        expect(maxScroll(), greaterThan(before));
+
+        await tester.tap(skip);
+        await settleGuide(tester);
+
+        // ...and once it is over the form is exactly its own length again.
+        expect(maxScroll(), before);
+      });
+
+      testWidgets('a tap on the lit field does nothing: no keyboard, no step', (
+        tester,
+      ) async {
+        await openForNewMember(tester);
+        await waitForAutoGuide(tester);
+
+        await tester.tapAt(
+          tester.getCenter(find.widgetWithText(AuthTextField, 'Merek & Model')),
+        );
+        await settleGuide(tester);
+
+        final anyFieldFocused = tester
+            .widgetList<EditableText>(find.byType(EditableText))
+            .any((field) => field.focusNode.hasFocus);
+        expect(anyFieldFocused, isFalse);
+        expect(find.text('1 dari 7'), findsOneWidget);
+      });
+    });
+
+    group('remembering it', () {
+      final key = FieldGuideSeen.keyFor(FieldGuideId.addBike);
+
+      testWidgets('opening it is not enough to count as seen', (tester) async {
+        final prefs = await openForNewMember(tester);
+
+        await waitForAutoGuide(tester);
+
+        expect(prefs.getBool(key), isNull);
+      });
+
+      testWidgets('Selesai marks it seen and closes it', (tester) async {
+        final prefs = await openForNewMember(tester);
+        await waitForAutoGuide(tester);
+
+        for (var i = 0; i < fields.length - 1; i++) {
+          await pressNext(tester);
+        }
+        await pressNext(tester);
+
+        expect(card, findsNothing);
+        expect(prefs.getBool(key), isTrue);
+      });
+
+      testWidgets('Lewati marks it seen and closes it', (tester) async {
+        final prefs = await openForNewMember(tester);
+        await waitForAutoGuide(tester);
+        await pressNext(tester);
+
+        await tester.tap(skip);
+        await tester.pumpAndSettle();
+
+        expect(card, findsNothing);
+        expect(prefs.getBool(key), isTrue);
+      });
+
+      testWidgets('leaving the page halfway removes it and keeps it unseen', (
+        tester,
+      ) async {
+        final prefs = await openForNewMember(tester);
+        await waitForAutoGuide(tester);
+        await pressNext(tester);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        expect(find.text('my-bikes'), findsOneWidget);
+        expect(card, findsNothing);
+        expect(find.text('Lewati'), findsNothing);
+        // So it comes round again the next time they open the page.
+        expect(prefs.getBool(key), isNull);
+      });
+
+      testWidgets('a replay marks it seen too, at the end', (tester) async {
+        final prefs = await prefsWith({});
+        await openAddBikePage(tester, guidePrefs: prefs);
+
+        await tester.tap(helpButton);
+        await settleGuide(tester);
+        await tester.tap(skip);
+        await tester.pumpAndSettle();
+
+        expect(prefs.getBool(key), isTrue);
+      });
+    });
+
+    group('it never loses the field or the card off the screen', () {
+      // A phone, a small phone and the test default: the form is longer than
+      // all of them, so the later fields start below the fold.
+      for (final size in const [
+        Size(412, 915),
+        Size(360, 640),
+        Size(800, 600),
+      ]) {
+        testWidgets('${size.width.toInt()} x ${size.height.toInt()}', (
+          tester,
+        ) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await openForNewMember(tester);
+          await waitForAutoGuide(tester);
+          final screen = Offset.zero & size;
+
+          for (var i = 0; i < fields.length; i++) {
+            final label = fields[i].$1;
+            final field = tester.getRect(lit(label));
+            final cardRect = tester.getRect(card);
+
+            expect(
+              screen.contains(field.topLeft),
+              isTrue,
+              reason: '$label top-left is on screen: $field',
+            );
+            expect(
+              screen.contains(field.bottomRight),
+              isTrue,
+              reason: '$label bottom-right is on screen: $field',
+            );
+            expect(
+              screen.contains(cardRect.topLeft),
+              isTrue,
+              reason: 'card for $label top-left is on screen: $cardRect',
+            );
+            expect(
+              screen.contains(cardRect.bottomRight),
+              isTrue,
+              reason: 'card for $label bottom-right is on screen: $cardRect',
+            );
+            expect(
+              cardRect.overlaps(field),
+              isFalse,
+              reason: 'card for $label does not cover it: $cardRect vs $field',
+            );
+
+            if (i < fields.length - 1) await pressNext(tester);
+          }
+        });
+      }
+    });
+  });
+
   group('the confirmation', () {
     final saved = find.text('Motor berhasil ditambah!');
     final offer = find.text('Motor tersimpan. Buat booking sekarang?');
@@ -299,30 +803,18 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      testWidgets('asks for a workshop first when none is chosen', (
+      testWidgets('opens the booking form straight away, as the booking step', (
         tester,
       ) async {
         await addBikeAndTapOffer(tester);
 
-        expect(find.text('workshop-list'), findsOneWidget);
-        expect(find.text('booking-form'), findsNothing);
-      });
-
-      testWidgets('then opens the booking form, as the booking step', (
-        tester,
-      ) async {
-        await addBikeAndTapOffer(tester);
-
-        await tester.tap(find.text('Pilih bengkel'));
-        await tester.pumpAndSettle();
-
+        // No workshop list in front of it: the form picks a workshop itself.
+        expect(find.text('workshop-list'), findsNothing);
         expect(find.text('booking-form'), findsOneWidget);
         expect(bookingExtra, FirstTaskStep.createBooking);
-        // The pick is the app-wide one, so the form shows it.
-        expect(selectedWorkshop.state, workshop);
       });
 
-      testWidgets('goes straight to the form when a workshop is chosen', (
+      testWidgets('does the same with a workshop already chosen', (
         tester,
       ) async {
         selectedWorkshop.select(workshop);
@@ -332,9 +824,16 @@ void main() {
         expect(find.text('workshop-list'), findsNothing);
         expect(find.text('booking-form'), findsOneWidget);
         expect(bookingExtra, FirstTaskStep.createBooking);
+        expect(selectedWorkshop.state, workshop);
       });
 
-      testWidgets('opens no form if the member backs out of the workshops', (
+      testWidgets('leaves the workshop choice to the form', (tester) async {
+        await addBikeAndTapOffer(tester);
+
+        expect(selectedWorkshop.state, isNull);
+      });
+
+      testWidgets('back from the form returns to where the member was', (
         tester,
       ) async {
         await addBikeAndTapOffer(tester);
@@ -343,7 +842,6 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('booking-form'), findsNothing);
-        expect(selectedWorkshop.state, isNull);
         expect(find.text('my-bikes'), findsOneWidget);
       });
     });

@@ -62,4 +62,14 @@ class AppConstants {
   static const bool simulateNewMember = bool.fromEnvironment(
     'SIMULATE_NEW_MEMBER',
   );
+
+  /// From `--dart-define=SIMULATE_FIRST_BOOKING=true`: makes an account that
+  /// already has its bikes look like a member who has not booked yet, so Home's
+  /// "Buat booking pertama Anda" card and the guided booking that follows it
+  /// can be seen at every launch without a second account. The bikes stay real.
+  /// A debug/profile aid only: a release build ignores it — see
+  /// SimulatedFirstBooking.
+  static const bool simulateFirstBooking = bool.fromEnvironment(
+    'SIMULATE_FIRST_BOOKING',
+  );
 }

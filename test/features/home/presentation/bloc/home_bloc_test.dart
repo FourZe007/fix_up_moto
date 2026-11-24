@@ -4,7 +4,9 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:fix_up_moto/core/debug/simulated_first_booking.dart';
 import 'package:fix_up_moto/core/debug/simulated_new_member.dart';
 import 'package:fix_up_moto/core/error/failures.dart';
 import 'package:fix_up_moto/features/home/domain/entities/dashboard_stats_entity.dart';
@@ -12,6 +14,7 @@ import 'package:fix_up_moto/features/home/domain/usecases/get_dashboard_stats_us
 import 'package:fix_up_moto/features/home/presentation/bloc/home_bloc.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_event.dart';
 import 'package:fix_up_moto/features/home/presentation/bloc/home_state.dart';
+import 'package:fix_up_moto/features/home/presentation/widgets/first_booking_guide.dart';
 
 class MockGetDashboardStats extends Mock implements GetDashboardStatsUseCase {}
 
@@ -241,6 +244,103 @@ void main() {
         await bloc.close();
       },
     );
+  });
+
+  group('the debug first-booking simulation', () {
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+    });
+
+    HomeBloc buildSimulated() => HomeBloc(
+      getDashboardStats: getStats,
+      simulateFirstBooking: SimulatedFirstBooking(prefs),
+    );
+
+    test('leaves the real stats alone, bikes included', () async {
+      when(() => getStats()).thenAnswer((_) async => const Right(tStats));
+      final bloc = buildSimulated();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect(bloc.state, const HomeLoaded(tStats));
+      await bloc.close();
+    });
+
+    test('has the member noted as not booked yet by the time the stats are '
+        'shown', () async {
+      when(() => getStats()).thenAnswer((_) async => const Right(tStats));
+      final bloc = buildSimulated();
+      final seenPending = <bool>[];
+      final sub = bloc.stream.listen((state) {
+        if (state is HomeLoaded) {
+          seenPending.add(FirstBookingGuide.isPending(prefs, 'M-001'));
+        }
+      });
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect(seenPending, [true]);
+      await sub.cancel();
+      await bloc.close();
+    });
+
+    test('does not note them again on a reload after they booked', () async {
+      when(() => getStats()).thenAnswer((_) async => const Right(tStats));
+      final bloc = buildSimulated();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+      await FirstBookingGuide.settle(prefs, 'M-001');
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect(FirstBookingGuide.isPending(prefs, 'M-001'), isFalse);
+      await bloc.close();
+    });
+
+    test('notes them again after signing out and back in', () async {
+      when(() => getStats()).thenAnswer((_) async => const Right(tStats));
+      final bloc = buildSimulated();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+      await FirstBookingGuide.settle(prefs, 'M-001');
+      bloc.add(const HomeResetRequested());
+      await pumpEventQueue();
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect(FirstBookingGuide.isPending(prefs, 'M-001'), isTrue);
+      await bloc.close();
+    });
+
+    test('a failed load notes nobody', () async {
+      when(() => getStats()).thenAnswer((_) async => const Left(tFailure));
+      final bloc = buildSimulated();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect(bloc.state, const HomeError('Server down'));
+      expect(FirstBookingGuide.isPending(prefs, 'M-001'), isFalse);
+      await bloc.close();
+    });
+
+    test('is not there unless it was handed in: nothing is noted', () async {
+      when(() => getStats()).thenAnswer((_) async => const Right(tStats));
+      final bloc = build();
+
+      bloc.add(const HomeStatsRequested());
+      await pumpEventQueue();
+
+      expect(FirstBookingGuide.isPending(prefs, 'M-001'), isFalse);
+      await bloc.close();
+    });
   });
 
   group('overlapping requests', () {

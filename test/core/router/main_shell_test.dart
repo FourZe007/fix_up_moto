@@ -60,6 +60,7 @@ Future<Map<String, int>> pumpShell(
   SharedPreferences? prefs,
   AppTourHandoff? Function()? tourHandoff,
   int? Function()? tourBikeCount,
+  bool Function()? tourBookingPending,
 }) async {
   final builds = <String, int>{};
   bottomPadding.clear();
@@ -82,6 +83,7 @@ Future<Map<String, int>> pumpShell(
           prefs: prefs,
           tourHandoff: tourHandoff,
           tourBikeCount: tourBikeCount,
+          tourBookingPending: tourBookingPending,
         ),
         navigatorContainerBuilder: (context, shell, branches) =>
             buildTabContainer(
@@ -221,6 +223,24 @@ void main() {
 
       expect(card, findsOneWidget);
     });
+
+    testWidgets(
+      'plays by itself for a member with a bike who still has to book',
+      (tester) async {
+        final prefs = await prefsWith({});
+        await pumpShell(
+          tester,
+          prefs: prefs,
+          tourBikeCount: () => 2,
+          tourBookingPending: () => true,
+        );
+
+        await waitForTour(tester);
+
+        expect(card, findsOneWidget);
+        expect(AppTourSeen.read(prefs), isFalse);
+      },
+    );
 
     testWidgets('does not play by itself for a member who has a bike', (
       tester,
