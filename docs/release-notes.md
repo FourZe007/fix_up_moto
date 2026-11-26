@@ -17,6 +17,7 @@ Yang baru di versi 2.3.0:
 • Bengkel terdekat dipilih otomatis saat booking, dan bisa diganti.
 • Daftar bengkel urut dari yang terdekat, dengan perkiraan jarak.
 • Izin lokasi tidak wajib.
+• Daftar dengan Google: nomor telepon kini tidak wajib.
 • Pengguna baru dipandu menambah motor dan booking pertama.
 • Tombol "?" membantu mengisi Tambah Motor dan Book Servis.
 • "Panduan Aplikasi" dan "Buku Panduan" ada di tab Saya.
@@ -31,6 +32,7 @@ Yang baru di versi 2.3.0:
 • Booking lebih ringkas: formulir langsung terbuka dan bengkel terdekat dipilih otomatis. Periksa dulu bengkelnya, lalu ganti jika perlu.
 • Daftar bengkel kini diurutkan dari yang terdekat, lengkap dengan perkiraan jaraknya.
 • Izin lokasi tidak wajib. Tanpa lokasi, Anda tetap bisa memilih bengkel sendiri.
+• Daftar dengan Google kini lebih mudah: nomor telepon tidak wajib diisi.
 • Pengguna baru? Tur singkat aplikasi dan beberapa petunjuk membantu Anda menambah motor pertama dan membuat booking pertama.
 • Perlu bantuan mengisi data? Ketuk tombol "?" di halaman Tambah Motor atau Book Servis.
 • Di tab Saya: ketuk "Panduan Aplikasi" untuk mengulang tur, atau "Buku Panduan" untuk membaca petunjuk memakai aplikasi.

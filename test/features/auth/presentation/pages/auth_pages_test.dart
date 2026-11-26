@@ -834,7 +834,8 @@ void main() {
       email: 'budi@gmail.com',
     );
 
-    Future<({MockAuthBloc bloc, OtpStandIn otp})> fillAndSubmit(
+    /// The page on its own, with a stand-in for the code page. Nothing typed.
+    Future<({MockAuthBloc bloc, OtpStandIn otp})> pumpProfile(
       WidgetTester tester,
     ) async {
       final bloc = unauthenticatedBloc();
@@ -857,10 +858,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      return (bloc: bloc, otp: otp);
+    }
 
+    Future<({MockAuthBloc bloc, OtpStandIn otp})> fillAndSubmit(
+      WidgetTester tester,
+    ) async {
+      final page = await pumpProfile(tester);
       await tester.enterText(find.byType(TextFormField).at(1), '081234567890');
       await tapText(tester, 'Finish setting up');
-      return (bloc: bloc, otp: otp);
+      return page;
     }
 
     testWidgets('asks for a code by email, at the Google address, before '
@@ -897,33 +904,73 @@ void main() {
       expect(find.byType(CompleteGoogleProfilePage), findsOneWidget);
     });
 
+    testWidgets('labels the phone number as optional and does not say it is '
+        'needed', (tester) async {
+      await pumpProfile(tester);
+
+      expect(find.text('Phone number (optional)'), findsOneWidget);
+      expect(find.textContaining('We need your phone number'), findsNothing);
+      expect(
+        find.textContaining('Your phone number is optional'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('finishes without a phone number', (tester) async {
+      final (:bloc, :otp) = await pumpProfile(tester);
+
+      await tapText(tester, 'Finish setting up');
+
+      expect(find.text('Phone number is required'), findsNothing);
+      expect(otp.opened, hasLength(1));
+
+      await tester.tap(OtpStandIn.correct);
+      await tester.pumpAndSettle();
+
+      verify(
+        () => bloc.add(
+          const AuthGoogleAccountSubmitted(
+            name: 'Budi',
+            phone: '',
+            email: 'budi@gmail.com',
+          ),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('treats a phone number of only spaces as left empty', (
+      tester,
+    ) async {
+      final (bloc: _, :otp) = await pumpProfile(tester);
+
+      await tester.enterText(find.byType(TextFormField).at(1), '   ');
+      await tapText(tester, 'Finish setting up');
+
+      expect(otp.opened, hasLength(1));
+    });
+
+    testWidgets('still rejects a phone number that is typed wrongly', (
+      tester,
+    ) async {
+      final (bloc: _, :otp) = await pumpProfile(tester);
+
+      await tester.enterText(find.byType(TextFormField).at(1), '123');
+      await tapText(tester, 'Finish setting up');
+
+      expect(find.text('Enter a valid phone number'), findsOneWidget);
+      expect(otp.opened, isEmpty);
+    });
+
     testWidgets('does not ask for a code while the form is not valid', (
       tester,
     ) async {
-      final bloc = unauthenticatedBloc();
-      final otp = OtpStandIn();
-      final router = GoRouter(
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (_, _) =>
-                const CompleteGoogleProfilePage(identity: identity),
-          ),
-          otp.route,
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        BlocProvider<AuthBloc>.value(
-          value: bloc,
-          child: MaterialApp.router(routerConfig: router),
-        ),
-      );
-      await tester.pumpAndSettle();
+      final (bloc: _, :otp) = await pumpProfile(tester);
 
-      // No phone number typed.
+      // The name is still required.
+      await tester.enterText(find.byType(TextFormField).at(0), '');
       await tapText(tester, 'Finish setting up');
 
+      expect(find.text('Name is required'), findsOneWidget);
       expect(otp.opened, isEmpty);
     });
   });

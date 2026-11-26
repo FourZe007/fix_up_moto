@@ -13,8 +13,10 @@ import 'package:fix_up_moto/features/auth/presentation/widgets/auth_text_field.d
 import 'package:go_router/go_router.dart';
 
 /// Collects the last details needed to turn a Google account into a real
-/// session: a name (prefilled from Google, editable) and a phone number
-/// (required — the backend has no field for a Google identity, only a phone).
+/// session: a name (prefilled from Google, editable, required) and an optional
+/// phone number. The number is not sent to the server: a Google account signs
+/// in by its email, which registration also puts in the backend's `PhoneNo`
+/// box (see `AuthRemoteDataSourceImpl.submitGoogleAccount`).
 ///
 /// Email is shown but locked: Google already verified it, so it isn't
 /// collected as free text the way the phone number is.
@@ -112,7 +114,8 @@ class _CompleteGoogleProfilePageState extends State<CompleteGoogleProfilePage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'We need your phone number to finish setting up your account.',
+                      'Check your name, then finish setting up your account. '
+                      'Your phone number is optional.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 40),
@@ -125,13 +128,14 @@ class _CompleteGoogleProfilePageState extends State<CompleteGoogleProfilePage> {
                     ),
                     const SizedBox(height: 16),
 
+                    // Optional, but still checked when something is typed.
                     AuthTextField(
                       controller: _phoneController,
-                      label: 'Phone number',
+                      label: 'Phone number (optional)',
                       hint: '081234567890',
                       prefixIcon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
-                      validator: Validators.phone,
+                      validator: Validators.optional(Validators.phone),
                     ),
                     const SizedBox(height: 16),
 

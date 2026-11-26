@@ -216,7 +216,9 @@ class _ProfileBody extends StatelessWidget {
                             ),
                           ),
                           if (_hasValue(stats.phoneNo) &&
-                              !stats.phoneNo.contains('gmail.com'))
+                              !stats.phoneNo.contains('gmail.com') &&
+                              !stats.phoneNo.contains('.com') &&
+                              !stats.phoneNo.contains('.co.id'))
                             Text('0${stats.phoneNo}', style: contactStyle),
                           if (_hasValue(stats.emailAddress))
                             Text(stats.emailAddress, style: contactStyle),

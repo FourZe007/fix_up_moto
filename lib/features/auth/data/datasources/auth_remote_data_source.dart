@@ -1,11 +1,13 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:fix_up_moto/core/constants/api_constants.dart';
 import 'package:fix_up_moto/core/error/exceptions.dart';
 import 'package:fix_up_moto/core/helpers/google_password.dart';
+import 'package:fix_up_moto/core/helpers/google_sign_in_failure.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
 import 'package:fix_up_moto/core/network/result_message_model.dart';
 import 'package:fix_up_moto/core/network/samp_envelope.dart';
@@ -244,8 +246,24 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       account = await GoogleSignIn.instance.authenticate();
       log('$account');
     } on GoogleSignInException catch (e) {
+      // `log` only reaches DevTools. This line also shows in the console and in
+      // logcat (debug and profile builds, never release), and carries Google's
+      // own wording, which is all there is to explain a failure here.
+      if (!kReleaseMode) {
+        debugPrint('[google sign-in] ${e.code.name}: ${e.description}');
+      }
+
       // Dismissing the sheet is a choice, not a failure.
       if (e.code == GoogleSignInExceptionCode.canceled) {
+        // But Android also says "canceled" when Google rejects the app after an
+        // account was picked, and staying silent then looks like a dead button.
+        if (isDisguisedGoogleSignInFailure(e.description)) {
+          throw const ServerException(
+            message:
+                'Masuk dengan Google gagal. Silakan coba lagi nanti atau '
+                'gunakan nomor telepon.',
+          );
+        }
         log('GoogleSignInExceptionCode canceled');
         throw const GoogleSignInCancelledException();
       }
