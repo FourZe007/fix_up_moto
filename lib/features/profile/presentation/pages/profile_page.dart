@@ -375,6 +375,22 @@ class _ProfileBody extends StatelessWidget {
                   ),
                   onPressed: tour.start,
                 ),
+              // The written guide, kept outside the app so it can be corrected
+              // without a release.
+              ActionRow(
+                key: const Key('guide-book'),
+                name: 'Buku Panduan',
+                icon: Icon(
+                  Icons.auto_stories_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                onPressed: () => openExternalLink(
+                  context,
+                  AppConstants.guideBookUrl,
+                  failureMessage: 'Buku Panduan tidak dapat dibuka',
+                ),
+              ),
               ActionRow(
                 key: const Key('whatsapp-service'),
                 name: 'Layanan Whatsapp',
@@ -469,7 +485,7 @@ class _ProfileBody extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          Center(child: Text('Versi Aplikasi 2.2.0')),
+          Center(child: Text('Versi Aplikasi 2.3.0')),
 
           // const Divider(),
 

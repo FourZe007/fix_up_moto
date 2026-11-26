@@ -717,6 +717,95 @@ void main() {
     });
   });
 
+  group('the Buku Panduan row', () {
+    final row = find.byKey(const Key('guide-book'));
+
+    /// The row sits in the FixUp Moto group, below the fold on the default
+    /// test screen.
+    Future<void> showRow(WidgetTester tester) async {
+      await tester.scrollUntilVisible(
+        row,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> pressRow(WidgetTester tester) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('is there, with its label, a book and a chevron', (
+      tester,
+    ) async {
+      await pumpProfile(tester);
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      expect(
+        find.descendant(of: row, matching: find.text('Buku Panduan')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byIcon(Icons.auto_stories_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('sits between Panduan Aplikasi and Layanan Whatsapp', (
+      tester,
+    ) async {
+      await pumpProfile(tester, tourStart: () => true);
+      await tester.pumpAndSettle();
+      await showRow(tester);
+
+      final guide = tester.getTopLeft(row).dy;
+      expect(
+        guide,
+        greaterThan(tester.getTopLeft(find.byKey(const Key('app-tour'))).dy),
+      );
+      expect(guide, lessThan(tester.getTopLeft(whatsappRow).dy));
+    });
+
+    testWidgets('pressing it opens the guide outside the app', (tester) async {
+      final calls = mockLauncher(opens: true);
+
+      await pressRow(tester);
+
+      expect(calls, hasLength(1));
+      expect(calls.single.method, 'launch');
+      final arguments = calls.single.arguments as Map;
+      // Spelled out, so a changed or mistyped address is noticed here.
+      expect(
+        arguments['url'],
+        'https://drive.google.com/file/d/'
+        '1SgGff0VENyUvfDvnx9-pvE3A_Tgro-dS/view?usp=sharing',
+      );
+      expect(arguments['useWebView'], isFalse);
+      expect(find.text('Buku Panduan tidak dapat dibuka'), findsNothing);
+    });
+
+    testWidgets('says so when nothing can open the link', (tester) async {
+      mockLauncher(opens: false);
+
+      await pressRow(tester);
+
+      expect(find.text('Buku Panduan tidak dapat dibuka'), findsOneWidget);
+    });
+  });
+
   group('the Kebijakan Privasi row', () {
     final row = find.byKey(const Key('privacy-policy'));
 

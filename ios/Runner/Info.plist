@@ -44,7 +44,7 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>FixUp Moto memakai lokasi Anda hanya untuk memilih bengkel terdekat saat Anda membuat booking. Lokasi tidak disimpan.</string>
+	<string>FixUp Moto memakai lokasi Anda hanya untuk mencari bengkel terdekat. Lokasi tidak disimpan.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>FixUp Moto needs access to your photo library to attach a photo of your bike.</string>
 	<key>UIApplicationSceneManifest</key>

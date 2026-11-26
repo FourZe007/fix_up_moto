@@ -1,7 +1,7 @@
 name: fix_up_moto
 description: "Motorcycle repair and service booking application."
 publish_to: 'none'
-version: 2.2.0+20
+version: 2.3.0+21
 
 environment:
   sdk: ^3.10.4
@@ -80,9 +80,9 @@ dependencies:
   # image_picker: gallery-only photo selection on Add Bike — pickImage is
   # called with source: ImageSource.gallery, never .camera.
   image_picker: ^1.2.3
-  # geolocator: where the member is, only to choose the nearest workshop as the
-  # default for a booking (core/services/location_service.dart). Coarse,
-  # while-in-use location; the position is compared once, never stored or sent.
+  # geolocator: where the member is, only to find the nearest workshops (the
+  # booking default and the workshop list's order; core/services/
+  # location_service.dart). Coarse, while-in-use location; never stored or sent.
   geolocator: ^14.1.2
 
   # ── UI ────────────────────────────────────────────────────────────────────
@@ -137,22 +137,29 @@ dev_dependencies:
   #   dart run flutter_launcher_icons
   flutter_launcher_icons: ^0.14.4
 
-# Launcher icon: the red FixUp Moto logo on Android (adaptive) and iOS only.
+# Launcher icons for Android (adaptive) and iOS only, each with its own artwork.
 # Web, Windows and macOS keep Flutter's default icons — this is a phone app.
 flutter_launcher_icons:
-  # The 1600x1600 logo: white text on solid red, no transparency.
+  # iOS: the 1600x1600 FixUp Moto logo, white text on solid red.
   image_path: "assets/images/fixupmoto_logo.jpg"
+  # Android: the "My Fixup Call" icon (1082x1082), the lower part of
+  # new_android_logo.jpeg only (headset and "My Fixup Call"; the FiXUP MOTO
+  # wordmark and tagline above are left out), centred, copied 1:1, with its
+  # slightly uneven red made one flat colour.
+  # It sits outside assets/images/ so it isn't bundled into the app.
+  image_path_android: "assets/launcher/android_icon.png"
 
   android: "ic_launcher"
   min_sdk_android: 21
-  # Adaptive icon (Android 8+): a red plate with the logo on it. #FE0000 is the
-  # red the logo file itself is filled with, so the two read as one. The logo is
-  # pulled in by the inset so the wordmark stays inside the circle or rounded
-  # square the phone's launcher cuts the icon to, instead of losing the ends
-  # of "MOTO".
-  adaptive_icon_background: "#FE0000"
-  adaptive_icon_foreground: "assets/images/fixupmoto_logo.jpg"
-  adaptive_icon_foreground_inset: 16
+  # Adaptive icon (Android 8+): a red plate with the artwork on it. #F50302 is
+  # the artwork's own red, so the two read as one. The artwork is pulled in by
+  # the inset so all of it stays inside the circle or rounded square the
+  # phone's launcher cuts the icon to: at 20 it reaches 32.4dp from the centre
+  # (safe zone 33dp). The canvas size is chosen for this inset, so change the
+  # two together.
+  adaptive_icon_background: "#F50302"
+  adaptive_icon_foreground: "assets/launcher/android_icon.png"
+  adaptive_icon_foreground_inset: 20
 
   ios: true
   # The App Store rejects an icon with transparency.

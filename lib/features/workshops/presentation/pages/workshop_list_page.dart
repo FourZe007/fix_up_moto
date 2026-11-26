@@ -1,6 +1,8 @@
 import 'package:fix_up_moto/core/widgets/app_spinner.dart';
 import 'package:fix_up_moto/core/helpers/external_link.dart';
+import 'package:fix_up_moto/core/helpers/geo.dart';
 import 'package:fix_up_moto/core/helpers/phone_number.dart';
+import 'package:fix_up_moto/core/services/location_service.dart';
 import 'package:fix_up_moto/core/theme/app_colors.dart';
 import 'package:fix_up_moto/core/theme/app_theme.dart';
 import 'package:fix_up_moto/core/widgets/light_surface_scope.dart';
@@ -11,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:fix_up_moto/core/di/injection_container.dart';
 import 'package:fix_up_moto/features/workshops/domain/entities/workshop_entity.dart';
+import 'package:fix_up_moto/features/workshops/domain/nearest_workshop.dart';
 import 'package:fix_up_moto/features/workshops/presentation/bloc/workshops_bloc.dart';
 import 'package:fix_up_moto/features/workshops/presentation/bloc/workshops_event.dart';
 import 'package:fix_up_moto/features/workshops/presentation/bloc/workshops_state.dart';
@@ -18,6 +21,13 @@ import 'package:fix_up_moto/features/workshops/presentation/bloc/workshops_state
 /// Lets the member pick which workshop/dealer to use.
 ///
 /// Sourced from `Master` (`Jenis: "BRANCHSHOP"`) — see [WorkshopsRemoteDataSource].
+///
+/// **Listed nearest first**, each card saying how far it is, closed ones at the
+/// bottom (see [sortByDistance]). The page asks [LocationService] where the
+/// member is and shows the list only once that is answered, so a card never
+/// moves under a finger. Without a position (off, refused, too slow) the list
+/// keeps the server's order, says nothing about distance, and says in a line
+/// above it that the position was not found.
 class WorkshopListPage extends StatelessWidget {
   const WorkshopListPage({super.key});
 
@@ -40,6 +50,55 @@ class _WorkshopListView extends StatefulWidget {
 class _WorkshopListViewState extends State<_WorkshopListView> {
   final _searchController = TextEditingController();
   String _query = '';
+
+  /// How long to wait for the member's position before listing without it.
+  ///
+  /// A safety net, as on Create Booking: the location service limits the fix
+  /// itself, but the wait also includes the member reading the system's
+  /// location prompt.
+  static const _locationWait = Duration(seconds: 30);
+
+  /// Under the spinner: which of the two waits this is.
+  static const _loadingText = 'Memuat...';
+  static const _findingNearestText =
+      'Mencari bengkel terdekat dari lokasi Anda...';
+
+  /// Where the member is, to order the list. Null while unknown. Held only
+  /// while the page is open.
+  GeoPoint? _here;
+
+  /// True until the position has been answered, with a point or without one.
+  bool _locating = true;
+
+  /// Which lookup is the latest, so an earlier one that answers late is ignored.
+  int _lookup = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _locate();
+  }
+
+  Future<void> _locate() async {
+    final lookup = ++_lookup;
+    final here = await sl<LocationService>().currentPosition().timeout(
+      _locationWait,
+      onTimeout: () => null,
+    );
+    // The page may be gone, or the list reloaded since.
+    if (!mounted || lookup != _lookup) return;
+    setState(() {
+      _here = here;
+      _locating = false;
+    });
+  }
+
+  /// Pull-to-refresh and Retry: the list again, and where the member is now.
+  void _reload() {
+    context.read<WorkshopsBloc>().add(const WorkshopsRequested());
+    setState(() => _locating = true);
+    _locate();
+  }
 
   @override
   void dispose() {
@@ -114,14 +173,18 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
                   child: BlocBuilder<WorkshopsBloc, WorkshopsState>(
                     builder: (context, state) {
                       return switch (state) {
-                        WorkshopsInitial() || WorkshopsLoading() =>
-                          const Center(child: AppSpinner()),
+                        // The list itself is still coming from the server.
+                        WorkshopsInitial() ||
+                        WorkshopsLoading() => const _LoadingView(_loadingText),
                         WorkshopsError(:final message) => _ErrorView(
                           message: message,
-                          onRetry: () => context.read<WorkshopsBloc>().add(
-                            const WorkshopsRequested(),
-                          ),
+                          onRetry: _reload,
                         ),
+                        // The list has arrived and only its order is waited
+                        // for. (An empty one has nothing to put in order.)
+                        WorkshopsLoaded(:final workshops)
+                            when _locating && workshops.isNotEmpty =>
+                          const _LoadingView(_findingNearestText),
                         WorkshopsLoaded(:final workshops) => _buildList(
                           context,
                           workshops,
@@ -139,7 +202,7 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
   }
 
   Widget _buildList(BuildContext context, List<WorkshopEntity> workshops) {
-    final filtered = _filter(workshops);
+    final filtered = _filter(sortByDistance(workshops, _here));
 
     if (workshops.isEmpty) {
       return const Center(child: Text('No workshops available'));
@@ -156,17 +219,83 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
       );
     }
 
-    return RefreshIndicator.adaptive(
-      onRefresh: () async =>
-          context.read<WorkshopsBloc>().add(const WorkshopsRequested()),
-      child: ListView.builder(
-        // Horizontal inset comes only from Card's own theme margin (16px) —
-        // adding it here too would double it, leaving cards narrower than
-        // the search bar above, which has 16px padding of its own.
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: filtered.length,
-        itemBuilder: (context, index) =>
-            _WorkshopCard(workshop: filtered[index]),
+    return Column(
+      children: [
+        // This is only built once the lookup is over, so no usable position
+        // here means it failed: say why the list is not nearest first.
+        if (!(_here?.isValid ?? false)) const _NoLocationNotice(),
+        Expanded(
+          child: RefreshIndicator.adaptive(
+            onRefresh: () async => _reload(),
+            child: ListView.builder(
+              // Horizontal inset comes only from Card's own theme margin
+              // (16px) — adding it here too would double it, leaving cards
+              // narrower than the search bar above, which has 16px padding of
+              // its own.
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) => _WorkshopCard(
+                workshop: filtered[index],
+                distanceKm: workshopDistanceKm(filtered[index], _here),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Above the list when the member's position could not be found (off, refused,
+/// too slow): why the list is in the server's order, with no distances.
+class _NoLocationNotice extends StatelessWidget {
+  const _NoLocationNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // In line with the cards' own 16px inset.
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Row(
+        children: [
+          const Icon(Icons.location_off_outlined, size: 18),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Lokasi Anda gagal ditemukan',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The spinner, with a line under it saying what is being waited for. One
+/// widget for every wait, so the spinner keeps turning when only the line
+/// changes.
+class _LoadingView extends StatelessWidget {
+  final String message;
+  const _LoadingView(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSpinner(),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -174,7 +303,16 @@ class _WorkshopListViewState extends State<_WorkshopListView> {
 
 class _WorkshopCard extends StatelessWidget {
   final WorkshopEntity workshop;
-  const _WorkshopCard({required this.workshop});
+
+  /// Straight-line distance from the member, or null if unknown.
+  final double? distanceKm;
+  const _WorkshopCard({required this.workshop, this.distanceKm});
+
+  /// "± 2,4 km": approximate on purpose (a straight line from an approximate
+  /// position), with the comma Bahasa uses for decimals.
+  static String _distanceLabel(double km) => km < 0.1
+      ? '< 0,1 km'
+      : '± ${km.toStringAsFixed(1).replaceAll('.', ',')} km';
 
   /// Opens a WhatsApp chat with the workshop's number. WhatsApp rather than a
   /// phone call: the workshops answer on WhatsApp, and a chat leaves a record.
@@ -261,6 +399,22 @@ class _WorkshopCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (distanceKm case final km?) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.near_me_outlined, size: 18),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _distanceLabel(km),
+                        key: Key('workshop-distance-${workshop.id}'),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 6),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

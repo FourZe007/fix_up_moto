@@ -27,6 +27,13 @@ class AppConstants {
   /// it is not.
   static const String whatsappServiceUrl = 'https://wa.me/6285179798961';
 
+  /// The members' guide book: a PDF on Google Drive that anyone with the link
+  /// can view. To change the guide without releasing the app, upload the new
+  /// PDF as a new version of the same Drive file (Manage versions), which keeps
+  /// this address. A different file would need a new app release.
+  static const String guideBookUrl =
+      'https://drive.google.com/file/d/1SgGff0VENyUvfDvnx9-pvE3A_Tgro-dS/view?usp=sharing';
+
   /// FixUp Moto's public pages, shown as the Welcome screen's "Ikuti kami"
   /// icons. Empty until the real links are set (full https:// addresses): an
   /// empty one is hidden in a release build, and shown as a placeholder in

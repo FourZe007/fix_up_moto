@@ -2,9 +2,10 @@ import 'package:fix_up_moto/core/helpers/geo.dart';
 
 /// Where the member is right now, as far as the app is allowed to know.
 ///
-/// Used for one thing: choosing the nearest workshop as the default for a
-/// booking. The position is compared once and thrown away: never stored, never
-/// logged, never sent to a server.
+/// Used for one thing, finding the nearest workshops: the default for a booking
+/// and the order of the workshop list (which also shows how far each one is).
+/// The position is only held while the page that asked is working with it:
+/// never stored, never logged, never sent to a server.
 ///
 /// **The contract, which every implementation keeps:**
 /// - [currentPosition] never throws. Location switched off, permission refused,

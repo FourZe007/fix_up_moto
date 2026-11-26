@@ -109,6 +109,122 @@ void main() {
     });
   });
 
+  group('workshopDistanceKm', () {
+    test('is the straight line between the member and the workshop', () {
+      expect(
+        workshopDistanceKm(darmo, nearDarmo),
+        distanceKm(nearDarmo, GeoPoint(darmo.lat, darmo.lng)),
+      );
+    });
+
+    test('is null when either end is unknown', () {
+      expect(workshopDistanceKm(darmo, null), isNull);
+      expect(workshopDistanceKm(darmo, const GeoPoint(0, 0)), isNull);
+      expect(workshopDistanceKm(workshop('KOSONG', 0, 0), nearDarmo), isNull);
+      expect(workshopDistanceKm(workshop('RUSAK', 200, 10), nearDarmo), isNull);
+    });
+  });
+
+  group('sortByDistance', () {
+    // As the server might send them: in no useful order.
+    final all = [kutisari, darmo, gedangan, malang];
+
+    List<String> names(List<WorkshopEntity> workshops) => [
+      for (final w in workshops) w.shop,
+    ];
+
+    test('puts the nearest first and the furthest last', () {
+      expect(sortByDistance(all, nearGedangan), [
+        gedangan,
+        kutisari,
+        darmo,
+        malang,
+      ]);
+      expect(sortByDistance(all, inMalang).first, malang);
+      expect(sortByDistance(all.reversed.toList(), nearGedangan), [
+        gedangan,
+        kutisari,
+        darmo,
+        malang,
+      ]);
+    });
+
+    test('puts closed workshops at the bottom, nearest of them first', () {
+      final shutNear = workshop('TUTUP-DEKAT', -7.38, 112.73, active: false);
+      final shutFar = workshop('TUTUP-JAUH', -7.97, 112.63, active: false);
+
+      expect(
+        names(sortByDistance([shutFar, malang, shutNear, darmo], nearGedangan)),
+        ['DARMO', 'MALANG', 'TUTUP-DEKAT', 'TUTUP-JAUH'],
+      );
+    });
+
+    test('puts one it cannot place after the others of its kind', () {
+      final unknown = workshop('KOSONG', 0, 0);
+      final shut = workshop('TUTUP', -7.38, 112.73, active: false);
+      final shutUnknown = workshop('TUTUP-KOSONG', 0, 0, active: false);
+
+      expect(
+        names(
+          sortByDistance([shutUnknown, unknown, shut, malang], nearGedangan),
+        ),
+        ['MALANG', 'KOSONG', 'TUTUP', 'TUTUP-KOSONG'],
+      );
+    });
+
+    test('keeps the list order for equal places, in a long list too', () {
+      // Long enough that the sort is no longer the kind that happens to keep
+      // equal items in order.
+      final same = [for (var i = 0; i < 50; i++) workshop('$i', -7.3, 112.7)];
+      final unknown = [for (var i = 50; i < 100; i++) workshop('$i', 0, 0)];
+
+      expect(sortByDistance([...same, ...unknown], nearGedangan), [
+        ...same,
+        ...unknown,
+      ]);
+    });
+
+    test('leaves the list as it came without a real position', () {
+      final mixed = [
+        workshop('TUTUP', -7.3, 112.7, active: false),
+        malang,
+        darmo,
+      ];
+
+      for (final from in [
+        null,
+        const GeoPoint(0, 0),
+        const GeoPoint(double.nan, 1),
+      ]) {
+        expect(sortByDistance(mixed, from), mixed);
+      }
+    });
+
+    test('does not change the list it is given', () {
+      final given = List.of(all);
+
+      sortByDistance(given, nearGedangan);
+
+      expect(given, all);
+    });
+
+    test('is empty for an empty list', () {
+      expect(sortByDistance(const [], nearGedangan), isEmpty);
+    });
+
+    test('starts with the workshop a booking defaults to', () {
+      final mixed = [
+        workshop('TUTUP', -7.38, 112.73, active: false),
+        workshop('KOSONG', 0, 0),
+        ...all,
+      ];
+
+      for (final here in [nearGedangan, nearDarmo, inMalang]) {
+        expect(sortByDistance(mixed, here).first, nearestWorkshop(mixed, here));
+      }
+    });
+  });
+
   group('firstActiveWorkshop', () {
     test('is the first one that can be picked', () {
       final closed = workshop('TUTUP', -7.3, 112.7, active: false);

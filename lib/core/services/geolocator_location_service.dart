@@ -111,6 +111,11 @@ class GeolocatorLocationService implements LocationService {
   final LocationGateway _gateway;
 
   /// How long to wait for a fix, once permission is settled.
+  ///
+  /// 8 s leans towards waiting: giving up too soon silently defaults the booking
+  /// to the first workshop in the list instead of the nearest, while waiting only
+  /// delays a default the member can pick by hand meanwhile. Not measured on a
+  /// real phone; the times between the `[location]` lines are how to do that.
   final Duration timeLimit;
 
   /// How much longer than [timeLimit] to wait for the plugin itself to give up
@@ -129,7 +134,7 @@ class GeolocatorLocationService implements LocationService {
 
   GeolocatorLocationService({
     LocationGateway? gateway,
-    this.timeLimit = const Duration(seconds: 4),
+    this.timeLimit = const Duration(seconds: 8),
     this.grace = const Duration(seconds: 2),
   }) : _gateway = gateway ?? const GeolocatorGateway();
 
