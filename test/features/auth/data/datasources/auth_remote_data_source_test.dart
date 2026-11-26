@@ -312,4 +312,141 @@ void main() {
       },
     );
   });
+
+  group('submitGoogleAccount', () {
+    const email = 'budi@gmail.com';
+    const memberId = '0101202400000014';
+
+    Response<dynamic> answer(String path, Map<String, dynamic> body) =>
+        Response<dynamic>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 200,
+          data: body,
+        );
+
+    /// The login record. `Flag` 1 is a real member; 2 means there is none.
+    Map<String, dynamic> member(int flag) => {
+      'Msg': 'Sukses',
+      'Code': '100',
+      'Data': [
+        {
+          'Flag': flag,
+          'Memo': flag == 1 ? 'SUKSES' : 'TIDAK TERDAFTAR',
+          'MemberID': flag == 1 ? memberId : '',
+          'MemberName': flag == 1 ? 'BUDI' : '',
+          'EmailAddress': flag == 1 ? email : '',
+        },
+      ],
+    };
+
+    /// Answers the two logins in turn: the one asking whether the account
+    /// exists, then the one made after registering.
+    void givenLogins(List<Map<String, dynamic>> bodies) {
+      final remaining = [...bodies];
+      when(
+        () => dio.post<dynamic>(
+          ApiConstants.login,
+          data: any<dynamic>(named: 'data'),
+        ),
+      ).thenAnswer(
+        (_) async => answer(ApiConstants.login, remaining.removeAt(0)),
+      );
+    }
+
+    void givenRegistration({required String msg, required String result}) {
+      when(
+        () => dio.post<dynamic>(
+          ApiConstants.modify,
+          data: any<dynamic>(named: 'data'),
+        ),
+      ).thenAnswer(
+        (_) async => answer(ApiConstants.modify, {
+          'Msg': msg,
+          'Code': '100',
+          'Data': [
+            {'ResultMessage': result},
+          ],
+        }),
+      );
+    }
+
+    Future<LoginUserModel> submit() => dataSource.submitGoogleAccount(
+      name: 'Budi',
+      phone: '',
+      email: email,
+    );
+
+    Matcher failsWith(String message) => throwsA(
+      isA<ServerException>().having((e) => e.message, 'message', message),
+    );
+
+    test('registers a new Google account, with the email in the phone number '
+        'box, and signs it in', () async {
+      givenLogins([member(2), member(1)]);
+      givenRegistration(msg: 'Berhasil', result: memberId);
+
+      final user = await submit();
+
+      expect(user.id, memberId);
+      final sent =
+          verify(
+                () => dio.post<dynamic>(
+                  ApiConstants.modify,
+                  data: captureAny<dynamic>(named: 'data'),
+                ),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(sent['TransID'], 'REGISTRATION');
+      expect((sent['Data'] as Map)['PhoneNo'], email);
+      expect((sent['Data'] as Map)['IsGoogle'], '1');
+    });
+
+    test('does not register an account that already exists', () async {
+      givenLogins([member(1)]);
+
+      final user = await submit();
+
+      expect(user.id, memberId);
+      verifyNever(
+        () => dio.post<dynamic>(
+          ApiConstants.modify,
+          data: any<dynamic>(named: 'data'),
+        ),
+      );
+    });
+
+    test("a refused registration fails with the server's reason instead of "
+        'signing in', () async {
+      givenLogins([member(2), member(2)]);
+      givenRegistration(msg: 'Gagal', result: 'EMAIL SUDAH TERDAFTAR');
+
+      await expectLater(submit(), failsWith('EMAIL SUDAH TERDAFTAR'));
+    });
+
+    test('never returns a member whose Flag is not 1', () async {
+      givenLogins([member(2), member(2)]);
+      givenRegistration(msg: 'Berhasil', result: memberId);
+
+      await expectLater(submit(), failsWith('Gagal membuat akun Google'));
+    });
+
+    test('a login that works counts as success even if the registration '
+        'answer is worded differently', () async {
+      givenLogins([member(2), member(1)]);
+      givenRegistration(msg: 'Sukses', result: memberId);
+
+      expect((await submit()).id, memberId);
+    });
+
+    test("when the second login is rejected outright, the server's refusal "
+        'reason is still what is shown', () async {
+      givenLogins([
+        member(2),
+        {'Msg': 'Data tidak ditemukan', 'Code': '100', 'Data': <dynamic>[]},
+      ]);
+      givenRegistration(msg: 'Gagal', result: 'EMAIL SUDAH TERDAFTAR');
+
+      await expectLater(submit(), failsWith('EMAIL SUDAH TERDAFTAR'));
+    });
+  });
 }

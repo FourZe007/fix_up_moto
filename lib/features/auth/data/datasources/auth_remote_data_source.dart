@@ -352,8 +352,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
     // ── Phase 2: register ────────────────────────────────────────────────────
     log('Registering New Account');
+    final Response<dynamic> registration;
     try {
-      await _dio.post(
+      registration = await _dio.post(
         ApiConstants.modify,
         data: {
           'Mode': ModifyMode.create.wireValue,
@@ -374,10 +375,36 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
 
     // ── Phase 3: log in for real ─────────────────────────────────────────────
-    // Deliberately a second call rather than parsing Modify's own response:
-    // Modify's success shape has not been confirmed, while login's has. This
-    // way the resulting LoginUserModel goes through the exact same parsing and
-    // isActive gate as every other login, manual or Google.
-    return login(email, password, isGoogleLogin: '1');
+    // The login, not the registration's answer, decides whether this worked: it
+    // is the same parsing and the same Flag every other login relies on. A
+    // login that finds no member still answers with a record (Flag 2), which
+    // must never be returned as if it were signed in.
+    ServerException? loginError;
+    try {
+      final user = await login(email, password, isGoogleLogin: '1');
+      if (user.isActive) return user;
+    } on ServerException catch (e) {
+      loginError = e;
+    }
+
+    // It did not work. The registration's own answer is the best explanation
+    // when it was a refusal (Modify says so in a 200: see
+    // _requireMemberCreated).
+    throw ServerException(
+      message:
+          _refusalReason(registration) ??
+          loginError?.message ??
+          'Gagal membuat akun Google',
+    );
+  }
+
+  /// What `Modify` gave as its reason for refusing, or null if it did not
+  /// refuse or gave none.
+  String? _refusalReason(Response<dynamic> response) {
+    if (SampEnvelope.message(response)?.toLowerCase() == 'berhasil') {
+      return null;
+    }
+    final reason = _resultMessageOf(response)?.resultMessage.trim() ?? '';
+    return reason.isEmpty ? null : reason;
   }
 }
