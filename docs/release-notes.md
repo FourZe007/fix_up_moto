@@ -8,7 +8,7 @@ Batas karakter: Google Play 500 per bahasa, App Store 4000.
 
 ---
 
-## 2.3.0 (build 21)
+## 2.3.0 (build 22)
 
 ### Google Play (Android)
 

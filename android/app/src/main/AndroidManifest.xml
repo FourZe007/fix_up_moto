@@ -13,6 +13,11 @@
          requested. Asked for in context, when Create Booking opens with no
          workshop chosen or when the workshop list opens. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- The permission above on its own tells Google Play that the app needs
+         location hardware, which hides it, updates included, from devices that
+         have none. The app works without a position (see LocationService), so
+         say it is not required. Keep this line while the permission is here. -->
+    <uses-feature android:name="android.hardware.location" android:required="false"/>
 
     <application
         android:label="FixUp Moto"
